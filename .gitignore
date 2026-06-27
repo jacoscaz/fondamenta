@@ -1,0 +1,10 @@
+dist
+node_modules
+.env
+.keys_file
+packages/*/dist
+*.tsbuildinfo
+.DS_Store
+dumps
+config.json5
+docker-compose.override.yml

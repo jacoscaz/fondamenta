@@ -1,0 +1,65 @@
+#!/usr/bin/env node
+
+import pinetto from 'pinetto';
+
+import { getDB } from "./database/client.js";
+import { getConfigFromProcessArgv } from "./config/config.js";
+import { WebUIServer } from "./webui/server.js";
+import { PromptManager } from "./prompts/manager.js";
+import { SessionManager } from "./sessions/manager.js";
+import { initializeModel } from "./models/init.js";
+import { migrateToLatest } from './database/migrator.js';
+import { Emygdala } from './emygdala/emygdala.js';
+import { Distiller } from './sessions/distiller.js';
+import { InitContext, type CompleteContext } from './context.js';
+import { IOManager } from './io/manager.js';
+import { RootMcpManager } from './mcp-manager/manager.js';
+
+const config = await getConfigFromProcessArgv();
+
+// Main logger
+const logger = pinetto({ level: config.logging.level });
+
+// Shared database client
+const db = getDB(config);
+
+// Run migrations before anything else
+await migrateToLatest(db, logger.child('[db:migrations]'));
+
+const init_context: InitContext = {
+  db,
+  logger,
+  config,
+  getCompleteContext: () => complete_context,
+};
+
+const complete_context: CompleteContext = {
+  db,
+  init: init_context,
+  model: await initializeModel(config),
+  logger,
+  config,
+  emygdala: new Emygdala(init_context),
+  distiller: new Distiller(init_context),
+  managers: {
+    io: new IOManager(init_context),
+    mcp: new RootMcpManager(init_context),
+    prompts: new PromptManager(init_context),
+    sessions: new SessionManager(init_context),
+  },
+};
+
+await complete_context.distiller.initialize(300_000);
+await complete_context.managers.mcp.initialize();
+await complete_context.managers.sessions.initialize();
+
+const webui_server = new WebUIServer(init_context);
+
+const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
+  logger.warn('Received signal %s, shutting down...', signal);
+  webui_server.close();
+};
+
+process.on('beforeExit', onProcessExit);
+process.on('SIGTERM', onProcessExit);
+process.on('SIGINT', onProcessExit);

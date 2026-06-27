@@ -1,0 +1,40 @@
+
+# FROM node:24-alpine
+FROM node:26
+
+RUN mkdir -p /app/packages
+
+WORKDIR /app
+
+# RUN apk update
+# RUN apk add tree git curl wget jq
+
+RUN apt update
+RUN apt install -y tree git curl wget jq bash poppler-utils
+RUN curl -fsSL https://pkg.lightpanda.io/install.sh | bash -s "v0.2.6"
+RUN npm install -g playwright @playwright/cli
+RUN npx playwright install-deps
+RUN npx playwright install firefox
+
+COPY ./packages/lib-mcp-core /app/packages/lib-mcp-core
+COPY ./packages/lib-mcp-local /app/packages/lib-mcp-local
+COPY ./packages/lib-mcp-http-client /app/packages/lib-mcp-http-client
+COPY ./packages/lib-mcp-http-server /app/packages/lib-mcp-http-server
+COPY ./packages/lib-utils /app/packages/lib-utils
+COPY ./packages/harness /app/packages/harness
+COPY ./tsconfig.base.json /app/tsconfig.base.json
+COPY ./tsconfig.build.harness.json /app/tsconfig.build.json
+COPY ./package.harness.json /app/package.json
+
+RUN npm install
+RUN npx runtyped-install-transformer
+RUN npm run build
+RUN npm install # to populate the bin scripts
+
+RUN chmod +x /app/node_modules/.bin/*
+
+ENV PLAYWRIGHT_MCP_BROWSER=firefox
+ENV LIGHTPANDA_DISABLE_TELEMETRY=true
+ENV PATH="/app/node_modules/.bin:/root/.local/bin:$PATH"
+
+CMD ["--enable-source-maps", "packages/harness/dist/server.js"]

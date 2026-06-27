@@ -1,0 +1,42 @@
+services:
+
+  postgres:
+    env_file: .env
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    ports:
+      - 127.0.0.1:5432:5432
+    volumes:
+      - "postgresdata:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
+
+  harness:
+    build:
+      context: .
+      dockerfile: Dockerfile.harness
+    env_file: .env
+    environment:
+      POSTGRES_PORT: 5432
+      POSTGRES_HOSTNAME: postgres
+      POSTGRES_DATABASE: "${POSTGRES_DATABASE}"
+      POSTGRES_USERNAME: "${POSTGRES_USERNAME}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+      WEBUI_PORT: 8080
+      WEBUI_ADDR: 0.0.0.0
+    restart: unless-stopped
+    volumes:
+      - ./config.json5:/app/config.json5
+    command: ['node', '--enable-source-maps', '/app/packages/harness/dist/server.js', '/app/config.json5']
+    ports:
+      - ${WEBUI_ADDR}:${WEBUI_PORT}:8080
+      - 127.0.0.1:8081:8081
+    depends_on:
+      - postgres
+
+volumes:
+  postgresdata:

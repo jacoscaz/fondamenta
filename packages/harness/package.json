@@ -1,0 +1,53 @@
+{
+  "name": "@fondamenta/harness",
+  "version": "0.0.1",
+  "description": "Framework for building agents",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node --test dist/**/*.test.js",
+    "ts:clean": "rm -rf ./dist && rm -f ./tsconfig.tsbuildinfo",
+    "ts:build": "npm run ts:clean && tsc",
+    "ts:watch": "npm run ts:clean && tsc --watch",
+    "build": "npm run ts:build"
+  },
+  "bin": {
+    "dir2bundle": "dist/bin/dir2bundle.js",
+    "html2md": "dist/bin/html2md.js"
+  },
+  "author": "Jacopo Scazzosi <jacopo@scazzosi.com>",
+  "homepage": "https://github.com/fondamenta/fondamenta",
+  "license": "MIT",
+  "devDependencies": {
+    "@runtyped/type-compiler": "^2.0.0",
+    "@types/node": "^26.0.1",
+    "@types/turndown": "^5.0.6",
+    "@types/ws": "^8.18.1",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@fondamenta/mcp-core": "^0.0.1",
+    "@fondamenta/mcp-http-client": "^0.0.1",
+    "@fondamenta/mcp-http-server": "^0.0.1",
+    "@fondamenta/mcp-local": "^0.0.1",
+    "@fondamenta/utils": "^0.0.1",
+    "@hono/node-server": "^2.0.6",
+    "@runtyped/type": "^2.0.0",
+    "croner": "^10.0.1",
+    "date-fns": "^4.4.0",
+    "hono": "^4.12.27",
+    "json5": "^2.2.3",
+    "kysely": "^0.29.2",
+    "kysely-postgres-js": "^3.0.0",
+    "openai": "^6.45.0",
+    "pinetto": "^4.0.0",
+    "postgres": "^3.4.9",
+    "turndown": "^7.2.4",
+    "uid": "^2.0.2",
+    "ws": "^8.21.0"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts"
+  ]
+}

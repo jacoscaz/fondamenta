@@ -1,0 +1,22 @@
+{
+  "name": "@fondamenta/mcp-core",
+  "main": "dist/index.js",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "ts:clear": "rm -rf ./dist",
+    "ts:build": "tsc",
+    "ts:watch": "tsc --watch",
+    "build": "npm run ts:clear && npm run ts:build",
+    "watch": "npm run ts:clear && npm run ts:watch",
+    "start": "node dist/server.js"
+  },
+  "devDependencies": {
+    "@runtyped/type-compiler": "^2.0.0",
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@runtyped/type": "^2.0.0"
+  }
+}

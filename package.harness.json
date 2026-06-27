@@ -1,0 +1,23 @@
+{
+  "workspaces": [
+    "packages/harness",
+    "packages/lib-mcp-core",
+    "packages/lib-mcp-http-client",
+    "packages/lib-mcp-http-server",
+    "packages/lib-mcp-local",
+    "packages/lib-utils"
+  ],
+  "devDependencies": {
+    "@runtyped/type-compiler": "^2.0.0",
+    "@types/node": "^26.0.0",
+    "typescript": "^6.0.3"
+  },
+  "scripts": {
+    "ts:build": "npm run ts:clean && tsc -b ./tsconfig.build.json",
+    "ts:watch": "npm run ts:clean && tsc -b ./tsconfig.build.json --watch",
+    "ts:clean": "rm -rf packages/*/dist && rm -f packages/*/tsconfig.tsbuildinfo && rm -f ./tsconfig.build.tsbuildinfo",
+    "npm:clean": "rm -rf node_modules && rm -rf packages/*/node_modules && rm -f package-lock.json",
+    "build": "npm run ts:build",
+    "postinstall": "npx runtyped-install-transformer"
+  }
+}
