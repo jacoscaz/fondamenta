@@ -15,12 +15,14 @@ for most of my agent-assisted work.
 
 ## Features
 
-- Empowers agents with full, _transactional_ continuity across sessions and restarts
-- Uses boring, battle-tested technologies (Node.js, PostgreSQL, Docker)
-- Encourages token economy
-- Considers low dependency count and low complexity as first-class architectural design principles
-- Approaches type-safety via type reflection at runtime, no schemas needed
-- Ships with a no-build web interface
+- Empowers agents with full, _transactional_ continuity across sessions and restarts.
+- Combines BM25 and vector-based similarity search for retrieving relevant context, 
+  fusing results with Reciprocal Rank Fusion (RRF).
+- Uses boring, battle-tested technologies (Node.js, PostgreSQL, Docker).
+- Considers low dependency count and low complexity as first-class architectural design principles.
+- Approaches type-safety via type reflection at runtime, no schemas needed.
+- Ships with a no-build web interface.
+- Actively encourages token economy.
 
 ## Getting Started
 
