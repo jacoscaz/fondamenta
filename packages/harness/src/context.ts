@@ -4,13 +4,15 @@ import { type Emygdala } from "./emygdala/emygdala.js";
 import { type PromptManager } from "./prompts/manager.js";
 import { type SessionManager } from "./sessions/manager.js";
 import { type Distiller } from "./sessions/distiller.js";
+import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
 import { type IOManager } from "./io/manager.js";
 import { type RootMcpManager } from "./mcp-manager/manager.js";
-import { type AbstractModel } from "./models/abstract.js";
+import { type ModelManager } from "./models/manager.js";
 
 import EventEmitter from "node:events";
+
 
 
 
@@ -42,14 +44,15 @@ export interface InitContext {
 export interface CompleteContext {
   db: DB;
   init: InitContext;
-  model: AbstractModel<any>;
   config: Config;
   logger: Logger;
   emygdala: Emygdala;
   distiller: Distiller;
+  embedder: Embedder;
   managers: {
     io: IOManager;
     mcp: RootMcpManager;
+    models: ModelManager;
     prompts: PromptManager;
     sessions: SessionManager;
   };

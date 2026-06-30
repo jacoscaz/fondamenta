@@ -3,7 +3,7 @@ import { SessionRunner } from "./runner.js";
 import { type Logger } from "pinetto";
 import { type InitContext, WithContext } from "../context.js";
 import { insertSession, selectSessionById, selectSessions, updateSessionSystemPrompt } from "../database/tables/sessions.js";
-import { type Message, type UserMessage } from "../models/types/messages.js";
+import { type Message, type UserMessage } from "../models/session/types/messages.js";
 import { deleteMessages, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { ensureTrx, type DB } from "../database/client.js";
 
@@ -56,7 +56,7 @@ export class SessionManager extends WithContext<SessionManagerEvents> {
   async addMessage(session_id: number, message: UserMessage) {
     await ensureTrx(this._ctx.db, async (trx) => {
       const session = await selectSessionById(trx, session_id);
-      const model = this._ctx.model;
+      const model = this._ctx.managers.models.session;
       await insertMessage(trx, {
         session_id,
         data: message,

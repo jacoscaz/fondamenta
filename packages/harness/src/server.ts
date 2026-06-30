@@ -7,13 +7,14 @@ import { getConfigFromProcessArgv } from "./config/config.js";
 import { WebUIServer } from "./webui/server.js";
 import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
-import { initializeModel } from "./models/init.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
 import { Distiller } from './sessions/distiller.js';
+import { Embedder } from './sessions/embedder.js';
 import { InitContext, type CompleteContext } from './context.js';
 import { IOManager } from './io/manager.js';
 import { RootMcpManager } from './mcp-manager/manager.js';
+import { ModelManager } from './models/manager.js';
 
 const config = await getConfigFromProcessArgv();
 
@@ -36,20 +37,23 @@ const init_context: InitContext = {
 const complete_context: CompleteContext = {
   db,
   init: init_context,
-  model: await initializeModel(config),
   logger,
   config,
   emygdala: new Emygdala(init_context),
   distiller: new Distiller(init_context),
+  embedder: new Embedder(init_context),
   managers: {
     io: new IOManager(init_context),
     mcp: new RootMcpManager(init_context),
+    models: new ModelManager(init_context),
     prompts: new PromptManager(init_context),
     sessions: new SessionManager(init_context),
   },
 };
 
+await complete_context.managers.models.initialize();
 await complete_context.distiller.initialize(300_000);
+await complete_context.embedder.initialize(60_000);
 await complete_context.managers.mcp.initialize();
 await complete_context.managers.sessions.initialize();
 

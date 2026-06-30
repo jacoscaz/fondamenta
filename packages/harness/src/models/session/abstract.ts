@@ -1,6 +1,6 @@
 
 import { type McpToolDescriptor } from "@fondamenta/mcp-core";
-import { type ConfigModelBase } from "../config/config.js";
+import { type ConfigModelBase } from "../../config/config.js";
 
 import { AgentMessage, UserMessage } from "./types/messages.js";
 import { ToolUseRequestBlock } from "./types/blocks.js";
@@ -20,7 +20,7 @@ export interface ModelQueryResults<ResMessage> {
   output_size: number;
 }
 
-export abstract class AbstractModel<ReqMessage, ResMessage = ReqMessage> {
+export abstract class AbstractSessionModel<ReqMessage, ResMessage = ReqMessage> {
 
   readonly #max_output_size: number;
   readonly #max_context_size: number;

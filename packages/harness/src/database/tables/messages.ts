@@ -4,7 +4,7 @@ import { type Insertable } from "kysely";
 import { type Selectable } from "kysely";
 import { type Updateable } from "kysely";
 import { type DB, ensureTrx } from "../client.js";
-import { type Message } from "../../models/types/messages.js";
+import { type Message } from "../../models/session/types/messages.js";
 import { type SelectableContinuityRecord } from "./continuity_records.js";
 import assert from "node:assert";
 

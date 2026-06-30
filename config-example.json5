@@ -1,39 +1,53 @@
 // String values using the "${VAR}" placeholder syntax will be replaced with
 // the referenced environment variable.
 {
-  tz: "${TZ}",
-  io: {
-    port: 8081,
-    addr: "0.0.0.0",
-    path: '/ws',
-  },
-  logging: {
-    level: "trace"
-  },
-  webui: {
-    port: 8080,
-    addr: "0.0.0.0",
-  },
-  postgres: {
-    port: "${POSTGRES_PORT}",
-    hostname: "${POSTGRES_HOSTNAME}",
-    database: "${POSTGRES_DATABASE}",
-    username: "${POSTGRES_USERNAME}",
-    password: "${POSTGRES_PASSWORD}",
-  },
-  model: {
-    // For now, the only supported adapter is 'openai'.
-    adapter: 'openai',
-    options: {
-      model: "deepseek/deepseek-v4-pro",
-      api_key: "${TENSORIX_API_KEY}",
-      base_url: 'https://api.tensorix.ai/v1',
-      // Extra options passed to the inference provider at query time.
-      // Use to pass provider-specific options such as `provider` selection
-      // criteria for OpenRouter.
-      extras: {},
+    tz: "${TZ}",
+    io: {
+        port: 8081,
+        addr: "0.0.0.0",
+        path: '/ws',
     },
-    max_output_size: 20000,
-    max_context_size: 1000000,
-  },
+    logging: {
+        level: "trace"
+    },
+    webui: {
+        port: 8080,
+        addr: "0.0.0.0",
+    },
+    postgres: {
+        port: "${POSTGRES_PORT}",
+        hostname: "${POSTGRES_HOSTNAME}",
+        database: "${POSTGRES_DATABASE}",
+        username: "${POSTGRES_USERNAME}",
+        password: "${POSTGRES_PASSWORD}",
+    },
+    models: {
+        session: {
+            // For now, the only supported adapter is 'openai'.
+            adapter: 'openai',
+            options: {
+                model: "deepseek/deepseek-v4-pro",
+                api_key: "${TENSORIX_API_KEY}",
+                base_url: 'https://api.tensorix.ai/v1',
+                // Extra options passed to the inference provider at query time.
+                // Use to pass provider-specific options such as `provider` selection
+                // criteria for OpenRouter.
+                extras: {},
+            },
+            max_output_size: 20000,
+            max_context_size: 1000000,
+        },
+        // Embeddings model used by the auto-retrieval system to compute
+        // vector representations of continuity records.
+        embedding: {
+            adapter: 'openai',
+            options: {
+                model: 'qwen/qwen3-embedding-8b',
+                api_key: "${OPENROUTER_API_KEY}",
+                base_url: 'https://openrouter.ai/api/v1',
+                // Output dimensionality (text-embedding-3-small supports up to 1536).
+                dimensions: 1536,
+            },
+        },
+    },
 }

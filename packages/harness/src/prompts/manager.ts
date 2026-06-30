@@ -3,7 +3,6 @@ import { makeHeartbeatPrompt } from "./heartbeat.js";
 import { makeSystemPrompt } from "./system.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type SelectableSession } from "../database/tables/sessions.js";
-import { type AbstractModel } from "../models/abstract.js";
 import { type EmotionalState } from "../emygdala/emygdala.js";
 import { formatDistanceStrict } from "date-fns";
 

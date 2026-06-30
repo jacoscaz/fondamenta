@@ -1,6 +1,7 @@
 import type {
   GeneratedAlways,
   Insertable,
+  RawBuilder,
   Selectable,
   SelectQueryBuilder,
   Updateable,
@@ -8,6 +9,8 @@ import type {
 import { sql } from "kysely";
 import type { DB } from "../client.js";
 import type { Tables } from "../tables.js";
+import { sqlEmbeddingArray, sqlOrderByBM25Expr } from "../utils.js";
+import { rrfFuseResults } from "@fondamenta/utils";
 
 // ── Schema types ──
 
@@ -21,6 +24,7 @@ export interface ContinuityRecord {
   parent_id: number | null;
   title: string | null;
   content: string;
+  embedding: number[] | null;
   created_at: Date;
   updated_at: Date | null;
   deleted_at: Date | null;
@@ -30,16 +34,18 @@ export type InsertableContinuityRecord = Insertable<ContinuityRecord>;
 export type SelectableContinuityRecord = Selectable<ContinuityRecord>;
 export type UpdateableContinuityRecord = Updateable<ContinuityRecord>;
 
+
 // ── Filter options ──
 
 export interface CountRecordsOpts {
-  type: ContinuityRecordType;
+  type: ContinuityRecordType | ContinuityRecordType[];
   from?: Date;
   to?: Date;
   match?: string;
   include_deleted?: boolean;
   target_session_id?: number;
   origin_session_id?: number;
+  embedding?: number[] | null;
 }
 
 type FilterableQuery = SelectQueryBuilder<Tables, "continuity_records", {}>;
@@ -50,6 +56,8 @@ const applyFilterOpts = (
 ): FilterableQuery => {
   if (opts.type === 'log') {
     query = query.where('type', 'in', ['log', 'memory']);
+  } else if (Array.isArray(opts.type)) {
+    query = query.where('type', 'in', opts.type);
   } else {
     query = query.where('type', '=', opts.type);
   }
@@ -70,6 +78,9 @@ const applyFilterOpts = (
   }
   if (opts.match) {
     query = query.where('content', 'ilike', `%${opts.match}%`);
+  }
+  if (opts.embedding === null) {
+    query = query.where('embedding', 'is', null);
   }
   return query;
 };
@@ -92,6 +103,10 @@ export interface SelectRecordsOpts extends CountRecordsOpts {
   offset?: number;
   limit?: number;
   search?: string;
+  /** When provided alongside `search`, enables hybrid BM25 + vector search
+   *  using Reciprocal Rank Fusion. Must be a pre-computed embedding of the
+   *  search query text. */
+  embedding?: number[] | null;
   order_col?: 'created_at' | 'updated_at';
   order_dir?: 'asc' | 'desc';
 }
@@ -101,7 +116,7 @@ export const selectRecords = async (
   opts: SelectRecordsOpts,
 ): Promise<SelectableContinuityRecord[]> => {
   let query = applyFilterOpts(db.selectFrom('continuity_records'), opts);
-
+  // const escaped_search = opts.search?.replace(/'/g, "''");
   if (opts.id !== undefined) {
     if (Array.isArray(opts.id)) {
       query = query.where('id', 'in', opts.id);
@@ -115,21 +130,26 @@ export const selectRecords = async (
   if (typeof opts.limit === 'number') {
     query = query.limit(opts.limit);
   }
-
-  // BM25 search: order by relevance when search is provided
-  // Note: <@> requires a literal, not a parameter placeholder
   if (opts.search) {
-    const escaped = opts.search.replace(/'/g, "''");
-    return await query
-      .orderBy(sql.raw(`content <@> '${escaped}'`), 'asc')
-      .selectAll()
-      .execute();
+    let bm25_query = query.orderBy(sqlOrderByBM25Expr('content', opts.search), 'asc');
+    if (Array.isArray(opts.embedding)) {
+      let vector_query = query.orderBy(sql`embedding <=> ${sqlEmbeddingArray(opts.embedding)}::vector`, 'asc');
+      const bm25_results = await bm25_query.selectAll().execute();
+      const vector_results = await vector_query.selectAll().execute();
+      return rrfFuseResults([bm25_results, vector_results], r => r.id, opts.limit ?? 10);
+    } else {
+      query = bm25_query;
+    }
+  } else if (Array.isArray(opts.embedding)) {
+    query = query.orderBy(sql`embedding <=> ${sqlEmbeddingArray(opts.embedding)}::vector`, 'asc');
+  } else {
+    const col = opts.order_col ?? 'created_at';
+    const dir = opts.order_dir ?? 'asc';
+    query = query.orderBy(col, dir)
   }
-
-  const col = opts.order_col ?? 'created_at';
-  const dir = opts.order_dir ?? 'asc';
-  return await query.orderBy(col, dir).selectAll().execute();
+  return await query.selectAll().execute();
 };
+
 
 // ── Insert ──
 
@@ -140,6 +160,7 @@ export interface InsertRecordOpts {
   parent_id?: number;
   title?: string;
   content: string;
+  embedding?: number[];
 }
 
 export const insertRecord = async (
@@ -152,9 +173,10 @@ export const insertRecord = async (
       type: opts.type,
       origin_session_id: opts.origin_session_id,
       target_session_id: opts.target_session_id,
-      parent_id: opts.parent_id ?? null,
-      title: opts.title ?? null,
+      parent_id: opts.parent_id,
+      title: opts.title,
       content: opts.content,
+      embedding: Array.isArray(opts.embedding) ? sqlEmbeddingArray(opts.embedding) : opts.embedding,
       created_at: now,
       updated_at: now,
     })
@@ -167,6 +189,7 @@ export const insertRecord = async (
 export interface UpdateRecordOpts {
   title?: string;
   content?: string;
+  embedding?: number[] | null;
 }
 
 export const updateRecord = async (
@@ -176,7 +199,11 @@ export const updateRecord = async (
 ): Promise<SelectableContinuityRecord> => {
   return await db.updateTable('continuity_records')
     .where('id', '=', id)
-    .set({ ...opts, updated_at: new Date() })
+    .set({
+      ...opts,
+      embedding: Array.isArray(opts.embedding) ? sqlEmbeddingArray(opts.embedding) : opts.embedding,
+      updated_at: new Date()
+    })
     .returningAll()
     .executeTakeFirstOrThrow();
 };

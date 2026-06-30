@@ -3,7 +3,7 @@ import { ellipsis, errToString, nonSafeRandom } from "@fondamenta/utils";
 import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, updateMessageRaw } from "../database/tables/messages.js";
-import { TextBlock, type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/types/blocks.js";
+import { type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../mcp-servers/types.js";
@@ -56,7 +56,7 @@ export class SessionRunner extends WithContext {
 
   async #query(req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
-    const model = this._ctx.model;
+    const model = this._ctx.managers.models.session;
     const raw_req_messages = (await Promise.all(req_messages.map(async (message) => {
       let { raw, processed_at } = message;
       if (!processed_at) {

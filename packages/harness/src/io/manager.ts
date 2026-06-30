@@ -1,7 +1,7 @@
 
 import { type WebSocket, WebSocketServer } from 'ws';
 import { type Logger } from 'pinetto';
-import { type Message, UserMessage } from '../models/types/messages.js';
+import { type Message, UserMessage } from '../models/session/types/messages.js';
 import { type IncomingMessage } from 'node:http';
 import { addressInfoToString, errToString } from '@fondamenta/utils';
 import { cast } from '@runtyped/type';

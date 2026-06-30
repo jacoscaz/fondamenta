@@ -18,7 +18,7 @@ export class Emygdala extends WithContext {
       .where('id', '=', session_id)
       .select(['prompt_size'])
       .executeTakeFirstOrThrow();
-    const max_context_size = this._ctx.model.max_context_size;
+    const max_context_size = this._ctx.managers.models.session.max_context_size;
     const pressure = prompt_size / max_context_size;
     return {
       context: {

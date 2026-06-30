@@ -13,17 +13,17 @@ import {
 } from '../types/blocks.js';
 
 import {
-  AbstractModel,
+  AbstractSessionModel,
   ModelQueryResults,
   type ModelQueryOpts,
 } from "../abstract.js";
 
 import OpenAI from 'openai';
 
-import { ConfigModelOpenAI } from "../../config/config.js";
+import { ConfigModelOpenAI } from "../../../config/config.js";
 import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort } from "openai/resources/index.mjs";
 
-export class OpenAIModel extends AbstractModel<OpenAI.ChatCompletionMessageParam, OpenAI.ChatCompletionMessage> {
+export class OpenAISessionModel extends AbstractSessionModel<OpenAI.ChatCompletionMessageParam, OpenAI.ChatCompletionMessage> {
 
   #model: string;
   #client: OpenAI;

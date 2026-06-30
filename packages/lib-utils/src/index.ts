@@ -32,3 +32,7 @@ export {
   getEnvVar,
   fillEnvVarsPlaceholders,
 } from './env.js';
+
+export {
+  rrfFuseResults,
+} from './rrf.js';

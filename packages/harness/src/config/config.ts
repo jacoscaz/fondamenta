@@ -32,6 +32,11 @@ export interface ConfigModelBase {
   max_context_size: number;
 }
 
+export interface ConfigEmbeddingsModelBase {
+  adapter: string;
+  options: Record<string, any>;
+}
+
 export interface ConfigModelOpenAI extends ConfigModelBase {
   adapter: 'openai';
   options: {
@@ -43,7 +48,20 @@ export interface ConfigModelOpenAI extends ConfigModelBase {
   };
 };
 
-export type ConfigModel = ConfigModelOpenAI;
+export type ConfigSessionModel = ConfigModelOpenAI;
+
+export interface ConfigEmbeddingsModelOpenAI extends ConfigEmbeddingsModelBase {
+  adapter: 'openai';
+  options: {
+    model: string;
+    api_key: string;
+    base_url?: string;
+    dimensions?: number;
+    extras?: Record<string, any>;
+  };
+}
+
+export type ConfigEmbeddingModel = ConfigEmbeddingsModelOpenAI;
 
 export interface ConfigLogging {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
@@ -53,7 +71,11 @@ export interface Config {
   tz: string;
   io: ConfigIO;
   webui: ConfigWebUI;
-  model: ConfigModel;
+  models: {
+    session: ConfigSessionModel;
+    embedding: ConfigEmbeddingModel;
+    distillation?: ConfigSessionModel;
+  };
   logging: ConfigLogging;
   postgres: ConfigPostgres;
 }
