@@ -5,8 +5,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.postgres
-    ports:
-      - 127.0.0.1:5432:5432
     volumes:
       - "postgresdata:/var/lib/postgresql/data"
     environment:
@@ -32,9 +30,6 @@ services:
     volumes:
       - ./config.json5:/app/config.json5
     command: ['node', '--enable-source-maps', '/app/packages/harness/dist/server.js', '/app/config.json5']
-    ports:
-      - ${WEBUI_ADDR}:${WEBUI_PORT}:8080
-      - 127.0.0.1:8081:8081
     depends_on:
       - postgres
 

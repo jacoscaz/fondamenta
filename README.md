@@ -58,13 +58,16 @@ The harness will:
 You can use [Docker Compose overrides] to customize the `docker-compose.yml`
 file without modifying it directly. For example, paste the following into 
 `docker-compose.override.yml` to mount this project into the agent's
-container:
+container and expose the web interface on port 8080:
 
 ```yaml
 services:
   harness:
     volumes:
       - ./:/fondamenta
+    ports:
+      - 127.0.0.1:8080:8080
+      - 127.0.0.1:8081:8081    
 ```
 
 [Docker Compose overrides]: (https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/
