@@ -79,7 +79,7 @@ export class Distiller extends WithContext {
     const contextText = `<existing_records>\n${recordsContext}\n</existing_records>\n\n<undistilled_conversation>\n${conversationText}\n</undistilled_conversation>`;
     // Create the distiller session and insert the context message within
     // a single transaction so we can get the session id before inserting.
-    await ensureTrx(db, async (trx) => {
+    const origin_session_id = await ensureTrx(db, async (trx) => {
       const { id: origin_session_id } = await insertSession(trx, {
         initiator: 'distiller',
         created_at: new Date(),
@@ -97,24 +97,24 @@ export class Distiller extends WithContext {
         role: 'user',
         raw: null,
       });
-      const runner = new SessionRunner(this._ctx.init, origin_session_id, target_session_id);
-      await runner.run(db, this._ctx.managers.mcp.whitelist([
-        'mcp_logs_count',
-        'mcp_logs_list',
-        'mcp_logs_read',
-        'mcp_logs_insert',
-        'mcp_notes_count',
-        'mcp_notes_list',
-        'mcp_notes_read',
-        'mcp_notes_insert',
-        'mcp_notes_update',
-        'mcp_notes_append',
-        'mcp_anchors_insert',
-        'mcp_anchors_select',
-        'mcp_anchors_update',
-        'mcp_anchors_delete',
-      ]));
+      return origin_session_id;
     });
-
+    const runner = new SessionRunner(this._ctx.init, origin_session_id, target_session_id);
+    await runner.run(db, this._ctx.managers.mcp.whitelist([
+      'mcp_logs_count',
+      'mcp_logs_list',
+      'mcp_logs_read',
+      'mcp_logs_insert',
+      'mcp_notes_count',
+      'mcp_notes_list',
+      'mcp_notes_read',
+      'mcp_notes_insert',
+      'mcp_notes_update',
+      'mcp_notes_append',
+      'mcp_anchors_insert',
+      'mcp_anchors_select',
+      'mcp_anchors_update',
+      'mcp_anchors_delete',
+    ]));
   }
 }
