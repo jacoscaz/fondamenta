@@ -15,18 +15,20 @@ for most of my agent-assisted work.
 
 ## Features
 
-- Empowers agents with full, _transactional_ continuity across sessions and restarts.
-- Combines BM25 and vector-based similarity search for retrieving relevant context, 
+- Empowers agents with full, _transactional_ continuity across sessions and
+  restarts.
+- Combines BM25 and vector-based similarity search for context retrieval,
   fusing results with Reciprocal Rank Fusion (RRF).
+- Uses asynchronous jobs to maintain continuity records, leaving the main loop
+  free to focus on the task at hand.
 - Uses boring, battle-tested technologies (Node.js, PostgreSQL, Docker).
-- Considers low dependency count and low complexity as first-class architectural design principles.
+- Built with minimal dependency count and complexity as first-class design
+  principles.
 - Approaches type-safety via type reflection at runtime, no schemas needed.
 - Ships with a no-build web interface.
 - Actively encourages token economy.
 
-## Getting Started
-
-### Quick Start (5 minutes)
+## Quick Start
 
 ```sh
 # 1. Clone the repository
@@ -66,10 +68,6 @@ services:
 ```
 
 [Docker Compose overrides]: (https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/
-
-### Understanding the Architecture
-
-See the [packages](#packages) section below for deeper documentation on each component. For a detailed walkthrough of how the harness works internally, see [`@fondamenta/harness`](packages/harness/README.md).
 
 ## Design Principles
 
