@@ -1,17 +1,16 @@
 import { AbstractEmbeddingModel, type EmbeddingResult } from "../abstract.js";
 import { type ConfigEmbeddingsModelOpenAI } from "../../../config/config.js";
 import OpenAI from 'openai';
+import { EMBEDDING_DIMENSIONS } from "../../../constants.js";
 
 export class OpenAIEmbeddingModel extends AbstractEmbeddingModel {
 
   #model: string;
   #client: OpenAI;
-  #dimensions: number;
 
   constructor(opts: ConfigEmbeddingsModelOpenAI) {
     super(opts);
     this.#model = opts.options.model;
-    this.#dimensions = opts.options.dimensions ?? 1536;
     this.#client = new OpenAI({
       apiKey: opts.options.api_key,
       baseURL: opts.options.base_url,
@@ -22,7 +21,7 @@ export class OpenAIEmbeddingModel extends AbstractEmbeddingModel {
     const response = await this.#client.embeddings.create({
       input: text,
       model: this.#model,
-      dimensions: this.#dimensions,
+      dimensions: EMBEDDING_DIMENSIONS,
     });
     return {
       embedding: response.data[0].embedding,
@@ -34,7 +33,7 @@ export class OpenAIEmbeddingModel extends AbstractEmbeddingModel {
     const response = await this.#client.embeddings.create({
       input: texts,
       model: this.#model,
-      dimensions: this.#dimensions,
+      dimensions: EMBEDDING_DIMENSIONS,
     });
     // OpenAI returns embeddings in the same order as the input texts
     return response.data

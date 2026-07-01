@@ -56,7 +56,6 @@ export interface ConfigEmbeddingsModelOpenAI extends ConfigEmbeddingsModelBase {
     model: string;
     api_key: string;
     base_url?: string;
-    dimensions?: number;
     extras?: Record<string, any>;
   };
 }

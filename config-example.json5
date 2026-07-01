@@ -22,12 +22,16 @@
         password: "${POSTGRES_PASSWORD}",
     },
     models: {
+        // Conversational session model used to generate responses to user
+        // queries. Use models optimized for agentic workflows if possible.
         session: {
             // For now, the only supported adapter is 'openai'.
             adapter: 'openai',
             options: {
                 model: "deepseek/deepseek-v4-pro",
                 api_key: "${TENSORIX_API_KEY}",
+                // Optional. Use to override the default base URL when making requests
+                // to OpenAI-compatible inference providers.
                 base_url: 'https://api.tensorix.ai/v1',
                 // Extra options passed to the inference provider at query time.
                 // Use to pass provider-specific options such as `provider` selection
@@ -37,16 +41,22 @@
             max_output_size: 20000,
             max_context_size: 1000000,
         },
-        // Embeddings model used by the auto-retrieval system to compute
-        // vector representations of continuity records.
+        // Embedding model used to compute vector representations of
+        // continuity records and similarity queries. Use a model that
+        // supports at least 1536 dimensions.
         embedding: {
+            // For now, the only supported adapter is 'openai'.
             adapter: 'openai',
             options: {
                 model: 'qwen/qwen3-embedding-8b',
                 api_key: "${OPENROUTER_API_KEY}",
+                // Optional. Use to override the default base URL when making requests
+                // to OpenAI-compatible inference providers.
                 base_url: 'https://openrouter.ai/api/v1',
-                // Output dimensionality (text-embedding-3-small supports up to 1536).
-                dimensions: 1536,
+                // Extra options passed to the inference provider at query time.
+                // Use to pass provider-specific options such as `provider` selection
+                // criteria for OpenRouter. Optional.
+                extras: {},
             },
         },
     },
