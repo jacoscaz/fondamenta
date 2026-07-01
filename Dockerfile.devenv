@@ -1,9 +1,0 @@
-
-FROM node:24 AS base
-ENV SHELL=/bin/bash
-RUN apt-get update && apt-get install -y --no-install-recommends coreutils tzdata bash git tmux
-RUN npm install -g @lightpanda/browser@1.1.0 && npx @lightpanda/browser upgrade
-RUN mkdir /fondamenta
-ENV PATH="/fondamenta/node_modules/.bin:${PATH}"
-VOLUME /fondamenta
-WORKDIR /fondamenta
