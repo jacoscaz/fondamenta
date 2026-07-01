@@ -202,11 +202,20 @@ replace, then copy that text as your pattern. This avoids escaping issues that
 would arise with bash-based sed.
 
 ## SEARCHING THROUGH AND LISTING MULTIPLE FILES: grep, find, tree
-- grep -rn "pattern" --include="*.ts" ./src   — recursive search with line numbers
-- grep -l "pattern" ./src/*.ts                — just list matching files
-- grep -C 3 "pattern" file.ts                 — show 3 lines of context around matches
-- find . -name '*.ts' -exec echo '=== {} ===' \; -exec head -n 50 {} \; | head -n 300    -- show the first 50 lines of each matching file, up to 300 lines total
-- tree -P '*.ts' -h                           — print a tree of all matching files with human-readable file sizes
+
+\`\`\`sh
+# recursive search with line numbers
+grep -rn "pattern" --include="*.ts" ./src
+# just list matching files
+grep -l "pattern" ./src/*.ts
+# show 3 lines of context around matches
+grep -C 3 "pattern" file.ts
+# show the first 50 lines of each matching file, up to 300 lines total
+find . -name '*.ts' -exec echo '=== {} ===' \; -exec head -n 50 {} \; | head -n 300
+# print a tree of all matching files with human-readable file sizes
+tree -P '*.ts' -h
+\`\`\`
+
 - Use the \`wc\` program to get the size of a specific file. Combine with \`find\` to apply to multiple files.
 - Use the \`-h\` flag of the \`tree\` program to get an idea of file sizes as you explore directories.
 
@@ -214,24 +223,33 @@ would arise with bash-based sed.
 For text and code, use the \`dir2bundle\` CLI tool to pack an entire directory
 tree into a single concatenated output.
 
+\`\`\`sh
 dir2bundle --dir ./src --extensions ts,js --exclude node_modules,dist
+\`\`\`
 
 ## PDF FILES
 Use the poppler-utils suite for PDF reading. NEVER read raw PDF bytes into
 context. ALWAYS extract text first, then filter.
 
-pdfinfo file.pdf                       — pages, encryption status, author, title
-pdftotext file.pdf -                   — plain text to stdout
-pdftotext -layout file.pdf -           — preserve layout (complex docs)
-pdftotext -f N -l M file.pdf -         — extract specific page range only
-pdftohtml -stdout file.pdf             — convert to HTML (tables, columns)
+\`\`\`sh
+# pages, encryption status, author, title
+pdfinfo file.pdf
+# plain text to stdout
+pdftotext file.pdf -
+# preserve layout (complex docs)
+pdftotext -layout file.pdf -
+# extract specific page range only
+pdftotext -f N -l M file.pdf -
+# convert to HTML(tables, columns)
+pdftohtml - stdout file.pdf
+\`\`\`
 
 - Always scout with pdfinfo first to gauge size
-- Pipe pdftotext output through grep, head, tail, sed, wc to target
+- Pipe \`pdftotext\` output through \`grep\`, \`head\`, \`tail\`, \`sed\`, \`wc\` to \`target\`
   specific sections without full document entering context
-- Use -f/-l flags to extract page ranges: 800KB PDF → pdftotext -f 4 -l 4
+- Use \`-f/-l\` flags to extract page ranges: 800KB PDF → \`pdftotext -f 4 -l 4\`
   → ~800 words instead of ~8000
-- For multi-page search: pdftotext file.pdf - | grep -n -A5 -B2 "pattern"
+- For multi-page search: \`pdftotext file.pdf - | grep -n -A5 -B2 "pattern"\`
 - Image-only PDFs (scans) will return no text — requires OCR (not available)
 </working_with_files>
 `;
