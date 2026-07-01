@@ -107,6 +107,8 @@ export class Distiller extends WithContext {
         'mcp_notes_list',
         'mcp_notes_read',
         'mcp_notes_insert',
+        'mcp_notes_update',
+        'mcp_notes_append',
         'mcp_anchors_insert',
         'mcp_anchors_select',
         'mcp_anchors_update',
