@@ -9,7 +9,7 @@ import type {
 import { sql } from "kysely";
 import type { DB } from "../client.js";
 import type { Tables } from "../tables.js";
-import { sqlEmbeddingArray, sqlOrderByBM25Expr } from "../utils.js";
+import { sqlEmbeddingArray, sqlOrderByBM25Expr, sqlOrderByEmbeddingExpr } from "../utils.js";
 import { rrfFuseResults } from "@fondamenta/utils";
 
 // ── Schema types ──
@@ -133,7 +133,7 @@ export const selectRecords = async (
   if (opts.search) {
     let bm25_query = query.orderBy(sqlOrderByBM25Expr('content', opts.search), 'asc');
     if (Array.isArray(opts.embedding)) {
-      let vector_query = query.orderBy(sql`embedding <=> ${sqlEmbeddingArray(opts.embedding)}::vector`, 'asc');
+      let vector_query = query.orderBy(sqlOrderByEmbeddingExpr('embedding', opts.embedding), 'asc');
       const bm25_results = await bm25_query.selectAll().execute();
       const vector_results = await vector_query.selectAll().execute();
       return rrfFuseResults([bm25_results, vector_results], r => r.id, opts.limit ?? 10);
