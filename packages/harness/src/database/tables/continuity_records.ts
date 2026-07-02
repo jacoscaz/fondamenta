@@ -131,9 +131,9 @@ export const selectRecords = async (
     query = query.limit(opts.limit);
   }
   if (opts.search) {
-    let bm25_query = query.orderBy(sqlOrderByBM25Expr('content', opts.search), 'asc');
+    const bm25_query = query.orderBy(sqlOrderByBM25Expr('content', opts.search), 'asc');
     if (Array.isArray(opts.embedding)) {
-      let vector_query = query.orderBy(sqlOrderByEmbeddingExpr('embedding', opts.embedding), 'asc');
+      const vector_query = query.orderBy(sqlOrderByEmbeddingExpr('embedding', opts.embedding), 'asc');
       const bm25_results = await bm25_query.selectAll().execute();
       const vector_results = await vector_query.selectAll().execute();
       return rrfFuseResults([bm25_results, vector_results], r => r.id, opts.limit ?? 10);
@@ -141,7 +141,7 @@ export const selectRecords = async (
       query = bm25_query;
     }
   } else if (Array.isArray(opts.embedding)) {
-    query = query.orderBy(sql`embedding <=> ${sqlEmbeddingArray(opts.embedding)}::vector`, 'asc');
+    query = query.orderBy(sqlOrderByEmbeddingExpr('embedding', opts.embedding), 'asc');
   } else {
     const col = opts.order_col ?? 'created_at';
     const dir = opts.order_dir ?? 'asc';

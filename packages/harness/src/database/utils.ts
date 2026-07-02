@@ -10,5 +10,5 @@ export const sqlEmbeddingArray = (embedding: number[]): RawBuilder<number[]> => 
 };
 
 export const sqlOrderByEmbeddingExpr = (column: string, embedding: number[]): RawBuilder<number[]> => {
-  return sql.raw(`${column} <=> ${sqlEmbeddingArray(embedding)}::vector`);
+  return sql.raw(`${column} <=> ARRAY[${embedding.join(',')}]::vector`);
 };

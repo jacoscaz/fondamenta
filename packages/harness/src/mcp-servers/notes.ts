@@ -106,10 +106,10 @@ export const initNotesMcpServer = (ctx: CompleteContext): McpLocalServer<Harness
         match: params.match,
       };
       const count = await countRecords(db, filterOpts);
-      let hybrid_embedding: number[] | undefined;
+      let embedding: number[] | undefined;
       if (params.search) {
         try {
-          hybrid_embedding = (await model.embed(params.search)).embedding;
+          embedding = (await model.embed(params.search)).embedding;
         } catch { /* fall back to BM25-only */ }
       }
       const notes = await selectRecords(db, {
@@ -118,7 +118,7 @@ export const initNotesMcpServer = (ctx: CompleteContext): McpLocalServer<Harness
         offset: params.offset ?? 0,
         limit: params.limit ?? 10,
         search: params.search,
-        embedding: hybrid_embedding,
+        embedding: embedding,
         order_col: params.order_col,
         order_dir: params.order_dir,
       });
