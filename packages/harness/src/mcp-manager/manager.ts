@@ -111,6 +111,13 @@ export class RootMcpManager extends McpManager {
     }));
   }
 
+  blacklist(blacklist: string[]): McpManager {
+    const filteredTools = Object.fromEntries(Object.entries(this.#tools).filter(([name]) => {
+      return !blacklist.includes(name);
+    }));
+    return new McpManager(this._ctx.init, filteredTools);
+  }
+
   whitelist(whitelist: string[]): McpManager {
     const filteredTools = whitelist.reduce((acc, name) => {
       if (name in this.#tools) {
