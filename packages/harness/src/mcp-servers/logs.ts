@@ -1,6 +1,7 @@
 import { ellipsis } from "@fondamenta/utils";
 import {
   countRecords,
+  deleteRecord,
   insertRecord,
   selectRecords,
   type SelectableContinuityRecord,
@@ -137,6 +138,18 @@ export const initLogsMcpServer = (ctx: CompleteContext): McpLocalServer<HarnessM
         content: message,
       });
       return [{ type: 'text', text: 'Log added successfully' }];
+    },
+  );
+
+  interface DeleteLogParams { id: number; }
+
+  mcp.addTool<DeleteLogParams>(
+    'delete',
+    'Delete a log',
+    'Delete a log.',
+    async ({ id }, { db }) => {
+      await deleteRecord(db, id);
+      return [{ type: 'text', text: 'Log deleted successfully' }];
     },
   );
 

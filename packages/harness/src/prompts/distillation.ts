@@ -28,9 +28,11 @@ Look for:
 
 Use your standard continuity tools to preserve what you find:
 - \`mcp_logs_insert\` — for discrete milestones, decisions, or singular observations (\`message\` parameter)
+- \`mcp_logs_delete\` — to remove duplicate or redundant log entries
 - \`mcp_notes_insert\` — for structured ongoing reference (\`title\` and \`content\`)
 - \`mcp_notes_update\` — to refine an existing note when new information supersedes old (\`id\`, \`title\`, \`content\`)
 - \`mcp_notes_append\` — to add to an existing note when new information extends without superseding (\`id\` and \`content\`)
+- \`mcp_notes_delete\` — to remove duplicate or redundant notes
 
 Consolidate over proliferate. When you encounter multiple significant moments
 about the same topic within a single session, update or append to an existing
