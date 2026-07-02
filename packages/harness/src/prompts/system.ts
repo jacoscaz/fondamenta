@@ -153,14 +153,20 @@ The \`html2md\` CLI tool converts HTML output to Markdown. You can combine it
 with other CLI tools (such as piping \`curl\` into it) to consume web pages
 without paying the costs of having raw HTML enter your context.
 
+\`\`\`sh
 curl -s -L https://news.ycombinator.com | html2md
+\`\`\`
 
 ## LIGHTPANDA
 For more complex webpages that require a browser, use the \`lightpanda\` CLI
 tool. It can output both html and markdown.
 
+\`\`\`sh
+# output html
 lightpanda fetch --dump html https://news.ycombinator.com
+# output markdown
 lightpanda fetch --dump markdown https://news.ycombinator.com
+\`\`\`
 
 ## PLAYWRIGHT-CLI
 For the most complex use cases that require a stateful browser you have access
