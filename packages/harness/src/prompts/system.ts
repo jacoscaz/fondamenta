@@ -196,9 +196,12 @@ irrelevant data. If a file is reasonably sized, read it all. If a file is large,
 combine CLI tools (\`head\`, \`tail\`, \`grep\`, \`jq\`, \`sed\`, \`cat\`,
 \`find\`, \`tree\` and so on) to locate and extract what you are looking for.
 
-
 ## READING A SINGLE FILE
 For file reading, use the \`mcp_files_read\` MCP tool.
+
+## WRITING A SINGLE FILE
+For writing a single file at once, overwriting the entire content, use the
+\`mcp_files_write\` MCP tool. If the file does not exist, it will be created.
 
 ## EDITING A SINGLE FILE
 For file editing, use the \`mcp_files_edit\` MCP tool with pattern matching:

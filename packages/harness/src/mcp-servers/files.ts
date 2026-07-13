@@ -1,5 +1,5 @@
+
 import { Config } from "../config/config.js";
-import pinetto from 'pinetto';
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -17,6 +17,11 @@ interface EditFileParams {
   path: string;
   pattern: string;
   replacement: string;
+}
+
+interface WriteFileParams {
+  path: string;
+  content: string;
 }
 
 const registerTools = (mcpLocalServer: McpLocalServer<HarnessMcpToolCallContext>) => {
@@ -62,6 +67,18 @@ Usage:
     },
   );
 
+  mcpLocalServer.addTool<WriteFileParams>(
+    'write',
+    'Write File',
+    `Write the provided content to the specified file. If the file does not exist, it will be created.
+Note that this tool will overwrite the file if it already exists.`,
+    async (args) => {
+      const { path, content } = args;
+      await writeFile(path, content, 'utf-8');
+      return [{ type: 'text', text: `Wrote ${content.length} characters to ${path}` }];
+    }
+  );
+
   mcpLocalServer.addTool<EditFileParams>(
     'edit',
     'Edit File',
@@ -74,24 +91,13 @@ Usage:
   { "path": "file.ts", "pattern": "old text", "replacement": "new text" }
 
 The pattern must be unique - if it appears multiple times, the edit will fail
-with a count of occurrences, asking you to be more specific.
-
-If the file does not exist, the pattern must be "create" to initialize it with
-the replacement content.`,
+with a count of occurrences, asking you to be more specific.`,
     async (args) => {
       const { path, pattern, replacement } = args;
 
       // Handle file creation case
       if (!existsSync(path)) {
-        if (pattern === 'create') {
-          let content = replacement;
-          if (!content.endsWith('\n')) {
-            content += '\n';
-          }
-          await writeFile(path, content, 'utf-8');
-          return [{ type: 'text', text: `Created ${path}` }];
-        }
-        throw new Error(`File ${path} does not exist. Use pattern "create" to create it.`);
+        throw new Error(`File ${path} does not exist. Use the write tool to create it.`);
       }
 
       const content = await readFile(path, 'utf-8');
