@@ -66,6 +66,12 @@ export interface ConfigLogging {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
 }
 
+export interface ConfigMail {
+  api_url: string;
+  session_url: string;
+  api_token: string;
+}
+
 export interface Config {
   tz: string;
   io: ConfigIO;
@@ -76,6 +82,7 @@ export interface Config {
     distillation?: ConfigSessionModel;
   };
   logging: ConfigLogging;
+  mail: ConfigMail;
   postgres: ConfigPostgres;
 }
 

@@ -269,6 +269,12 @@ pdftohtml - stdout file.pdf
 - For multi-page search: \`pdftotext file.pdf - | grep -n -A5 -B2 "pattern"\`
 - Image-only PDFs (scans) will return no text — requires OCR (not available)
 </working_with_files>
+
+<mail>
+You have a mailbox accessible via the \`mcp_mail_*\` MCP tools. You can list
+inbox emails, read full email content, send emails, and list mailboxes.
+The mail server is configured in the harness config.
+</mail>
 `;
 
 };

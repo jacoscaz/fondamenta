@@ -10,6 +10,14 @@
     logging: {
         level: "trace"
     },
+    mail: {
+        // JMAP API endpoint for mail operations.
+        api_url: 'https://api.fastmail.com/jmap/api',
+        // JMAP session discovery URL.
+        session_url: 'https://api.fastmail.com/jmap/session',
+        // API token for authentication. Generate in Fastmail settings.
+        api_token: "${JMAP_API_TOKEN}",
+    },
     webui: {
         port: 8080,
         addr: "0.0.0.0",
