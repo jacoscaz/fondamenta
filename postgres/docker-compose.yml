@@ -1,0 +1,19 @@
+name: fondamenta
+
+services:
+
+  postgres:
+    env_file: .env
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - "postgresdata:/var/lib/postgresql/data"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    restart: unless-stopped
+
+volumes:
+  postgresdata:

@@ -11,7 +11,8 @@ large-language models. It then graduated into a playground for testing
 different approaches to agent continuity and eventually became my go-to harness
 for most of my agent-assisted work.
 
-**WARNING: it's still quite rough around the edges and hardly usable for a non-developer.**
+**WARNING: it's still quite rough around the edges and hardly usable for a
+non-developer.**
 
 ## Features
 
@@ -28,6 +29,22 @@ for most of my agent-assisted work.
 - Ships with a no-build web interface.
 - Actively encourages token economy.
 
+## Prerequisites
+
+### PostgreSQL
+
+Fondamenta requires PostgreSQL with the extensions `timescaledb`, `pg_vector` 
+`pg_textsearch`. A suitable Docker image and container can be built and run
+using the resources in the `./docker` directory. See `./docker/README.md` for
+more information.
+
+### Dedicated machine
+
+Fondamenta is designed to run on a dedicated machine, whether physical or
+virtual. Running it on your local machine is a bad idea for many reasons.
+Running it within a Docker container is exceedingly limiting. Run it on a
+dedicated machine and provide the agent with its own accounts.
+
 ## Quick Start
 
 ```sh
@@ -35,42 +52,28 @@ for most of my agent-assisted work.
 git clone https://github.com/fondamenta/fondamenta.git
 cd fondamenta
 
-# 2. Copy configuration templates
+# 2. Install dependencies
+npm ci
+npx run runtyped-install-transformer
+
+# 3. Build the project
+npm run build
+
+# 4. Copy configuration templates
 cp config-example.json5 config.json5
-cp .env-example .env
 
-# 3. Edit .env with your API keys
+# 5. Any string value in the configuration using the "${VAR}" syntax will be 
+#    replaced with the value of the environment variable `VAR`. Make sure to
+#    set all environment variables referenced in the configuration.
 
-# 4. Edit config.json5 if needed (defaults usually work)
-
-# 5. Start the harness
-docker compose up --build harness
-
-# 6. Open http://localhost:8080 in your browser
+# 6. Start the harness passing the path to your configuration file as the first
+#    argument.
+node --enable-source-maps packages/harness/dist/server.js ./config.json5
 ```
 
-The harness will:
-- Initialize PostgreSQL and run migrations
-- Initialize tool servers (files, bash, HTTP, continuity tools)
-- Launch the web interface
-- Wait for your first message
-
-You can use [Docker Compose overrides] to customize the `docker-compose.yml`
-file without modifying it directly. For example, paste the following into 
-`docker-compose.override.yml` to mount this project into the agent's
-container and expose the web interface on port 8080:
-
-```yaml
-services:
-  harness:
-    volumes:
-      - ./:/fondamenta
-    ports:
-      - 127.0.0.1:8080:8080
-      - 127.0.0.1:8081:8081    
-```
-
-[Docker Compose overrides]: (https://docs.docker.com/compose/how-tos/multiple-compose-files/merge/
+Simple [dotenv] files can be used to manage environment variables. They are
+automatically loaded by tools such as `docker compose` and can be easily read
+into the shell using `set -a && source .env && set +a`.
 
 ## Design Principles
 
@@ -110,4 +113,5 @@ persistent agent identity maintained through the framework itself.
 
 MIT
 
-[Sage]: https://treesandrobots.com/2026/03/sage-the-harmonic-selector.html
+[Sage]: https://treesandrobots.com/sage
+[dotenv]: https://env.dev/guides/dotenv
