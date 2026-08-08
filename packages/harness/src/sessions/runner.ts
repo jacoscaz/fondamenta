@@ -1,17 +1,22 @@
-
-import { ellipsis, errToString, nonSafeRandom } from "@fondamenta/utils";
-import { type DB } from "../database/client.js";
+import { ellipsis, errToString } from "@fondamenta/utils";
+import { type DB, ensureTrx } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
-import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, updateMessageRaw } from "../database/tables/messages.js";
+import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, updateMessageRaw, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
+import { type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../mcp-servers/types.js";
 import { type McpManager } from "../mcp-manager/manager.js";
+import { type InjectionContext } from "../emygdala/emygdala.js";
 import assert from "node:assert";
 
 
-export class SessionRunner extends WithContext {
+export interface SessionRunnerEvents extends Record<string, any[]> {
+  [key: `session-${number}-message`]: [message: Message];
+}
+
+export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
   #logger: Logger;
   #running: boolean;
@@ -28,6 +33,38 @@ export class SessionRunner extends WithContext {
 
   get session_id() {
     return this.#origin_session_id;
+  }
+
+  /**
+   * Insert a user message into the session and trigger the activation loop.
+   * Absorbed from SessionManager.
+   */
+  async addMessage(message: UserMessage): Promise<void> {
+    await ensureTrx(this._ctx.db, async (trx) => {
+      const model = this._ctx.managers.models.session;
+      await insertMessage(trx, {
+        session_id: this.#origin_session_id,
+        data: message,
+        raw: model.format(message),
+        created_at: new Date(),
+        processed_at: null,
+        role: 'user',
+      });
+    });
+    this.run();
+  }
+
+  /**
+   * Retrieve processed message history for this session.
+   * Used by IOManager to resume WebSocket connections.
+   */
+  async getHistory(): Promise<Message[]> {
+    const messages = await selectMessages(this._ctx.db, {
+      session_id: this.#origin_session_id,
+      unprocessed: 'exclude',
+    });
+    this.#logger.debug('retrieved %s messages from history', messages.length);
+    return messages.map(m => m.data);
   }
 
   async run(db?: DB, mcp_manager?: McpManager): Promise<void> {
@@ -60,7 +97,7 @@ export class SessionRunner extends WithContext {
     const raw_req_messages = (await Promise.all(req_messages.map(async (message) => {
       let { raw, processed_at } = message;
       if (!processed_at) {
-        this._ctx.managers.sessions.emit(`session-${this.session_id}-message`, message.data);
+        this.emit(`session-${this.session_id}-message`, message.data);
       }
       if (!raw) {
         assert(message.data.role === 'user', 'message must be a user message');
@@ -69,21 +106,14 @@ export class SessionRunner extends WithContext {
       }
       return raw;
     }))).flat(1);
-    // Inject context guidance as synthetic user messages
+    // Inject synthetic messages via emygdala — single injection point
+    const injection_ctx: InjectionContext = { session, db };
+    const injected_texts = await this._ctx.emygdala.getInjectedMessages(injection_ctx);
     const synthetic_messages: any[] = [];
-    const time_gap = await this._ctx.managers.prompts.getTimeGapMessage(session);
-    if (time_gap) {
+    for (const text of injected_texts) {
       synthetic_messages.push(...model.format({
         role: 'user',
-        blocks: [{ type: 'text', text: time_gap }],
-      }));
-    }
-    const emotional_state = await this._ctx.emygdala.getEmotionalState(this.#origin_session_id, db);
-    const pressure_guidance = await this._ctx.managers.prompts.getContextPressureGuidance(emotional_state);
-    if (pressure_guidance) {
-      synthetic_messages.push(...model.format({
-        role: 'user',
-        blocks: [{ type: 'text', text: pressure_guidance }],
+        blocks: [{ type: 'text', text }],
       }));
     }
     const { messages: raw_res_messages, input_size, output_size } = await model.query({
@@ -120,9 +150,6 @@ export class SessionRunner extends WithContext {
         target_session_id: this.#target_session_id,
       };
       await Promise.all(tool_use_reqs.map(async (call) => {
-        // if (!call.req_id.match(/^[a-zA-Z0-9-_]+$/)) {
-        //   call = { ...call, req_id: nonSafeRandom(11) };
-        // }
         const res = await this.#callTool(mcp_manager, call, tool_use_context);
         res_db_messages.push({
           role: 'user',
@@ -135,7 +162,7 @@ export class SessionRunner extends WithContext {
       }));
     }
     for (const message of res_db_messages) {
-      this._ctx.managers.sessions.emit(`session-${this.session_id}-message`, message.data);
+      this.emit(`session-${this.session_id}-message`, message.data);
     }
     return res_db_messages;
   }

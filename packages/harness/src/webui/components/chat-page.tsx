@@ -30,74 +30,6 @@ export const ChatPage: FC<ChatPageProps> = ({ session_id, io_host, io_port }) =>
             display: flex;
           }
 
-          .q-sidebar {
-            width: 220px;
-            background: #2d3748;
-            color: white;
-            display: flex;
-            flex-direction: column;
-            border-right: 1px solid #4a5568;
-          }
-
-          .q-sidebar-header {
-            padding: 1rem;
-            border-bottom: 1px solid #4a5568;
-            font-weight: 600;
-            font-size: 0.9rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-          }
-
-          .q-sidebar-new {
-            background: #48bb78;
-            color: white;
-            border: none;
-            border-radius: 0.25rem;
-            padding: 0.25rem 0.5rem;
-            font-size: 0.75rem;
-            cursor: pointer;
-          }
-
-          .q-sidebar-new:hover {
-            background: #38a169;
-          }
-
-          .q-sidebar-list {
-            flex: 1;
-            overflow-y: auto;
-            list-style: none;
-            padding: 0;
-            margin: 0;
-          }
-
-          .q-sidebar-item {
-            padding: 0.75rem 1rem;
-            cursor: pointer;
-            border-bottom: 1px solid #4a5568;
-            transition: background 0.2s;
-          }
-
-          .q-sidebar-item:hover {
-            background: #4a5568;
-          }
-
-          .q-sidebar-item.active {
-            background: #4a5568;
-            border-left: 3px solid #48bb78;
-          }
-
-          .q-sidebar-item-id {
-            font-size: 0.85rem;
-            font-weight: 500;
-          }
-
-          .q-sidebar-item-meta {
-            font-size: 0.7rem;
-            color: #a0aec0;
-            margin-top: 0.25rem;
-          }
-
           #app {
             flex: 1;
             display: flex;
@@ -395,14 +327,6 @@ export const ChatPage: FC<ChatPageProps> = ({ session_id, io_host, io_port }) =>
         `}</style>
       </head>
       <body>
-        <aside class="q-sidebar">
-          <div class="q-sidebar-header">
-            <span>Sessions</span>
-            <button class="q-sidebar-new" id="new-session-btn">+ New</button>
-          </div>
-          <ul class="q-sidebar-list" id="sessions-list"></ul>
-        </aside>
-
         <div id="app">
           <header class="q-chat-header">
             <h1>Sage</h1>
@@ -433,38 +357,6 @@ export const ChatPage: FC<ChatPageProps> = ({ session_id, io_host, io_port }) =>
           const messageInput = document.getElementById('message-input');
           const statusDot = document.getElementById('status-dot');
           const statusLabel = document.getElementById('status-label');
-          const sessionsList = document.getElementById('sessions-list');
-          const newSessionBtn = document.getElementById('new-session-btn');
-
-          // Load and render sessions list
-          async function loadSessions() {
-            try {
-              const res = await fetch('/sessions');
-              const sessions = await res.json();
-              sessionsList.innerHTML = '';
-              sessions.forEach(s => {
-                const li = document.createElement('li');
-                li.className = 'q-sidebar-item' + (s.id === currentSessionId ? ' active' : '');
-                li.innerHTML = '<div class="q-sidebar-item-id">Session ' + s.id + '</div>' +
-                  '<div class="q-sidebar-item-meta">' + (s.updated_at ? new Date(s.updated_at).toLocaleString() : 'new') + '</div>';
-                li.onclick = () => switchSession(s.id);
-                sessionsList.appendChild(li);
-              });
-            } catch (err) {
-              console.error('Failed to load sessions:', err);
-            }
-          }
-
-          function switchSession(newId) {
-            if (newId === currentSessionId) return;
-            window.location.href = '/session/' + newId;
-          }
-
-          newSessionBtn.onclick = () => {
-            window.location.href = '/';
-          };
-
-          loadSessions();
 
           function setStatus(state) {
             statusDot.className = 'q-status-dot ' + state;

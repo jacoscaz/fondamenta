@@ -2,7 +2,11 @@
 import { type Logger } from "pinetto";
 import { type Emygdala } from "./emygdala/emygdala.js";
 import { type PromptManager } from "./prompts/manager.js";
-import { type SessionManager } from "./sessions/manager.js";
+import { type SessionRepository } from "./sessions/repository.js";
+import { type RunnerRegistry } from "./sessions/registry.js";
+import { type Compactor } from "./sessions/compactor.js";
+import { type MailNotifier } from "./mail/notifier.js";
+import { type ActivationGate } from "./activation/gate.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
@@ -47,6 +51,9 @@ export interface CompleteContext {
   config: Config;
   logger: Logger;
   emygdala: Emygdala;
+  mailNotifier: MailNotifier;
+  activationGate: ActivationGate;
+  compactor: Compactor;
   distiller: Distiller;
   embedder: Embedder;
   managers: {
@@ -54,7 +61,8 @@ export interface CompleteContext {
     mcp: RootMcpManager;
     models: ModelManager;
     prompts: PromptManager;
-    sessions: SessionManager;
+    sessions: SessionRepository;
+    runners: RunnerRegistry;
   };
 }
 

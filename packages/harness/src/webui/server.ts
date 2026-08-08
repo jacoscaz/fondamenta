@@ -1,6 +1,6 @@
 
 import { Server } from 'node:http';
-import { createApp, type SessionListCallback } from './app.js';
+import { createApp } from './app.js';
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
 import { Logger } from 'pinetto';
@@ -18,8 +18,7 @@ export class WebUIServer extends WithContext {
     this.#app = createApp(
       ctx.config,
       this.#logger,
-      this.#onSessionCreate,
-      this.#onSessionList,
+      this.#onMainSession,
     );
     this.#server_http = serve({
       fetch: this.#app.fetch,
@@ -28,12 +27,8 @@ export class WebUIServer extends WithContext {
     }, this.#onListening) as Server;
   }
 
-  #onSessionCreate = async (): Promise<number> => {
-    return await this._ctx.managers.sessions.createSession();
-  };
-
-  #onSessionList: SessionListCallback = async () => {
-    return await this._ctx.managers.sessions.listSessions();
+  #onMainSession = async (): Promise<number> => {
+    return await this._ctx.managers.sessions.getOrCreateMain();
   };
 
   #onListening = () => {

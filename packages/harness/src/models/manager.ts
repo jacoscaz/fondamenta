@@ -10,6 +10,7 @@ export class ModelManager extends WithContext {
   #session?: AbstractSessionModel<any>;
   #embedding?: AbstractEmbeddingModel;
   #distillation?: AbstractSessionModel<any>;
+  #compaction?: AbstractSessionModel<any>;
 
   constructor(init: InitContext) {
     super(init);
@@ -19,6 +20,7 @@ export class ModelManager extends WithContext {
     this.#session = await initializeSessionModel(this._ctx.config.models.session);
     this.#embedding = await initializeEmbeddingModel(this._ctx.config.models.embedding);
     this.#distillation = await initializeSessionModel(this._ctx.config.models.distillation ?? this._ctx.config.models.session);
+    this.#compaction = await initializeSessionModel(this._ctx.config.models.compaction ?? this._ctx.config.models.distillation ?? this._ctx.config.models.session);
   }
 
   get session(): AbstractSessionModel<any> {
@@ -34,6 +36,11 @@ export class ModelManager extends WithContext {
   get distillation(): AbstractSessionModel<any> {
     assert(this.#distillation);
     return this.#distillation;
+  }
+
+  get compaction(): AbstractSessionModel<any> {
+    assert(this.#compaction);
+    return this.#compaction;
   }
 
 }

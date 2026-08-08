@@ -72,6 +72,19 @@ export interface ConfigMail {
   api_token: string;
 }
 
+export interface ConfigActivation {
+  /** Senders that trigger immediate activation (matched against email address) */
+  mail_allowlist?: string[];
+  /** Max autonomous activations per hour */
+  max_per_hour: number;
+  /** Minimum gap between activations in milliseconds */
+  min_gap_ms: number;
+  /** Batch window for non-allowlist mail in milliseconds */
+  batch_window_ms: number;
+  /** Poll interval for the activation gate in milliseconds */
+  poll_interval_ms: number;
+}
+
 export interface Config {
   tz: string;
   io: ConfigIO;
@@ -80,9 +93,11 @@ export interface Config {
     session: ConfigSessionModel;
     embedding: ConfigEmbeddingModel;
     distillation?: ConfigSessionModel;
+    compaction?: ConfigSessionModel;
   };
   logging: ConfigLogging;
   mail: ConfigMail;
+  activation: ConfigActivation;
   postgres: ConfigPostgres;
 }
 

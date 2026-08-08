@@ -3,30 +3,28 @@ import { ChatPage } from './components/chat-page.js';
 import { Config } from '../config/config.js';
 import { Logger } from 'pinetto';
 import { errToString } from '@fondamenta/utils';
-import { type SelectableSession } from '../database/tables/sessions.js';
 
 export type HonoInstance = Hono;
 
-export type SessionListCallback = () => Promise<(SelectableSession & { updated_at: Date | null })[]>;
-
 /**
  * Creates the Hono application for the web chat interface.
+ * Single-session: there is one main session. The root route
+ * redirects to it; session switching is not available.
+ *
  * Handles:
- * - GET / - creates new session and redirects
+ * - GET / - redirects to the main session
  * - GET /session/:id - serves chat page for session
- * - GET /sessions - returns JSON list of all sessions
  */
 export const createApp = (
   config: Config,
   logger: Logger,
-  onSessionCreate: () => Promise<number>,
-  onSessionList: SessionListCallback,
+  onMainSession: () => Promise<number>,
 ): HonoInstance => {
 
   const app = new Hono();
 
   app.get('/', async (ctx) => {
-    const session_id = await onSessionCreate();
+    const session_id = await onMainSession();
     return ctx.redirect(`/session/${session_id}`, 302);
   });
 
@@ -40,11 +38,6 @@ export const createApp = (
       io_host={config.io.addr === '0.0.0.0' ? 'localhost' : config.io.addr}
       io_port={config.io.port}
     />);
-  });
-
-  app.get('/sessions', async (ctx) => {
-    const sessions = await onSessionList();
-    return ctx.json(sessions);
   });
 
   app.onError((err, ctx) => {
