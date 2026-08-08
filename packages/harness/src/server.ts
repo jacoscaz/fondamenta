@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import 'dotenv/config';
+
 import pinetto from 'pinetto';
 
 import { getDB } from "./database/client.js";
