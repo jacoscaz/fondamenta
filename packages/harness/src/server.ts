@@ -71,14 +71,21 @@ const main_session_id = await complete_context.managers.sessions.getOrCreateMain
 const main_runner = complete_context.managers.runners.ensure(main_session_id);
 main_runner.run();
 logger.info('main session %d is live', main_session_id);
+logger.info('PID %s', process.pid);
+process.title = 'fondamenta';
 
 const webui_server = new WebUIServer(init_context);
 
 const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
+  process.removeListener('beforeExit', onProcessExit);
+  process.removeListener('SIGTERM', onProcessExit);
+  process.removeListener('SIGINT', onProcessExit);
   logger.warn('Received signal %s, shutting down...', signal);
   webui_server.close();
   complete_context.mailNotifier.stop();
   complete_context.activationGate.stop();
+  db.destroy();
+  setTimeout(() => process.exit(0), 1000);
 };
 
 process.on('beforeExit', onProcessExit);
