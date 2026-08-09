@@ -11,14 +11,5 @@
 import { type InjectionContext } from "./emygdala/emygdala.js";
 
 export interface InjectionProvider {
-  /**
-   * Whether this provider has consume semantics (event-driven).
-   * If true, the runner drains it during the activation check and
-   * stores the result — it will NOT be called again during #query().
-   * If false (state-driven), it is called fresh during every #query()
-   * to produce context-dependent messages (e.g. time gap, pressure).
-   */
-  readonly consumeOnCheck: boolean;
-
   getInjectedMessages(ctx: InjectionContext): Promise<string[]>;
 }

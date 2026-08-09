@@ -9,7 +9,6 @@ import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../mcp-servers/types.js";
 import { type McpManager } from "../mcp-manager/manager.js";
 import { type InjectionContext } from "../emygdala/emygdala.js";
-import { type InjectionProvider } from "../injection.js";
 import assert from "node:assert";
 
 
@@ -79,57 +78,15 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     try {
       let has_more = true;
       while (has_more) {
-        // First, process any unprocessed user messages (normal path)
+        // Collect injected messages from all providers first.
+        // They are inserted as unprocessed user messages so that
+        // selectMessagesForActivation picks them up alongside any
+        // real user messages in the same tick.
+        await this.#collectAndInsertInjections(db);
+        // Process unprocessed messages (real user messages + injected)
         has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages, _db: DB) => {
           return await this.#query(messages, _db, mcp_manager);
         });
-        // No unprocessed messages — check if event-driven providers have
-        // anything to inject. If so, run a query directly with injected
-        // messages as synthetic content. No blank trigger message needed.
-        if (!has_more) {
-          const session = await selectSessionById(db, this.#origin_session_id);
-          const injection_ctx: InjectionContext = { session, db };
-          const eventDriven: string[] = [];
-          for (const provider of this.#getInjectionProviders()) {
-            if (provider.consumeOnCheck) {
-              const injected = await provider.getInjectedMessages(injection_ctx);
-              eventDriven.push(...injected);
-            }
-          }
-          if (eventDriven.length > 0) {
-            this.#pendingInjections = eventDriven;
-            const model = this._ctx.managers.models.session;
-            await ensureTrx(db, async (trx) => {
-              // Insert injected messages as processed user messages so they
-              // persist in the conversation history and are visible to
-              // future activations. This is what triggered this activation.
-              const now = new Date();
-              for (const text of eventDriven) {
-                await insertMessage(trx, {
-                  session_id: this.#origin_session_id,
-                  data: { role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] },
-                  raw: model.format({ role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] }),
-                  created_at: now,
-                  processed_at: now,
-                  role: 'user',
-                });
-              }
-              // Fetch full conversation history (including the just-inserted
-              // injected messages) for context
-              const all_messages = await trx.selectFrom('messages')
-                .where('session_id', '=', this.#origin_session_id)
-                .orderBy('created_at', 'asc')
-                .orderBy('id', 'asc')
-                .selectAll()
-                .execute();
-              const new_messages = await this.#query(all_messages, trx, mcp_manager);
-              if (new_messages.length > 0) {
-                await trx.insertInto('messages').values(new_messages).execute();
-              }
-            });
-            has_more = true;
-          }
-        }
       }
     } catch (err) {
       this.#logger.error('run error: %s', errToString(err));
@@ -139,10 +96,39 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     }
   }
 
-  #pendingInjections: string[] = [];
-
-  #getInjectionProviders(): InjectionProvider[] {
-    return this._ctx.injectionProviders;
+  /**
+   * Collect injected messages from all providers and insert them as
+   * unprocessed user messages. This ensures they are picked up by
+   * selectMessagesForActivation alongside real user messages, and
+   * that they persist in the conversation history.
+   */
+  async #collectAndInsertInjections(db: DB): Promise<void> {
+    const session = await selectSessionById(db, this.#origin_session_id);
+    const now = new Date();
+    // Find the most recent processed message to determine lastMessageAt
+    const last_msg = await db.selectFrom('messages')
+      .where('session_id', '=', this.#origin_session_id)
+      .where('processed_at', 'is not', null)
+      .orderBy('created_at', 'desc')
+      .limit(1)
+      .select('created_at')
+      .executeTakeFirst();
+    const lastMessageAt = last_msg?.created_at ?? now;
+    const injection_ctx: InjectionContext = { session, db, now, lastMessageAt };
+    const model = this._ctx.managers.models.session;
+    for (const provider of this._ctx.injectionProviders) {
+      const injected = await provider.getInjectedMessages(injection_ctx);
+      for (const text of injected) {
+        await insertMessage(db, {
+          session_id: this.#origin_session_id,
+          data: { role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] },
+          raw: model.format({ role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] }),
+          created_at: now,
+          processed_at: null,
+          role: 'user',
+        });
+      }
+    }
   }
 
   async #query(req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
@@ -160,26 +146,10 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       }
       return raw;
     }))).flat(1);
-    // Collect state-driven injected messages (Emygdala) — these are not
-    // persisted, they are ephemeral context for this activation only.
-    // Event-driven messages (mail, terminal) are already in the conversation
-    // history as real messages when they triggered the activation.
-    const injection_ctx: InjectionContext = { session, db };
-    const injected_texts: string[] = [...this.#pendingInjections];
-    this.#pendingInjections = [];
-    for (const provider of this.#getInjectionProviders()) {
-      if (!provider.consumeOnCheck) {
-        const injected = await provider.getInjectedMessages(injection_ctx);
-        injected_texts.push(...injected);
-      }
-    }
+    // Injected messages are already in the database as real user messages
+    // (inserted by #collectAndInsertInjections before this call). They appear
+    // in req_messages naturally — no separate injection needed here.
     const synthetic_messages: any[] = [];
-    for (const text of injected_texts) {
-      synthetic_messages.push(...model.format({
-        role: 'user',
-        blocks: [{ type: 'text', text: `[automated harness message] ${text}` }],
-      }));
-    }
     const { messages: raw_res_messages, input_size, output_size } = await model.query({
       messages: [...synthetic_messages, ...raw_req_messages],
       tools: await this.#listTools(mcp_manager),

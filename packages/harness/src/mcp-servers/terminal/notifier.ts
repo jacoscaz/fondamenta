@@ -14,8 +14,6 @@ export interface TerminalNotification {
 
 export class TerminalNotifier extends WithContext implements InjectionProvider {
 
-  readonly consumeOnCheck = true;
-
   #notifications: TerminalNotification[] = [];
 
   constructor(ctx: InitContext) {

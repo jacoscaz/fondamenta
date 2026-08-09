@@ -18,8 +18,6 @@ import { type InjectionContext } from "../emygdala/emygdala.js";
  */
 export class MailNotifier extends WithContext implements InjectionProvider {
 
-  readonly consumeOnCheck = true;
-
   #logger: Logger;
   #client: JMAPClient;
   #timer: NodeJS.Timeout | null = null;
@@ -96,7 +94,6 @@ export class MailNotifier extends WithContext implements InjectionProvider {
    * Consume pending mail notifications as formatted strings.
    * Implements InjectionProvider. Applies allowlist filtering —
    * only allowlisted senders produce injected messages.
-   * Non-allowlisted emails are silently drained (discarded).
    */
   async getInjectedMessages(_ctx: InjectionContext): Promise<string[]> {
     const emails = this.consumePendingEmails();
