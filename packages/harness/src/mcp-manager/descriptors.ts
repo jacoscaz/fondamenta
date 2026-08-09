@@ -7,6 +7,8 @@ import { initProcessMcpServer } from "../mcp-servers/process.js";
 import { initTimeMcpServer } from "../mcp-servers/time.js";
 import { initSessionMcpServer } from "../mcp-servers/session.js";
 import { initMailMcpServer } from "../mcp-servers/mail/mail.js";
+import { initTerminalMcpServer } from "../mcp-servers/terminal/terminal.js";
+import { TerminalNotifier } from "../mcp-servers/terminal/notifier.js";
 import { type CompleteContext } from "../context.js";
 import { initNotesMcpServer } from "../mcp-servers/notes.js";
 import { initLogsMcpServer } from "../mcp-servers/logs.js";
@@ -59,6 +61,11 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
       type: 'local',
       name: 'mail',
       server: initMailMcpServer(ctx.config),
+    },
+    {
+      type: 'local',
+      name: 'terminal',
+      server: initTerminalMcpServer(ctx.config),
     },
   ];
 };
