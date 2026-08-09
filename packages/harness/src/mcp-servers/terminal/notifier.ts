@@ -1,5 +1,5 @@
 // Terminal notifier: collects idle events from terminal sessions and queues
-// them as awareness notifications for the activation gate / Emygdala.
+// them as awareness notifications for injection into the activation context.
 
 import { type InitContext, WithContext } from "../../context.js";
 import { type InjectionProvider } from "../../injection.js";

@@ -77,40 +77,39 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     mcp_manager = mcp_manager ?? this._ctx.managers.mcp;
     this.#logger.debug('running');
     try {
-      // Keep processing while there are unprocessed messages or injections
       let has_more = true;
       while (has_more) {
+        // First, process any unprocessed user messages (normal path)
         has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages, _db: DB) => {
           return await this.#query(messages, _db, mcp_manager);
         });
-        // If the loop stopped (no unprocessed messages), check if event-driven
-        // injection providers have anything to inject. If so, insert a blank
-        // user message to trigger another activation cycle.
+        // No unprocessed messages — check if event-driven providers have
+        // anything to inject. If so, run a query directly with injected
+        // messages as synthetic content. No blank trigger message needed.
         if (!has_more) {
           const session = await selectSessionById(db, this.#origin_session_id);
           const injection_ctx: InjectionContext = { session, db };
-          const providers = this.#getInjectionProviders();
           const eventDriven: string[] = [];
-          for (const provider of providers) {
+          for (const provider of this.#getInjectionProviders()) {
             if (provider.consumeOnCheck) {
               const injected = await provider.getInjectedMessages(injection_ctx);
               eventDriven.push(...injected);
             }
           }
           if (eventDriven.length > 0) {
-            // Store consumed event-driven messages for #query() to inject
             this.#pendingInjections = eventDriven;
-            // Insert a blank user message to trigger the activation loop
-            const model = this._ctx.managers.models.session;
             await ensureTrx(db, async (trx) => {
-              await insertMessage(trx, {
-                session_id: this.#origin_session_id,
-                data: { role: 'user', blocks: [{ type: 'text', text: '' }] },
-                raw: model.format({ role: 'user', blocks: [{ type: 'text', text: '' }] }),
-                created_at: new Date(),
-                processed_at: null,
-                role: 'user',
-              });
+              // Fetch full conversation history for context
+              const all_messages = await trx.selectFrom('messages')
+                .where('session_id', '=', this.#origin_session_id)
+                .orderBy('created_at', 'asc')
+                .orderBy('id', 'asc')
+                .selectAll()
+                .execute();
+              const new_messages = await this.#query(all_messages, trx, mcp_manager);
+              if (new_messages.length > 0) {
+                await trx.insertInto('messages').values(new_messages).execute();
+              }
             });
             has_more = true;
           }
@@ -161,7 +160,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     for (const text of injected_texts) {
       synthetic_messages.push(...model.format({
         role: 'user',
-        blocks: [{ type: 'text', text }],
+        blocks: [{ type: 'text', text: `[automated harness message] ${text}` }],
       }));
     }
     const { messages: raw_res_messages, input_size, output_size } = await model.query({

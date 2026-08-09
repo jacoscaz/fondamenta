@@ -18,7 +18,7 @@ export class Heartbeat extends WithContext<HeartbeatEvents> {
   constructor(ctx: InitContext) {
     super(ctx);
     this.#logger = ctx.logger.child('[heartbeat]');
-    this.#intervalMs = ctx.config.activation?.poll_interval_ms ?? 30_000;
+    this.#intervalMs = ctx.config.heartbeat?.interval ?? 30_000;
   }
 
   initialize(): void {

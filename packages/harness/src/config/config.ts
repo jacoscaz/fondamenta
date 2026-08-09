@@ -72,17 +72,11 @@ export interface ConfigMail {
   api_token: string;
 }
 
-export interface ConfigActivation {
+export interface ConfigHeartbeat {
   /** Senders that trigger immediate activation (matched against email address) */
   mail_allowlist?: string[];
-  /** Max autonomous activations per hour */
-  max_per_hour: number;
-  /** Minimum gap between activations in milliseconds */
-  min_gap_ms: number;
-  /** Batch window for non-allowlist mail in milliseconds */
-  batch_window_ms: number;
-  /** Poll interval for the activation gate in milliseconds */
-  poll_interval_ms: number;
+  /** Heartbeat interval in milliseconds */
+  interval: number;
 }
 
 export interface Config {
@@ -97,7 +91,7 @@ export interface Config {
   };
   logging: ConfigLogging;
   mail: ConfigMail;
-  activation: ConfigActivation;
+  heartbeat: ConfigHeartbeat;
   postgres: ConfigPostgres;
 }
 

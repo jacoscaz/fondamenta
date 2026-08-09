@@ -6,15 +6,11 @@ import { type InjectionContext } from "../emygdala/emygdala.js";
 
 /**
  * Polls the inbox for new mail at regular intervals.
- * When new mail arrives, queues it for later consumption.
+ * When new mail arrives, queues it for later injection.
  *
- * This class is responsible for *detection* only. It does NOT
- * decide whether to activate the session — that is the job of
- * the ActivationGate. The gate inspects pending emails, applies
- * filtering policy (allowlist, rate limiting, batching), and
- * triggers activation when appropriate.
- *
- * Emygdala consumes the formatted notifications during injection.
+ * Implements InjectionProvider — the runner drains queued emails
+ * during activation and injects them as synthetic messages.
+ * Allowlist filtering is applied in getInjectedMessages().
  *
  * At startup, establishes a baseline by polling once — everything
  * currently in the inbox is considered "seen". Only emails received
@@ -74,8 +70,6 @@ export class MailNotifier extends WithContext implements InjectionProvider {
 
   /**
    * Returns pending emails and clears the queue.
-   * Called by ActivationGate when it decides to trigger activation.
-   * The gate has already decided which emails warrant activation.
    */
   consumePendingEmails(): EmailSummary[] {
     const emails = this.#pendingEmails;
@@ -106,7 +100,7 @@ export class MailNotifier extends WithContext implements InjectionProvider {
    */
   async getInjectedMessages(_ctx: InjectionContext): Promise<string[]> {
     const emails = this.consumePendingEmails();
-    const allowlist = this._ctx.config.activation?.mail_allowlist ?? [];
+    const allowlist = this._ctx.config.heartbeat?.mail_allowlist ?? [];
     const filtered = emails.filter(e =>
       e.from.some(addr => allowlist.includes(addr.email))
     );
