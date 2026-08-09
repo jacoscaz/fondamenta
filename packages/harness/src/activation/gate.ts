@@ -56,14 +56,18 @@ export class ActivationGate extends WithContext {
     if (this.#running) return;
     this.#running = true;
     try {
-      const mailNotifier = this._ctx.mailNotifier;
-      if (!mailNotifier.hasPendingEmails()) return;
-
-      const emails = mailNotifier.peekPendingEmails();
-      const allowlist = this._ctx.config.activation.mail_allowlist ?? [];
       const max_per_hour = this._ctx.config.activation.max_per_hour;
       const min_gap_ms = this._ctx.config.activation.min_gap_ms;
       const batch_window_ms = this._ctx.config.activation.batch_window_ms;
+
+      const mailNotifier = this._ctx.mailNotifier;
+      const terminalNotifier = this._ctx.terminalNotifier;
+
+      // Check both notification sources
+      const hasMail = mailNotifier.hasPendingEmails();
+      const hasTerminalIdle = terminalNotifier.hasNotifications();
+
+      if (!hasMail && !hasTerminalIdle) return;
 
       const now = Date.now();
 
@@ -76,6 +80,23 @@ export class ActivationGate extends WithContext {
       // Check minimum gap
       const last_activation = this.#recentActivations[this.#recentActivations.length - 1];
       const min_gap_satisfied = !last_activation || (now - last_activation) >= min_gap_ms;
+
+      // Terminal idle events trigger activation like allowlisted mail
+      if (hasTerminalIdle && !hasMail) {
+        if (!rate_limited && min_gap_satisfied) {
+          this.#logger.info('terminal idle — triggering activation');
+          await this.#triggerActivation();
+        } else {
+          this.#logger.info('terminal idle but rate limited (%d/%d per hour, gap %dms)',
+            this.#recentActivations.length, max_per_hour,
+            last_activation ? now - last_activation : 0);
+        }
+        return;
+      }
+
+      // We have mail — proceed with mail-based gating
+      const emails = mailNotifier.peekPendingEmails();
+      const allowlist = this._ctx.config.activation.mail_allowlist ?? [];
 
       // Check if any email is from an allowlisted sender
       const has_allowlisted = emails.some(e =>

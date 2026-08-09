@@ -150,8 +150,17 @@ The session ID is no longer valid after this.`,
     WRITE_DESC,
     async (params) => {
       const session = getSession(params.id);
-      session.write(params.data);
-      return [{ type: 'text', text: `Wrote ${params.data.length} characters to session ${params.id}.` }];
+      // Interpret common escape sequences that LLMs send as literal strings
+      const data = params.data
+        .replace(/\\r/g, '\r')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\x03/g, '\x03')   // Ctrl-C
+        .replace(/\\x1b/g, '\x1b')   // Escape
+        .replace(/\\x04/g, '\x04')   // Ctrl-D (EOF)
+        .replace(/\\x1a/g, '\x1a');  // Ctrl-Z
+      session.write(data);
+      return [{ type: 'text', text: `Wrote ${data.length} characters to session ${params.id}.` }];
     },
   );
 

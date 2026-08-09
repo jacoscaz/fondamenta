@@ -42,6 +42,10 @@ export class Emygdala extends WithContext {
     const mailNotifications = this._ctx.mailNotifier.consumeNotifications();
     messages.push(...mailNotifications);
 
+    // Terminal idle notifications — consume and inject
+    const terminalNotifications = this._ctx.terminalNotifier.consumeNotifications();
+    messages.push(...terminalNotifications);
+
     const time_gap = await this.#getTimeGapMessage(ctx.session);
     if (time_gap) {
       messages.push(time_gap);

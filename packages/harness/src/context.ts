@@ -6,6 +6,7 @@ import { type SessionRepository } from "./sessions/repository.js";
 import { type RunnerRegistry } from "./sessions/registry.js";
 import { type Compactor } from "./sessions/compactor.js";
 import { type MailNotifier } from "./mail/notifier.js";
+import { type TerminalNotifier } from "./mcp-servers/terminal/notifier.js";
 import { type ActivationGate } from "./activation/gate.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
@@ -52,6 +53,7 @@ export interface CompleteContext {
   logger: Logger;
   emygdala: Emygdala;
   mailNotifier: MailNotifier;
+  terminalNotifier: TerminalNotifier;
   activationGate: ActivationGate;
   compactor: Compactor;
   distiller: Distiller;

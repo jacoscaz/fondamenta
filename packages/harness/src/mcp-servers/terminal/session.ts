@@ -155,7 +155,19 @@ export class TerminalSession {
 
   /** Wait for the PTY output to match a pattern, with timeout in ms. */
   async waitFor(pattern: string, timeout?: number): Promise<string> {
-    return this.pty.waitFor(pattern, { timeout: timeout ?? 30_000 });
+    // zigpty's waitFor matches against the raw stream which includes ANSI
+    // escape codes. We match against the screen content instead, polling
+    // until the visible output contains the pattern or the timeout fires.
+    const deadline = Date.now() + (timeout ?? 30_000);
+    const pollInterval = 200; // ms
+    while (Date.now() < deadline) {
+      const screen = this.readScreen();
+      if (screen.includes(pattern)) {
+        return this.#ringBuffer;
+      }
+      await new Promise(r => setTimeout(r, pollInterval));
+    }
+    throw new Error(`Timeout waiting for pattern "${pattern}" in session ${this.id}.`);
   }
 
   /** Resize the terminal. */

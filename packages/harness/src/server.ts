@@ -11,6 +11,7 @@ import { PromptManager } from "./prompts/manager.js";
 import { SessionRepository } from "./sessions/repository.js";
 import { RunnerRegistry } from "./sessions/registry.js";
 import { MailNotifier } from "./mail/notifier.js";
+import { TerminalNotifier } from "./mcp-servers/terminal/notifier.js";
 import { ActivationGate } from "./activation/gate.js";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
@@ -47,6 +48,7 @@ const complete_context: CompleteContext = {
   config,
   emygdala: new Emygdala(init_context),
   mailNotifier: new MailNotifier(init_context),
+  terminalNotifier: new TerminalNotifier(init_context),
   activationGate: new ActivationGate(init_context),
   compactor: new Compactor(init_context),
   distiller: new Distiller(init_context),
