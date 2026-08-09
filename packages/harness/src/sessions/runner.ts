@@ -9,6 +9,7 @@ import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../mcp-servers/types.js";
 import { type McpManager } from "../mcp-manager/manager.js";
 import { type InjectionContext } from "../emygdala/emygdala.js";
+import { type InjectionProvider } from "../injection.js";
 import assert from "node:assert";
 
 
@@ -76,12 +77,44 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     mcp_manager = mcp_manager ?? this._ctx.managers.mcp;
     this.#logger.debug('running');
     try {
-      // Keep processing while there are unprocessed messages
+      // Keep processing while there are unprocessed messages or injections
       let has_more = true;
       while (has_more) {
         has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages, _db: DB) => {
           return await this.#query(messages, _db, mcp_manager);
         });
+        // If the loop stopped (no unprocessed messages), check if event-driven
+        // injection providers have anything to inject. If so, insert a blank
+        // user message to trigger another activation cycle.
+        if (!has_more) {
+          const session = await selectSessionById(db, this.#origin_session_id);
+          const injection_ctx: InjectionContext = { session, db };
+          const providers = this.#getInjectionProviders();
+          const eventDriven: string[] = [];
+          for (const provider of providers) {
+            if (provider.consumeOnCheck) {
+              const injected = await provider.getInjectedMessages(injection_ctx);
+              eventDriven.push(...injected);
+            }
+          }
+          if (eventDriven.length > 0) {
+            // Store consumed event-driven messages for #query() to inject
+            this.#pendingInjections = eventDriven;
+            // Insert a blank user message to trigger the activation loop
+            const model = this._ctx.managers.models.session;
+            await ensureTrx(db, async (trx) => {
+              await insertMessage(trx, {
+                session_id: this.#origin_session_id,
+                data: { role: 'user', blocks: [{ type: 'text', text: '' }] },
+                raw: model.format({ role: 'user', blocks: [{ type: 'text', text: '' }] }),
+                created_at: new Date(),
+                processed_at: null,
+                role: 'user',
+              });
+            });
+            has_more = true;
+          }
+        }
       }
     } catch (err) {
       this.#logger.error('run error: %s', errToString(err));
@@ -89,6 +122,12 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       this.#running = false;
       this.#logger.debug('idle');
     }
+  }
+
+  #pendingInjections: string[] = [];
+
+  #getInjectionProviders(): InjectionProvider[] {
+    return this._ctx.injectionProviders;
   }
 
   async #query(req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
@@ -106,9 +145,18 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       }
       return raw;
     }))).flat(1);
-    // Inject synthetic messages via emygdala — single injection point
+    // Collect injected messages:
+    // 1. Event-driven messages consumed during the run() check (mail, terminal)
+    // 2. State-driven messages computed fresh on every activation (emygdala)
     const injection_ctx: InjectionContext = { session, db };
-    const injected_texts = await this._ctx.emygdala.getInjectedMessages(injection_ctx);
+    const injected_texts: string[] = [...this.#pendingInjections];
+    this.#pendingInjections = [];
+    for (const provider of this.#getInjectionProviders()) {
+      if (!provider.consumeOnCheck) {
+        const injected = await provider.getInjectedMessages(injection_ctx);
+        injected_texts.push(...injected);
+      }
+    }
     const synthetic_messages: any[] = [];
     for (const text of injected_texts) {
       synthetic_messages.push(...model.format({

@@ -2,6 +2,8 @@
 // them as awareness notifications for the activation gate / Emygdala.
 
 import { type InitContext, WithContext } from "../../context.js";
+import { type InjectionProvider } from "../../injection.js";
+import { type InjectionContext } from "../../emygdala/emygdala.js";
 import { TerminalSession } from "./session.js";
 
 export interface TerminalNotification {
@@ -10,7 +12,9 @@ export interface TerminalNotification {
   timestamp: number;
 }
 
-export class TerminalNotifier extends WithContext {
+export class TerminalNotifier extends WithContext implements InjectionProvider {
+
+  readonly consumeOnCheck = true;
 
   #notifications: TerminalNotification[] = [];
 
@@ -34,8 +38,8 @@ export class TerminalNotifier extends WithContext {
     return this.#notifications.length > 0;
   }
 
-  /** Consume and return all pending notifications. */
-  consumeNotifications(): string[] {
+  /** Implementation of InjectionProvider — consumes and returns messages. */
+  async getInjectedMessages(_ctx: InjectionContext): Promise<string[]> {
     if (this.#notifications.length === 0) return [];
     const notifications = this.#notifications;
     this.#notifications = [];

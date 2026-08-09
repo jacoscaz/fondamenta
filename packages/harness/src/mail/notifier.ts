@@ -1,6 +1,8 @@
 import { type Logger } from "pinetto";
 import { type InitContext, WithContext } from "../context.js";
 import { JMAPClient, type EmailSummary } from "../mcp-servers/mail/jmap-client.js";
+import { type InjectionProvider } from "../injection.js";
+import { type InjectionContext } from "../emygdala/emygdala.js";
 
 /**
  * Polls the inbox for new mail at regular intervals.
@@ -18,7 +20,9 @@ import { JMAPClient, type EmailSummary } from "../mcp-servers/mail/jmap-client.j
  * currently in the inbox is considered "seen". Only emails received
  * after startup are queued.
  */
-export class MailNotifier extends WithContext {
+export class MailNotifier extends WithContext implements InjectionProvider {
+
+  readonly consumeOnCheck = true;
 
   #logger: Logger;
   #client: JMAPClient;
@@ -96,13 +100,17 @@ export class MailNotifier extends WithContext {
 
   /**
    * Consume pending mail notifications as formatted strings.
-   * Called by Emygdala during injection. Formats all remaining
-   * pending emails (those not already consumed by the gate) and
-   * clears the queue.
+   * Implements InjectionProvider. Applies allowlist filtering —
+   * only allowlisted senders produce injected messages.
+   * Non-allowlisted emails are silently drained (discarded).
    */
-  consumeNotifications(): string[] {
+  async getInjectedMessages(_ctx: InjectionContext): Promise<string[]> {
     const emails = this.consumePendingEmails();
-    return emails.map(e => this.#formatNotification(e));
+    const allowlist = this._ctx.config.activation?.mail_allowlist ?? [];
+    const filtered = emails.filter(e =>
+      e.from.some(addr => allowlist.includes(addr.email))
+    );
+    return filtered.map(e => this.#formatNotification(e));
   }
 
   async #poll(): Promise<void> {

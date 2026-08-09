@@ -12,7 +12,7 @@ import { SessionRepository } from "./sessions/repository.js";
 import { RunnerRegistry } from "./sessions/registry.js";
 import { MailNotifier } from "./mail/notifier.js";
 import { TerminalNotifier } from "./mcp-servers/terminal/notifier.js";
-import { ActivationGate } from "./activation/gate.js";
+import { Heartbeat } from "./heartbeat.js";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -49,10 +49,17 @@ const complete_context: CompleteContext = {
   emygdala: new Emygdala(init_context),
   mailNotifier: new MailNotifier(init_context),
   terminalNotifier: new TerminalNotifier(init_context),
-  activationGate: new ActivationGate(init_context),
+  heartbeat: new Heartbeat(init_context),
   compactor: new Compactor(init_context),
   distiller: new Distiller(init_context),
   embedder: new Embedder(init_context),
+  get injectionProviders() {
+    return [
+      this.terminalNotifier,
+      this.mailNotifier,
+      this.emygdala,
+    ];
+  },
   managers: {
     io: new IOManager(init_context),
     mcp: new RootMcpManager(init_context),
@@ -68,7 +75,7 @@ await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
 await complete_context.managers.mcp.initialize();
 await complete_context.mailNotifier.initialize(120_000);
-complete_context.activationGate.initialize();
+complete_context.heartbeat.initialize();
 
 // Resolve the main session and ensure its runner is alive
 const main_session_id = await complete_context.managers.sessions.getOrCreateMain();
@@ -87,7 +94,7 @@ const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
   logger.warn('Received signal %s, shutting down...', signal);
   webui_server.close();
   complete_context.mailNotifier.stop();
-  complete_context.activationGate.stop();
+  complete_context.heartbeat.stop();
   db.destroy();
   setTimeout(() => process.exit(0), 1000);
 };

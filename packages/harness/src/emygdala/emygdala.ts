@@ -2,6 +2,7 @@ import { WithContext } from "../context.js";
 import { type DB } from "../database/client.js";
 import { type SelectableSession } from "../database/tables/sessions.js";
 import { formatDistanceStrict } from "date-fns";
+import { type InjectionProvider } from "../injection.js";
 
 export interface EmotionalState {
   context: {
@@ -23,28 +24,19 @@ export interface InjectionContext {
   db?: DB;
 }
 
-export class Emygdala extends WithContext {
+export class Emygdala extends WithContext implements InjectionProvider {
+
+  readonly consumeOnCheck = false;
 
   /**
    * Returns synthetic messages to inject before the real conversation
-   * messages in an activation. This is the single injection point —
-   * the runner doesn't know or care what gets injected.
+   * messages in an activation. Emygdala provides intrinsic awareness:
+   * time gap messages and context pressure guidance.
    *
-   * Currently injects:
-   * - Mail notifications (from MailNotifier)
-   * - Time gap awareness (moved from PromptManager)
-   * - Context pressure guidance (moved from PromptManager)
+   * Mail and terminal notifications are handled by their own providers.
    */
   async getInjectedMessages(ctx: InjectionContext): Promise<string[]> {
     const messages: string[] = [];
-
-    // Mail notifications — consume and inject
-    const mailNotifications = this._ctx.mailNotifier.consumeNotifications();
-    messages.push(...mailNotifications);
-
-    // Terminal idle notifications — consume and inject
-    const terminalNotifications = this._ctx.terminalNotifier.consumeNotifications();
-    messages.push(...terminalNotifications);
 
     const time_gap = await this.#getTimeGapMessage(ctx.session);
     if (time_gap) {
