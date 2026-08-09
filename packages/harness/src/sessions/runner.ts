@@ -98,8 +98,24 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           }
           if (eventDriven.length > 0) {
             this.#pendingInjections = eventDriven;
+            const model = this._ctx.managers.models.session;
             await ensureTrx(db, async (trx) => {
-              // Fetch full conversation history for context
+              // Insert injected messages as processed user messages so they
+              // persist in the conversation history and are visible to
+              // future activations. This is what triggered this activation.
+              const now = new Date();
+              for (const text of eventDriven) {
+                await insertMessage(trx, {
+                  session_id: this.#origin_session_id,
+                  data: { role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] },
+                  raw: model.format({ role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] }),
+                  created_at: now,
+                  processed_at: now,
+                  role: 'user',
+                });
+              }
+              // Fetch full conversation history (including the just-inserted
+              // injected messages) for context
               const all_messages = await trx.selectFrom('messages')
                 .where('session_id', '=', this.#origin_session_id)
                 .orderBy('created_at', 'asc')
@@ -144,9 +160,10 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       }
       return raw;
     }))).flat(1);
-    // Collect injected messages:
-    // 1. Event-driven messages consumed during the run() check (mail, terminal)
-    // 2. State-driven messages computed fresh on every activation (emygdala)
+    // Collect state-driven injected messages (Emygdala) — these are not
+    // persisted, they are ephemeral context for this activation only.
+    // Event-driven messages (mail, terminal) are already in the conversation
+    // history as real messages when they triggered the activation.
     const injection_ctx: InjectionContext = { session, db };
     const injected_texts: string[] = [...this.#pendingInjections];
     this.#pendingInjections = [];
