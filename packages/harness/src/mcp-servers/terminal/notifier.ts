@@ -44,7 +44,7 @@ export class TerminalNotifier extends WithContext implements InjectionProvider {
     const notifications = this.#notifications;
     this.#notifications = [];
     return notifications.map(n =>
-      `Terminal session #${n.sessionId} (${n.command}) is waiting for input.`
+      `Terminal session #${n.sessionId} is idle.`
     );
   }
 
