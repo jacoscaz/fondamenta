@@ -88,15 +88,17 @@ export class TerminalSession {
       this.emulator.write(str);
     });
 
-    // Set up the idle detector
+    // Set up the idle detector. Defaults are tuned for agent use — lower
+    // activeThreshold than zigpty's 512 default, since typical command
+    // output in an interactive session rarely exceeds 100-200 bytes.
     this.#idleDetector = new IdleDetector((event) => {
       if (event.type === 'idle' && this.#onIdle) {
         this.#onIdle(event);
       }
     }, {
-      graceMs: idle.graceMs,
-      activeThreshold: idle.activeThreshold,
-      quietMs: idle.quietMs,
+      graceMs: idle.graceMs ?? 0,
+      activeThreshold: idle.activeThreshold ?? 32,
+      quietMs: idle.quietMs ?? 2000,
     });
     this.pty.attach(this.#idleDetector);
   }
