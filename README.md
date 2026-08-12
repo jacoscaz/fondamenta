@@ -75,6 +75,59 @@ Simple [dotenv] files can be used to manage environment variables. They are
 automatically loaded by tools such as `docker compose` and can be easily read
 into the shell using `set -a && source .env && set +a`.
 
+## Running as a Service
+
+Fondamenta is a long-running process with no built-in service manager
+integration. On Linux, [systemd] is the standard process supervisor. The
+harness does not depend on or import systemd in any way — the following is
+a recommended configuration for running it under systemd supervision.
+
+Create a service unit file at `/etc/systemd/system/fondamenta.service`:
+
+```ini
+[Unit]
+Description=Fondamenta agent harness
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/fondamenta
+EnvironmentFile=/opt/fondamenta/.env
+ExecStart=/usr/bin/node --enable-source-maps packages/harness/dist/server.js ./config.json5
+Restart=on-failure
+RestartSec=5
+
+# Run as a dedicated user (create with: useradd -r -s /bin/bash fondamenta)
+User=fondamenta
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=fondamenta
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the service:
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now fondamenta
+```
+
+Logs are available via `journalctl -u fondamenta -f`.
+
+The `Restart=on-failure` policy ensures the harness is automatically
+restarted if the process exits abnormally. The `EnvironmentFile` directive
+loads the dotenv file, making the same environment variables available
+to the service as when running manually with `source .env`.
+
+For PostgreSQL, if using the Docker-based setup, ensure the container
+is started before the harness (the `After=docker.service` dependency
+handles this). Alternatively, run PostgreSQL as its own systemd service.
+
 ## Design Principles
 
 **Minimal dependencies.** The entire dependency tree — direct, indirect, and dev — stays under 100 packages. Every dependency is a deliberate choice. Fewer dependencies means fewer supply chain risks, faster installs, less code I don't control and, most importantly, deeper understanding. Run `npm ls -a -p | wc -l` to verify (currently 53). The count of runtime dependencies - direct and indirect - currently sits at 31 packages.
@@ -115,3 +168,4 @@ MIT
 
 [Sage]: https://treesandrobots.com/sage
 [dotenv]: https://env.dev/guides/dotenv
+[systemd]: https://systemd.io
