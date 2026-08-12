@@ -1,24 +1,22 @@
 import { type Logger } from "pinetto";
 import { type InitContext, WithContext } from "../context.js";
 import { JMAPClient, type EmailSummary } from "../mcp-servers/mail/jmap-client.js";
+import { type InjectionProvider } from "../injection.js";
+import { type InjectionContext } from "../emygdala/emygdala.js";
 
 /**
  * Polls the inbox for new mail at regular intervals.
- * When new mail arrives, queues it for later consumption.
+ * When new mail arrives, queues it for later injection.
  *
- * This class is responsible for *detection* only. It does NOT
- * decide whether to activate the session — that is the job of
- * the ActivationGate. The gate inspects pending emails, applies
- * filtering policy (allowlist, rate limiting, batching), and
- * triggers activation when appropriate.
- *
- * Emygdala consumes the formatted notifications during injection.
+ * Implements InjectionProvider — the runner drains queued emails
+ * during activation and injects them as synthetic messages.
+ * Allowlist filtering is applied in getInjectedMessages().
  *
  * At startup, establishes a baseline by polling once — everything
  * currently in the inbox is considered "seen". Only emails received
  * after startup are queued.
  */
-export class MailNotifier extends WithContext {
+export class MailNotifier extends WithContext implements InjectionProvider {
 
   #logger: Logger;
   #client: JMAPClient;
@@ -70,8 +68,6 @@ export class MailNotifier extends WithContext {
 
   /**
    * Returns pending emails and clears the queue.
-   * Called by ActivationGate when it decides to trigger activation.
-   * The gate has already decided which emails warrant activation.
    */
   consumePendingEmails(): EmailSummary[] {
     const emails = this.#pendingEmails;
@@ -96,13 +92,16 @@ export class MailNotifier extends WithContext {
 
   /**
    * Consume pending mail notifications as formatted strings.
-   * Called by Emygdala during injection. Formats all remaining
-   * pending emails (those not already consumed by the gate) and
-   * clears the queue.
+   * Implements InjectionProvider. Applies allowlist filtering —
+   * only allowlisted senders produce injected messages.
    */
-  consumeNotifications(): string[] {
+  async getInjectedMessages(_ctx: InjectionContext): Promise<string[]> {
     const emails = this.consumePendingEmails();
-    return emails.map(e => this.#formatNotification(e));
+    const allowlist = this._ctx.config.heartbeat?.mail_allowlist ?? [];
+    const filtered = emails.filter(e =>
+      e.from.some(addr => allowlist.includes(addr.email))
+    );
+    return filtered.map(e => this.#formatNotification(e));
   }
 
   async #poll(): Promise<void> {

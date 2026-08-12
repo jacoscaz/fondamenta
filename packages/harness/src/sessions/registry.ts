@@ -21,12 +21,16 @@ export class RunnerRegistry extends WithContext {
 
   /**
    * Get or create the runner for a session.
+   * The runner is subscribed to the heartbeat on creation.
    */
   ensure(session_id: number): SessionRunner {
     let runner = this.#runners[session_id];
     if (!runner) {
       runner = new SessionRunner(this._ctx.init, session_id, session_id);
       this.#runners[session_id] = runner;
+      // Subscribe the runner to heartbeat events
+      this._ctx.heartbeat.on('beat', () => { runner.run(); });
+      this.#logger.info('runner for session %d subscribed to heartbeat', session_id);
     }
     return runner;
   }

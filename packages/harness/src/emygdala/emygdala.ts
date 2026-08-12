@@ -2,6 +2,7 @@ import { WithContext } from "../context.js";
 import { type DB } from "../database/client.js";
 import { type SelectableSession } from "../database/tables/sessions.js";
 import { formatDistanceStrict } from "date-fns";
+import { type InjectionProvider } from "../injection.js";
 
 export interface EmotionalState {
   context: {
@@ -21,28 +22,25 @@ export interface InjectionContext {
   session: SelectableSession;
   /** Database connection (may be a transaction from the activation loop) */
   db?: DB;
+  /** Timestamp of the current activation */
+  now: Date;
+  /** Timestamp of the most recent processed message in the session */
+  lastMessageAt: Date;
 }
 
-export class Emygdala extends WithContext {
+export class Emygdala extends WithContext implements InjectionProvider {
 
   /**
    * Returns synthetic messages to inject before the real conversation
-   * messages in an activation. This is the single injection point —
-   * the runner doesn't know or care what gets injected.
+   * messages in an activation. Emygdala provides intrinsic awareness:
+   * time gap messages and context pressure guidance.
    *
-   * Currently injects:
-   * - Mail notifications (from MailNotifier)
-   * - Time gap awareness (moved from PromptManager)
-   * - Context pressure guidance (moved from PromptManager)
+   * Mail and terminal notifications are handled by their own providers.
    */
   async getInjectedMessages(ctx: InjectionContext): Promise<string[]> {
     const messages: string[] = [];
 
-    // Mail notifications — consume and inject
-    const mailNotifications = this._ctx.mailNotifier.consumeNotifications();
-    messages.push(...mailNotifications);
-
-    const time_gap = await this.#getTimeGapMessage(ctx.session);
+    const time_gap = await this.#getTimeGapMessage(ctx);
     if (time_gap) {
       messages.push(time_gap);
     }
@@ -88,34 +86,16 @@ export class Emygdala extends WithContext {
     return null;
   }
 
-  async #getTimeGapMessage(session: SelectableSession): Promise<string | null> {
+  async #getTimeGapMessage(ctx: InjectionContext): Promise<string | null> {
     const THRESHOLD_MS = 1_800_000; // 30 minutes
 
-    // Check last activation across all sessions — this covers both
-    // returning to an existing session and starting a new one after time away
-    const last_global = await this._ctx.db
-      .selectFrom('messages')
-      .where('processed_at', 'is not', null)
-      .orderBy('created_at', 'desc')
-      .limit(1)
-      .select(['created_at', 'session_id'])
-      .executeTakeFirst();
-
-    if (!last_global) {
-      return null; // no prior activations at all
-    }
-
-    const global_gap_ms = Date.now() - last_global.created_at.getTime();
+    const global_gap_ms = ctx.now.getTime() - ctx.lastMessageAt.getTime();
     if (global_gap_ms < THRESHOLD_MS) {
-      return null; // still the same session in spirit
+      return null;
     }
 
-    const gap_str = formatDistanceStrict(new Date(), last_global.created_at);
-    if (last_global.session_id === session.id) {
-      return `It has been ${gap_str} since your last activation in this session.`;
-    } else {
-      return `It has been ${gap_str} since your last activation (in a different session).`;
-    }
+    const gap_str = formatDistanceStrict(ctx.now, ctx.lastMessageAt);
+    return `It has been ${gap_str} since your last activation.`;
   }
 
 }
