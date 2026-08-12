@@ -1,8 +1,7 @@
 import { type Logger } from "pinetto";
 import { type InitContext, WithContext } from "../context.js";
 import { JMAPClient, type EmailSummary } from "../mcp-servers/mail/jmap-client.js";
-import { type InjectionProvider } from "../injection.js";
-import { type InjectionContext } from "../emygdala/emygdala.js";
+import { type InjectionProvider, type InjectionContext } from "../injection.js";
 
 /**
  * Polls the inbox for new mail at regular intervals.

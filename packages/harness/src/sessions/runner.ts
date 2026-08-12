@@ -8,7 +8,7 @@ import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../mcp-servers/types.js";
 import { type McpManager } from "../mcp-manager/manager.js";
-import { type InjectionContext } from "../emygdala/emygdala.js";
+import { type InjectionContext } from "../injection.js";
 import assert from "node:assert";
 
 

@@ -2,8 +2,7 @@
 // them as awareness notifications for injection into the activation context.
 
 import { type InitContext, WithContext } from "../../context.js";
-import { type InjectionProvider } from "../../injection.js";
-import { type InjectionContext } from "../../emygdala/emygdala.js";
+import { type InjectionProvider, type InjectionContext } from "../../injection.js";
 import { TerminalSession } from "./session.js";
 
 export interface TerminalNotification {

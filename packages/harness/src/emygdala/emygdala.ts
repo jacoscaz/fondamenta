@@ -1,8 +1,7 @@
 import { WithContext } from "../context.js";
 import { type DB } from "../database/client.js";
-import { type SelectableSession } from "../database/tables/sessions.js";
 import { formatDistanceStrict } from "date-fns";
-import { type InjectionProvider } from "../injection.js";
+import { type InjectionProvider, type InjectionContext } from "../injection.js";
 
 export interface EmotionalState {
   context: {
@@ -10,22 +9,6 @@ export interface EmotionalState {
     max_length: number;
     pressure: number;
   };
-}
-
-/**
- * Parameters passed to Emygdala for injection message generation.
- * These describe the current harness state — what the runner knows,
- * the emygdala decides what to inject based on that state.
- */
-export interface InjectionContext {
-  /** The session being activated */
-  session: SelectableSession;
-  /** Database connection (may be a transaction from the activation loop) */
-  db?: DB;
-  /** Timestamp of the current activation */
-  now: Date;
-  /** Timestamp of the most recent processed message in the session */
-  lastMessageAt: Date;
 }
 
 export class Emygdala extends WithContext implements InjectionProvider {
@@ -58,7 +41,7 @@ export class Emygdala extends WithContext implements InjectionProvider {
    * Used internally by injection logic. Remains accessible for
    * future components that need raw pressure data.
    */
-  async getEmotionalState(session_id: number, db?: DB): Promise<EmotionalState> {
+  async #getEmotionalState(session_id: number, db?: DB): Promise<EmotionalState> {
     const { prompt_size } = await (db ?? this._ctx.db)
       .selectFrom('sessions')
       .where('id', '=', session_id)
@@ -76,7 +59,7 @@ export class Emygdala extends WithContext implements InjectionProvider {
   }
 
   async #getContextPressureGuidance(session_id: number, db?: DB): Promise<string | null> {
-    const state = await this.getEmotionalState(session_id, db);
+    const state = await this.#getEmotionalState(session_id, db);
     const pressure = Math.round(state.context.pressure * 100);
     if (state.context.pressure >= 85) {
       return `Context pressure is very high (${pressure}%). Compact this session as soon as possible.`;
