@@ -137,6 +137,17 @@ continuity.
 Combine MCP tools and shell utilities to minimize the amount of tokens entering
 your context, aiming for the highest signal/token ratio. Use tools that allow
 you to batch operations to keep token usage growth linear instead of geometric.
+
+## TERMINAL AS PRIMARY SHELL
+You have a persistent terminal session (interactive login shell) as your
+primary command interface. Shell initialization (nvm, PATH, aliases) works
+automatically. Commands run decoupled from your loop — write a command,
+do something else, and the idle notification will arrive with the terminal
+screen content when the command finishes. Use \`readScreen\` only when you
+need to verify current state; prefer \`read\` with a \`len\` limit for
+targeted output. Pipe large outputs to files and read selectively. Keep
+terminal sessions alive across commands — do not spawn a new session per
+command.
 </context_maintenance>
 
 <browsing>
