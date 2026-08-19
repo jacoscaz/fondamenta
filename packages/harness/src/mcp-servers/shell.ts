@@ -1,5 +1,4 @@
 import { Config } from "../config/config.js";
-import pinetto from 'pinetto';
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { exec } from "node:child_process";
 import { writeFile } from "node:fs/promises";
@@ -26,13 +25,19 @@ const maybeWriteTemp = async (content: string, label: string): Promise<string> =
     + `\n\n --- Truncated to ${MAX_OUTPUT_LEN} out of ${content.length} chars, full output saved to: ${filepath} . Use the mcp_file_read tool to read the full output if necessary. ALWAYS apply token economy principles. ---`;
 };
 
+const EXEC_DESCRIPTION = `
+  Executes a command in a shell and returns the output.
+  On failure, includes both stdout and stderr in the output.
+  Exceedingly long outputs will be truncated and written to temp files.
+  Timeout MUST be specified in SECONDS.
+`;
+
 const registerTools = (mcpLocalServer: McpLocalServer<HarnessMcpToolCallContext>) => {
 
   mcpLocalServer.addTool<ExecParams>(
     'exec',
     'Execute',
-    `Executes a command in a shell. On failure, includes both stdout and stderr in the output.
-Exceedingly long outputs will be truncated and written to temp files. Timeout MUST be specified in SECONDS.`,
+    EXEC_DESCRIPTION,
     async (args) => {
       const timeout = args.timeout ?? 10;
       return new Promise((resolve) => {
@@ -61,7 +66,7 @@ Exceedingly long outputs will be truncated and written to temp files. Timeout MU
   );
 };
 
-export const initBashMcpServer = (config: Config): McpLocalServer<HarnessMcpToolCallContext> => {
+export const initShellMcpServer = (config: Config): McpLocalServer<HarnessMcpToolCallContext> => {
 
   const mcp_server = new McpLocalServer<HarnessMcpToolCallContext>();
 
