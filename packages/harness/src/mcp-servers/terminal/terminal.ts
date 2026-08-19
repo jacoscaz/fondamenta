@@ -123,12 +123,16 @@ export const initTerminalMcpServer = (
       };
       const terminal_session = new TerminalSession(id, options);
       terminal_session.onIdle = (event, delta) => {
-        if (delta.length > 10_000) {
-          delta = delta.slice(0, 10_000) + `\n\n --- Truncated to 10_000 out of ${delta.length} chars. ---`;
-        }
+        // Use the emulator's screen (ANSI-stripped, visible content) instead
+        // of the raw delta buffer which contains escape codes, spinners, etc.
+        const screen = terminal_session.readScreen();
+        if (!screen.trim()) return;
+        const truncated = screen.length > 10_000
+          ? screen.slice(0, 10_000) + `\n\n--- Truncated to 10,000 out of ${screen.length} chars. ---`
+          : screen;
         ctx.managers.sessions.addHarnessMessage(opts.target_session_id, {
           role: 'user',
-          blocks: [{ type: 'text', text: `Terminal session ${id} is idle. New output available: \n\n ${delta}.` }],
+          blocks: [{ type: 'text', text: `Terminal session ${id} is idle.\n\n\`\`\`\n${truncated}\n\`\`\`` }],
         }).catch((err) => {
           logger.error('failed to notify idle: %s', errToString(err));
         });
