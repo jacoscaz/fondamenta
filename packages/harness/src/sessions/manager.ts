@@ -63,7 +63,7 @@ export class SessionManager extends WithContext {
     return runner;
   }
 
-  async addUserMessage(session_id: number, message: UserMessage, run: boolean = true): Promise<void> {
+  async addUserMessage(session_id: number, message: UserMessage, db?: DB, run: boolean = true): Promise<void> {
     const runner = this.#ensureRunner(session_id);
     await runner.addMessage(message);
     if (run) {
@@ -71,7 +71,7 @@ export class SessionManager extends WithContext {
     }
   }
 
-  async addHarnessMessage(session_id: number, message: UserMessage<TextBlock>, run: boolean = true): Promise<void> {
+  async addHarnessMessage(session_id: number, message: UserMessage<TextBlock>, db?: DB, run: boolean = true): Promise<void> {
     message = {
       ...message,
       blocks: message.blocks.map(block => ({
@@ -79,7 +79,7 @@ export class SessionManager extends WithContext {
         text: `[automated harness message] ${block.text}`,
       })),
     };
-    await this.addUserMessage(session_id, message, run);
+    await this.addUserMessage(session_id, message, db, run);
   }
 
   async getHistory(session_id: number): Promise<Message[]> {

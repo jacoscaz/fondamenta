@@ -86,10 +86,10 @@ export class Emygdala extends WithContext {
     this.#evaluateContextPressure(prompt_size, injected_message_blocks);
     this.#evaluatePassingOfTime(updated_at, injected_message_blocks);
     if (injected_message_blocks.length > 0) {
-      this._ctx.managers.sessions.addHarnessMessage(main_session_id, {
+      await this._ctx.managers.sessions.addHarnessMessage(main_session_id, {
         role: 'user',
         blocks: injected_message_blocks,
-      });
+      }, db);
     }
   };
 
