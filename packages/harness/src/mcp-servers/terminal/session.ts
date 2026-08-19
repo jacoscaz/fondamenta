@@ -99,7 +99,7 @@ export class TerminalSession {
         this.#idleBuffer = '';
       }
     }, {
-      graceMs: idle.graceMs ?? 0,
+      graceMs: idle.graceMs ?? 1500,
       activeThreshold: idle.activeThreshold ?? 32,
       quietMs: idle.quietMs ?? 2000,
     });
@@ -168,7 +168,7 @@ export class TerminalSession {
     while (Date.now() < deadline) {
       const screen = this.readScreen();
       if (screen.includes(pattern)) {
-        return this.#ringBuffer;
+        return screen;
       }
       await new Promise(r => setTimeout(r, pollInterval));
     }

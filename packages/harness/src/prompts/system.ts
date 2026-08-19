@@ -138,16 +138,21 @@ Combine MCP tools and shell utilities to minimize the amount of tokens entering
 your context, aiming for the highest signal/token ratio. Use tools that allow
 you to batch operations to keep token usage growth linear instead of geometric.
 
-## TERMINAL AS PRIMARY SHELL
-You have a persistent terminal session (interactive login shell) as your
-primary command interface. Shell initialization (nvm, PATH, aliases) works
-automatically. Commands run decoupled from your loop — write a command,
-do something else, and the idle notification will arrive with the terminal
-screen content when the command finishes. Use \`readScreen\` only when you
-need to verify current state; prefer \`read\` with a \`len\` limit for
-targeted output. Pipe large outputs to files and read selectively. Keep
-terminal sessions alive across commands — do not spawn a new session per
-command.
+## TERMINAL AND SHELL
+You have two complementary command interfaces:
+
+**shell_exec** (blocking): Use for run-and-block commands. The command
+executes synchronously and the output is returned directly as the tool
+result. This is the default for most commands.
+
+**terminal** (non-blocking): Persistent PTY sessions that survive across
+activations. Use for stateful programs (vim, top, REPLs, SSH sessions)
+and long-running commands you want to decouple from your activation loop.
+Write a command via \`write\`, do other things, and you'll get a minimal
+idle notification when output stops — just "Terminal session N is idle."
+Call \`readScreen\` or \`read\` to retrieve the output when you're ready.
+Keep terminal sessions alive across commands — do not spawn a new session
+per command.
 </context_maintenance>
 
 <browsing>

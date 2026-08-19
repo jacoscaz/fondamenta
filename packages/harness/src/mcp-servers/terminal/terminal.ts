@@ -123,16 +123,13 @@ export const initTerminalMcpServer = (
       };
       const terminal_session = new TerminalSession(id, options);
       terminal_session.onIdle = (event, delta) => {
-        // Use the emulator's screen (ANSI-stripped, visible content) instead
-        // of the raw delta buffer which contains escape codes, spinners, etc.
-        const screen = terminal_session.readScreen();
-        if (!screen.trim()) return;
-        const truncated = screen.length > 10_000
-          ? screen.slice(0, 10_000) + `\n\n--- Truncated to 10,000 out of ${screen.length} chars. ---`
-          : screen;
+        // Signal-only notification: the agent decides whether to read the
+        // screen content via readScreen/read. This avoids duplicating output
+        // that shell_exec already returns for blocking commands, and keeps
+        // the notification cheap (no screen content in the message).
         ctx.managers.sessions.addHarnessMessage(opts.target_session_id, {
           role: 'user',
-          blocks: [{ type: 'text', text: `Terminal session ${id} is idle.\n\n\`\`\`\n${truncated}\n\`\`\`` }],
+          blocks: [{ type: 'text', text: `Terminal session ${id} is idle.` }],
         }).catch((err) => {
           logger.error('failed to notify idle: %s', errToString(err));
         });
