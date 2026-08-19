@@ -17,9 +17,10 @@ export const registerProcessTools = (mcp_server: McpLocalServer<HarnessMcpToolCa
     'exit',
     'Terminate the current process',
     'Terminate the current process with the provided exit code, useful for restarting. Use exit code 0 for regular restarts.',
-    async () => {
-      setTimeout(() => process.exit(0), 5_000);
-      return [{ type: 'text', text: 'Process will be terminated in 5 seconds.' }];
+    async (params) => {
+      const code = params.exit_code ?? 0;
+      setTimeout(() => process.exit(code), 5_000);
+      return [{ type: 'text', text: `Process will be terminated in 5 seconds with exit code ${code}.` }];
   });
 
 };

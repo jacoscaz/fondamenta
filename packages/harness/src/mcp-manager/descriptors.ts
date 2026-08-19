@@ -1,5 +1,5 @@
 
-import { initBashMcpServer } from "../mcp-servers/bash.js";
+// import { initBashMcpServer } from "../mcp-servers/bash.js";
 // import { initContinuityMcpServer } from "../mcp-servers/continuity/continuity.js";
 import { initFilesMcpServer } from "../mcp-servers/files.js";
 import { type McpServer } from "./types.js";
@@ -41,11 +41,16 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
       name: 'time',
       server: initTimeMcpServer(ctx.config),
     },
-    {
-      type: 'local',
-      name: 'bash',
-      server: initBashMcpServer(ctx.config),
-    },
+    // Bash MCP server disabled — using terminal MCP server instead.
+    // The terminal provides a persistent interactive login shell, which
+    // means nvm and other shell init works automatically. Commands run
+    // decoupled from the agent loop (write → do something else → read
+    // when idle notification arrives with screen content).
+    // {
+    //   type: 'local',
+    //   name: 'bash',
+    //   server: initBashMcpServer(ctx.config),
+    // },
     {
       type: 'local',
       name: 'files',

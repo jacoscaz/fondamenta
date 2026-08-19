@@ -95,7 +95,7 @@ Type=simple
 WorkingDirectory=/opt/fondamenta
 EnvironmentFile=/opt/fondamenta/.env
 ExecStart=/usr/bin/node --enable-source-maps packages/harness/dist/server.js ./config.json5
-Restart=on-failure
+Restart=always
 RestartSec=5
 
 # Run as a dedicated user (create with: useradd -r -s /bin/bash fondamenta)
@@ -119,8 +119,8 @@ sudo systemctl enable --now fondamenta
 
 Logs are available via `journalctl -u fondamenta -f`.
 
-The `Restart=on-failure` policy ensures the harness is automatically
-restarted if the process exits abnormally. The `EnvironmentFile` directive
+The `Restart=always` policy ensures the harness is automatically
+restarted whether the process exits cleanly or crashes. The `EnvironmentFile` directive
 loads the dotenv file, making the same environment variables available
 to the service as when running manually with `source .env`.
 

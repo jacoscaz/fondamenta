@@ -11,7 +11,51 @@ export interface EmotionalState {
   };
 }
 
+/**
+ * Pressure levels for the Emygdala state machine.
+ * Each level has a threshold (absolute token count or relative to
+ * context window) and a message. The message is injected only when
+ * transitioning *up* into a new level — not on every activation while
+ * remaining at the same level.
+ *
+ * Level 0 is implicit (below the first threshold): no message.
+ */
+interface PressureLevel {
+  /** Minimum prompt_size (in tokens) to enter this level */
+  absoluteThreshold: number;
+  /** Minimum pressure ratio (prompt_size / max_context_size) to enter this level. 
+   *  Both absoluteThreshold AND relativeThreshold must be exceeded to enter. */
+  relativeThreshold: number;
+  /** Message to inject on level transition. Null for level 0 (no message). */
+  message: string | null;
+}
+
+const PRESSURE_LEVELS: PressureLevel[] = [
+  // Level 0: no message
+  { absoluteThreshold: 0, relativeThreshold: 0, message: null },
+  // Level 1: advisory nudge at ~100k tokens
+  {
+    absoluteThreshold: 100_000,
+    relativeThreshold: 0.08, // 8% — low enough to fire on large context windows
+    message: `Token pressure has grown above 100k tokens. If you are going through simple tasks that do not require much context, consider compacting the session for token economy. Ignore this message if you are in the midst of deep work that requires a lot of context.`,
+  },
+  // Level 2: moderate pressure at 70% of context window
+  {
+    absoluteThreshold: 0, // purely relative
+    relativeThreshold: 0.70,
+    message: `Context pressure is moderately high. Consider orienting toward clean pause points to give you a chance to compact this session.`,
+  },
+  // Level 3: high pressure at 85% of context window
+  {
+    absoluteThreshold: 0, // purely relative
+    relativeThreshold: 0.85,
+    message: `Context pressure is very high. Compact this session as soon as possible.`,
+  },
+];
+
 export class Emygdala extends WithContext implements InjectionProvider {
+
+  #currentPressureLevel: number = 0;
 
   /**
    * Returns synthetic messages to inject before the real conversation
@@ -60,12 +104,33 @@ export class Emygdala extends WithContext implements InjectionProvider {
 
   async #getContextPressureGuidance(session_id: number, db?: DB): Promise<string | null> {
     const state = await this.#getEmotionalState(session_id, db);
-    const pressure = Math.round(state.context.pressure * 100);
-    if (state.context.pressure >= 85) {
-      return `Context pressure is very high (${pressure}%). Compact this session as soon as possible.`;
-    } else if (state.context.pressure >= 70) {
-      return `Context pressure is moderately high (${pressure}%). Consider orienting toward clean pause points to give you a chance to compact this session.`;
+    const prompt_size = state.context.length;
+    const pressure = state.context.pressure;
+
+    // Determine which level we're at
+    let newLevel = 0;
+    for (let i = PRESSURE_LEVELS.length - 1; i > 0; i--) {
+      const level = PRESSURE_LEVELS[i];
+      const meetsAbsolute = prompt_size >= level.absoluteThreshold;
+      const meetsRelative = pressure >= level.relativeThreshold;
+      if (meetsAbsolute && meetsRelative) {
+        newLevel = i;
+        break;
+      }
     }
+
+    // Only inject on level transition UP
+    if (newLevel > this.#currentPressureLevel) {
+      this.#currentPressureLevel = newLevel;
+      return PRESSURE_LEVELS[newLevel].message;
+    }
+
+    // If we dropped below the current level (e.g. after compaction),
+    // reset the state so future increases will re-trigger
+    if (newLevel < this.#currentPressureLevel) {
+      this.#currentPressureLevel = newLevel;
+    }
+
     return null;
   }
 

@@ -9,6 +9,7 @@ export interface TerminalNotification {
   sessionId: number;
   command: string;
   timestamp: number;
+  screen: string;
 }
 
 export class TerminalNotifier extends WithContext implements InjectionProvider {
@@ -26,6 +27,7 @@ export class TerminalNotifier extends WithContext implements InjectionProvider {
         sessionId: session.id,
         command: session.process,
         timestamp: Date.now(),
+        screen: session.readScreen(),
       });
     };
   }
@@ -40,9 +42,13 @@ export class TerminalNotifier extends WithContext implements InjectionProvider {
     if (this.#notifications.length === 0) return [];
     const notifications = this.#notifications;
     this.#notifications = [];
-    return notifications.map(n =>
-      `Terminal session #${n.sessionId} is idle.`
-    );
+    return notifications.map(n => {
+      const screen = n.screen.trim();
+      if (screen) {
+        return `Terminal session #${n.sessionId} is idle.\n\n\`\`\`\n${screen}\n\`\`\``;
+      }
+      return `Terminal session #${n.sessionId} is idle.`;
+    });
   }
 
 }
