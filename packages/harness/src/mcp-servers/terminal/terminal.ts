@@ -60,8 +60,11 @@ const READ_DESC = `Reads the latest <len> characters from the terminal's raw out
 If <len> is omitted, returns the entire buffer (up to 64KB).
 This is raw output including ANSI escape codes — prefer readScreen for the visible screen.`;
 
-const WAIT_FOR_DESC = `Waits until the terminal's output matches the provided string pattern, or times out.
-Returns the accumulated output so far. Default timeout: 30000ms (30 seconds).`;
+const WAIT_FOR_DESC = `Registers a non-blocking pattern watcher on the terminal session. When the
+screen content matches the pattern, a harness message is injected notifying
+you of the match. If the timeout expires without a match, a timeout message is
+injected instead. The tool returns immediately. Use readScreen() to retrieve
+the output after receiving a match notification. Default timeout: 30000ms (30 seconds).`;
 
 const SPAWN_DESC = `Spawns a new terminal session. By default spawns an interactive login shell ($SHELL).
 Returns the session ID. Use write() to send input and read()/readScreen() to read output.`;
@@ -204,14 +207,31 @@ The session ID is no longer valid after this.`,
     'waitFor',
     'Wait for Terminal Output',
     WAIT_FOR_DESC,
-    async (params) => {
+    async (params, opts) => {
       const session = getSession(params.id);
-      try {
-        const output = await session.waitFor(params.match, params.timeout);
-        return [{ type: 'text', text: output }];
-      } catch (e: any) {
-        return [{ type: 'text', text: `Timeout waiting for pattern "${params.match}" in session ${params.id}. ${e?.message ?? ''}` }];
-      }
+      const timeout = params.timeout ?? 30_000;
+      const target_session_id = opts.target_session_id;
+      session.watchFor(
+        params.match,
+        timeout,
+        () => {
+          ctx.managers.sessions.addHarnessMessage(target_session_id, {
+            role: 'user',
+            blocks: [{ type: 'text', text: `Terminal session ${params.id} matched pattern "${params.match}".` }],
+          }).catch((err) => {
+            logger.error('failed to notify waitFor match: %s', errToString(err));
+          });
+        },
+        () => {
+          ctx.managers.sessions.addHarnessMessage(target_session_id, {
+            role: 'user',
+            blocks: [{ type: 'text', text: `Terminal session ${params.id} timed out waiting for pattern "${params.match}" (${timeout}ms).` }],
+          }).catch((err) => {
+            logger.error('failed to notify waitFor timeout: %s', errToString(err));
+          });
+        },
+      );
+      return [{ type: 'text', text: `Watching session ${params.id} for pattern "${params.match}" (timeout: ${timeout}ms). You will be notified on match or timeout.` }];
     },
   );
 

@@ -158,21 +158,34 @@ export class TerminalSession {
     return lines.join('\n');
   }
 
-  /** Wait for the PTY output to match a pattern, with timeout in ms. */
-  async waitFor(pattern: string, timeout?: number): Promise<string> {
-    // zigpty's waitFor matches against the raw stream which includes ANSI
-    // escape codes. We match against the screen content instead, polling
-    // until the visible output contains the pattern or the timeout fires.
-    const deadline = Date.now() + (timeout ?? 30_000);
+  /**
+   * Register a non-blocking pattern watcher. The callback is invoked when
+   * the screen content contains the pattern, or when the timeout expires
+   * without a match. Returns a disposer to cancel the watcher early.
+   */
+  watchFor(pattern: string, timeout: number, onMatch: () => void, onTimeout: () => void): () => void {
+    const deadline = Date.now() + timeout;
     const pollInterval = 200; // ms
-    while (Date.now() < deadline) {
+    let cancelled = false;
+
+    const poll = () => {
+      if (cancelled) return;
+      if (this.pty.exitCode !== null) return; // session ended
       const screen = this.readScreen();
       if (screen.includes(pattern)) {
-        return screen;
+        onMatch();
+        return;
       }
-      await new Promise(r => setTimeout(r, pollInterval));
-    }
-    throw new Error(`Timeout waiting for pattern "${pattern}" in session ${this.id}.`);
+      if (Date.now() >= deadline) {
+        onTimeout();
+        return;
+      }
+      setTimeout(poll, pollInterval);
+    };
+
+    setTimeout(poll, pollInterval);
+
+    return () => { cancelled = true; };
   }
 
   /** Resize the terminal. */

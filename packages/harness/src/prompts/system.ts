@@ -151,8 +151,9 @@ and long-running commands you want to decouple from your activation loop.
 Write a command via \`write\`, do other things, and you'll get a minimal
 idle notification when output stops — just "Terminal session N is idle."
 Call \`readScreen\` or \`read\` to retrieve the output when you're ready.
-Keep terminal sessions alive across commands — do not spawn a new session
-per command.
+Use \`waitFor\` to register a non-blocking pattern watcher — you'll be
+notified when the pattern appears or the timeout expires. Keep terminal
+sessions alive across commands — do not spawn a new session per command.
 </context_maintenance>
 
 <browsing>
