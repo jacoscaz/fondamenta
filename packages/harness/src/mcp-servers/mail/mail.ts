@@ -1,7 +1,7 @@
 
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type Config } from "../../config/config.js";
-import { type HarnessMcpToolCallContext } from "../types.js";
+import { type HarnessMcpToolCallContext } from "../../types.js";
 import { JMAPClient, type EmailSummary, type EmailDetail, type Mailbox, type EmailAddress } from "./jmap-client.js";
 
 // ── Formatters ──

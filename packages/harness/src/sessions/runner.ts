@@ -6,29 +6,57 @@ import { type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlo
 import { type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
-import { type HarnessMcpToolCallContext } from "../mcp-servers/types.js";
+import { type HarnessMcpToolCallContext } from "../types.js";
 import { type McpManager } from "../mcp-manager/manager.js";
-import { type InjectionContext } from "../injection.js";
 import assert from "node:assert";
+import { type AbstractSessionModel } from "../models/session/abstract.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
-  [key: `session-${number}-message`]: [message: Message];
+  message: [message: Message];
+  idle: [prompt_size?: number];
 }
 
 export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
+  #model: AbstractSessionModel<any, any>;
   #logger: Logger;
   #running: boolean;
+  #prompt_size?: number;
   #origin_session_id: number;
   #target_session_id: number;
+  #pre_query_listeners: ((db: DB, session_id: number) => Promise<void>)[] = [];
+  #post_query_listeners: ((db: DB, session_id: number) => Promise<void>)[] = [];
 
-  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number) {
+  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel<any, any>) {
     super(ctx);
+    this.#model = model;
     this.#logger = ctx.logger.child(`[session:${origin_session_id}]`);
     this.#running = false;
     this.#origin_session_id = origin_session_id;
     this.#target_session_id = target_session_id;
+    this.#pre_query_listeners = [];
+    this.#post_query_listeners = [];
+  }
+
+  addPreQueryListener(listener: (db: DB, session_id: number) => Promise<void>) {
+    this.#pre_query_listeners.push(listener);
+  }
+
+  async #runPreQueryListeners(db: DB) {
+    for (const listener of this.#pre_query_listeners) {
+      await listener(db, this.session_id);
+    }
+  }
+
+  addPostQueryListener(listener: (db: DB, session_id: number) => Promise<void>) {
+    this.#post_query_listeners.push(listener);
+  }
+
+  async #runPostQueryListeners(db: DB) {
+    for (const listener of this.#post_query_listeners) {
+      await listener(db, this.session_id);
+    }
   }
 
   get session_id() {
@@ -39,13 +67,12 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * Insert a user message into the session and trigger the activation loop.
    * Absorbed from SessionManager.
    */
-  async addMessage(message: UserMessage): Promise<void> {
-    await ensureTrx(this._ctx.db, async (trx) => {
-      const model = this._ctx.managers.models.session;
+  async addMessage(message: UserMessage, db?: DB): Promise<void> {
+    await ensureTrx(db ?? this._ctx.db, async (trx) => {
       await insertMessage(trx, {
         session_id: this.#origin_session_id,
         data: message,
-        raw: model.format(message),
+        raw: this.#model.format(message),
         created_at: new Date(),
         processed_at: null,
         role: 'user',
@@ -82,7 +109,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         // They are inserted as unprocessed user messages so that
         // selectMessagesForActivation picks them up alongside any
         // real user messages in the same tick.
-        await this.#collectAndInsertInjections(db);
+        // await this.#collectAndInsertInjections(db);
         // Process unprocessed messages (real user messages + injected)
         has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages, _db: DB) => {
           return await this.#query(messages, _db, mcp_manager);
@@ -93,65 +120,27 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     } finally {
       this.#running = false;
       this.#logger.debug('idle');
-    }
-  }
-
-  /**
-   * Collect injected messages from all providers and insert them as
-   * unprocessed user messages. This ensures they are picked up by
-   * selectMessagesForActivation alongside real user messages, and
-   * that they persist in the conversation history.
-   */
-  async #collectAndInsertInjections(db: DB): Promise<void> {
-    const session = await selectSessionById(db, this.#origin_session_id);
-    const now = new Date();
-    // Find the most recent processed message to determine lastMessageAt
-    const last_msg = await db.selectFrom('messages')
-      .where('session_id', '=', this.#origin_session_id)
-      .where('processed_at', 'is not', null)
-      .orderBy('created_at', 'desc')
-      .limit(1)
-      .select('created_at')
-      .executeTakeFirst();
-    const lastMessageAt = last_msg?.created_at ?? now;
-    const injection_ctx: InjectionContext = { session, db, now, lastMessageAt };
-    const model = this._ctx.managers.models.session;
-    for (const provider of this._ctx.injectionProviders) {
-      const injected = await provider.getInjectedMessages(injection_ctx);
-      for (const text of injected) {
-        await insertMessage(db, {
-          session_id: this.#origin_session_id,
-          data: { role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] },
-          raw: model.format({ role: 'user', blocks: [{ type: 'text', text: `[automated harness message] ${text}` }] }),
-          created_at: now,
-          processed_at: null,
-          role: 'user',
-        });
-      }
+      this.emit('idle', this.#prompt_size);
     }
   }
 
   async #query(req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
-    const model = this._ctx.managers.models.session;
+    await this.#runPreQueryListeners(db);
     const raw_req_messages = (await Promise.all(req_messages.map(async (message) => {
       let { raw, processed_at } = message;
       if (!processed_at) {
-        this.emit(`session-${this.session_id}-message`, message.data);
+        this.emit(`message`, message.data);
       }
       if (!raw) {
         assert(message.data.role === 'user', 'message must be a user message');
-        raw = await model.format(message.data);
+        raw = await this.#model.format(message.data);
         await updateMessageRaw(db, message.id, message.raw);
       }
       return raw;
     }))).flat(1);
-    // Injected messages are already in the database as real user messages
-    // (inserted by #collectAndInsertInjections before this call). They appear
-    // in req_messages naturally — no separate injection needed here.
-    const synthetic_messages: any[] = [];
-    const { messages: raw_res_messages, input_size, output_size } = await model.query({
-      messages: [...synthetic_messages, ...raw_req_messages],
+    const { messages: raw_res_messages, input_size, output_size } = await this.#model.query({
+      messages: raw_req_messages,
       tools: await this.#listTools(mcp_manager),
       session_id: `fondamenta-${this.#origin_session_id}`,
       system_prompt: session.system_prompt,
@@ -161,6 +150,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       input_tokens_delta: input_size,
       output_tokens_delta: output_size,
     });
+    this.#prompt_size = input_size;
     const tool_use_reqs: ToolUseRequestBlock[] = [];
 
     const res_db_messages: AInsertableDBMessage[] = [];
@@ -170,7 +160,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       res_db_messages.push({
         role: 'agent',
         raw: raw_res_message,
-        data: model.parse(raw_res_message, tool_use_reqs),
+        data: this.#model.parse(raw_res_message, tool_use_reqs),
         session_id: this.#origin_session_id,
         created_at,
         processed_at: created_at,
@@ -180,6 +170,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     if (tool_use_reqs.length > 0) {
       const tool_use_context: HarnessMcpToolCallContext = {
         db,
+        runner: this,
         origin_session_id: this.#origin_session_id,
         target_session_id: this.#target_session_id,
       };
@@ -187,7 +178,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         const res = await this.#callTool(mcp_manager, call, tool_use_context);
         res_db_messages.push({
           role: 'user',
-          raw: model.format({ role: 'user', blocks: [res] }),
+          raw: this.#model.format({ role: 'user', blocks: [res] }),
           data: { role: 'user', blocks: [res] },
           session_id: this.#origin_session_id,
           created_at,
@@ -196,8 +187,9 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       }));
     }
     for (const message of res_db_messages) {
-      this.emit(`session-${this.session_id}-message`, message.data);
+      this.emit(`message`, message.data);
     }
+    await this.#runPostQueryListeners(db);
     return res_db_messages;
   }
 

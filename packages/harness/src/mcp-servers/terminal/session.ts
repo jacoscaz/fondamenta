@@ -40,9 +40,10 @@ export class TerminalSession {
   readonly pty: IPty;
   readonly emulator: InstanceType<typeof XtermTerminal>;
 
+  #idleBuffer: string = '';
   #ringBuffer: string = '';
   #idleDetector: IdleDetector;
-  #onIdle: ((event: IdleEvent) => void) | null = null;
+  #onIdle: ((event: IdleEvent, delta: string) => void) | null = null;
 
   constructor(id: number, options: TerminalSessionOptions = {}) {
     const {
@@ -82,6 +83,7 @@ export class TerminalSession {
     this.pty.onData((data: string | Buffer) => {
       const str = typeof data === 'string' ? data : data.toString('utf-8');
       this.#ringBuffer += str;
+      this.#idleBuffer += str;
       if (this.#ringBuffer.length > RING_BUFFER_MAX) {
         this.#ringBuffer = this.#ringBuffer.slice(-RING_BUFFER_MAX);
       }
@@ -93,7 +95,8 @@ export class TerminalSession {
     // output in an interactive session rarely exceeds 100-200 bytes.
     this.#idleDetector = new IdleDetector((event) => {
       if (event.type === 'idle' && this.#onIdle) {
-        this.#onIdle(event);
+        this.#onIdle(event, this.#idleBuffer);
+        this.#idleBuffer = '';
       }
     }, {
       graceMs: idle.graceMs ?? 0,
@@ -123,7 +126,7 @@ export class TerminalSession {
     return this.pty.process;
   }
 
-  set onIdle(handler: ((event: IdleEvent) => void) | null) {
+  set onIdle(handler: ((event: IdleEvent, delta: string) => void) | null) {
     this.#onIdle = handler;
   }
 

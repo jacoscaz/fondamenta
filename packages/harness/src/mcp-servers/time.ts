@@ -2,7 +2,7 @@
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { formatCurrentTime } from "../prompts/formatters.js";
 import { type Config } from "../config/config.js";
-import { type HarnessMcpToolCallContext } from "./types.js";
+import { type HarnessMcpToolCallContext } from "../types.js";
 
 export const registerTimeTools = (mcp_server: McpLocalServer<HarnessMcpToolCallContext>) => {
 

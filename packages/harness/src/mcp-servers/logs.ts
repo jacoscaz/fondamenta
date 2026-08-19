@@ -6,7 +6,7 @@ import {
   selectRecords,
   type SelectableContinuityRecord,
 } from "../database/tables/continuity_records.js";
-import { type HarnessMcpToolCallContext } from "./types.js";
+import { type HarnessMcpToolCallContext } from "../types.js";
 import { type CompleteContext } from "../context.js";
 import { McpLocalServer } from "@fondamenta/mcp-local";
 

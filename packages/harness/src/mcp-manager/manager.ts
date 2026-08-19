@@ -8,7 +8,7 @@ import { McpHttpClient } from "@fondamenta/mcp-http-client";
 import { McpLocalClient } from "@fondamenta/mcp-local";
 import { InitContext, WithContext } from "../context.js";
 import { getMcpServers } from "./descriptors.js";
-import { HarnessMcpToolCallContext } from "../mcp-servers/types.js";
+import { HarnessMcpToolCallContext } from "../types.js";
 
 type ToolRegistry = Record<string, { name: string, server: McpServer, desc: McpToolDescriptor }>;
 

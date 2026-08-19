@@ -28,9 +28,7 @@ export class IOManager extends WithContext {
     this.#logger.info('listening on %s', addressInfoToString(this.#server.address()!));
   };
 
-  #onResume = (ws: WebSocket, runner: SessionRunner) => {
-    const session_id = runner.session_id;
-
+  #onResume = (ws: WebSocket, session_id: number) => {
     const onWSMessage = (data: string | Buffer) => {
       ws.pause();
       (async () => {
@@ -38,7 +36,7 @@ export class IOManager extends WithContext {
           data = Buffer.isBuffer(data) ? data.toString() : data;
           console.log('received message: %s', data);
           const message = cast<UserMessage>(JSON.parse(data));
-          await runner.addMessage(message);
+          await this._ctx.managers.sessions.addUserMessage(session_id, message);
         } catch (err) {
           this.#logger.error('invalid message');
           console.log(err);
@@ -56,7 +54,7 @@ export class IOManager extends WithContext {
       ws.removeListener('message', onWSMessage);
       ws.removeListener('close', onWSClose);
       ws.removeListener('error', onWSError);
-      runner.removeListener(`session-${session_id}-message`, onSessionMessage);
+      this._ctx.managers.sessions.removeListener(`session-${session_id}-message`, onSessionMessage);
     };
 
     const onSessionMessage = (message: Message) => {
@@ -68,7 +66,7 @@ export class IOManager extends WithContext {
     ws.on('message', onWSMessage);
     ws.on('close', onWSClose);
     ws.on('error', onWSError);
-    runner.on(`session-${session_id}-message`, onSessionMessage);
+    this._ctx.managers.sessions.on(`session-${session_id}-message`, onSessionMessage);
   };
 
   #onConnection = (ws: WebSocket, req: IncomingMessage) => {
@@ -86,13 +84,12 @@ export class IOManager extends WithContext {
       console.error('bad session id');
       return;
     }
-    const runner = this._ctx.managers.runners.ensure(session_id);
-    runner.getHistory()
+    this._ctx.managers.sessions.getHistory(session_id)
       .then((messages) => {
         for (const m of messages) {
           ws.send(JSON.stringify(m));
         }
-        this.#onResume(ws, runner);
+        this.#onResume(ws, session_id);
       })
       .catch((err) => {
         ws.terminate();

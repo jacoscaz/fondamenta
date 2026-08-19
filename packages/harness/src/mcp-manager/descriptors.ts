@@ -69,7 +69,7 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
     {
       type: 'local',
       name: 'terminal',
-      server: initTerminalMcpServer(ctx.config, ctx.terminalNotifier),
+      server: initTerminalMcpServer(ctx.config, ctx),
     },
   ];
 };

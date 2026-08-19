@@ -1,7 +1,7 @@
 import { ChildProcess } from "node:child_process";
 import { McpClient } from "@fondamenta/mcp-core";
 import { McpLocalServer } from "@fondamenta/mcp-local";
-import { type HarnessMcpToolCallContext } from "../mcp-servers/types.js";
+import { type HarnessMcpToolCallContext } from "../types.js";
 
 
 export interface IAgentMcpBaseServer {

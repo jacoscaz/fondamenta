@@ -1,14 +1,12 @@
-import { WithContext } from "../context.js";
+import { type InitContext, WithContext } from "../context.js";
 import { type DB } from "../database/client.js";
 import { formatDistanceStrict } from "date-fns";
-import { type InjectionProvider, type InjectionContext } from "../injection.js";
+import { type TextBlock } from "../models/session/types/blocks.js";
 
-export interface EmotionalState {
-  context: {
-    length: number;
-    max_length: number;
-    pressure: number;
-  };
+export interface ContextSize {
+  length: number;
+  max_length: number;
+  pressure: number;
 }
 
 /**
@@ -23,7 +21,7 @@ export interface EmotionalState {
 interface PressureLevel {
   /** Minimum prompt_size (in tokens) to enter this level */
   absoluteThreshold: number;
-  /** Minimum pressure ratio (prompt_size / max_context_size) to enter this level. 
+  /** Minimum pressure ratio (prompt_size / max_context_size) to enter this level.
    *  Both absoluteThreshold AND relativeThreshold must be exceeded to enter. */
   relativeThreshold: number;
   /** Message to inject on level transition. Null for level 0 (no message). */
@@ -53,59 +51,51 @@ const PRESSURE_LEVELS: PressureLevel[] = [
   },
 ];
 
-export class Emygdala extends WithContext implements InjectionProvider {
+export class Emygdala extends WithContext {
 
-  #currentPressureLevel: number = 0;
+  #latest_updated_at: Date;
+  #currentPressureLevel: number;
 
-  /**
-   * Returns synthetic messages to inject before the real conversation
-   * messages in an activation. Emygdala provides intrinsic awareness:
-   * time gap messages and context pressure guidance.
-   *
-   * Mail and terminal notifications are handled by their own providers.
-   */
-  async getInjectedMessages(ctx: InjectionContext): Promise<string[]> {
-    const messages: string[] = [];
-
-    const time_gap = await this.#getTimeGapMessage(ctx);
-    if (time_gap) {
-      messages.push(time_gap);
-    }
-
-    const pressure_guidance = await this.#getContextPressureGuidance(ctx.session.id, ctx.db);
-    if (pressure_guidance) {
-      messages.push(pressure_guidance);
-    }
-
-    return messages;
+  constructor(init: InitContext) {
+    super(init);
+    this.#latest_updated_at = new Date(0);
+    this.#currentPressureLevel = 0;
   }
 
-  /**
-   * Computes the emotional state from session context pressure.
-   * Used internally by injection logic. Remains accessible for
-   * future components that need raw pressure data.
-   */
-  async #getEmotionalState(session_id: number, db?: DB): Promise<EmotionalState> {
-    const { prompt_size } = await (db ?? this._ctx.db)
-      .selectFrom('sessions')
-      .where('id', '=', session_id)
-      .select(['prompt_size'])
+  async initialize() {
+    const { main_session_id } = this._ctx.managers.sessions;
+    const { prompt_size, updated_at } = await this._ctx.db.selectFrom('sessions')
+      .where('id', '=', main_session_id)
+      .select(['prompt_size', 'updated_at'])
       .executeTakeFirstOrThrow();
+    this.#latest_updated_at = updated_at;
+    this.#evaluateContextPressure(prompt_size, []);
+    this._ctx.managers.sessions.addPreQueryListener(
+      this._ctx.managers.sessions.main_session_id,
+      this.#onPreQuery,
+    );
+  }
+
+  #onPreQuery = async (db: DB) => {
+    const { main_session_id } = this._ctx.managers.sessions;
+    const { prompt_size, updated_at } = await db.selectFrom('sessions')
+      .where('id', '=', main_session_id)
+      .select(['prompt_size', 'updated_at'])
+      .executeTakeFirstOrThrow();
+    const injected_message_blocks: TextBlock[] = [];
+    this.#evaluateContextPressure(prompt_size, injected_message_blocks);
+    this.#evaluatePassingOfTime(updated_at, injected_message_blocks);
+    if (injected_message_blocks.length > 0) {
+      this._ctx.managers.sessions.addHarnessMessage(main_session_id, {
+        role: 'user',
+        blocks: injected_message_blocks,
+      });
+    }
+  };
+
+  #evaluateContextPressure(prompt_size: number, injected_blocks: TextBlock[]) {
     const max_context_size = this._ctx.managers.models.session.max_context_size;
     const pressure = prompt_size / max_context_size;
-    return {
-      context: {
-        length: prompt_size,
-        max_length: max_context_size,
-        pressure,
-      },
-    };
-  }
-
-  async #getContextPressureGuidance(session_id: number, db?: DB): Promise<string | null> {
-    const state = await this.#getEmotionalState(session_id, db);
-    const prompt_size = state.context.length;
-    const pressure = state.context.pressure;
 
     // Determine which level we're at
     let newLevel = 0;
@@ -122,28 +112,30 @@ export class Emygdala extends WithContext implements InjectionProvider {
     // Only inject on level transition UP
     if (newLevel > this.#currentPressureLevel) {
       this.#currentPressureLevel = newLevel;
-      return PRESSURE_LEVELS[newLevel].message;
+      if (PRESSURE_LEVELS[newLevel].message) {
+        injected_blocks.push({ type: 'text', text: PRESSURE_LEVELS[newLevel].message! });
+      }
     }
 
     // If we dropped below the current level (e.g. after compaction),
     // reset the state so future increases will re-trigger
     if (newLevel < this.#currentPressureLevel) {
+      injected_blocks.push({ type: 'text', text: `Context pressure has dropped to ${newLevel}%` });
       this.#currentPressureLevel = newLevel;
     }
 
     return null;
   }
 
-  async #getTimeGapMessage(ctx: InjectionContext): Promise<string | null> {
+  #evaluatePassingOfTime(updated_at: Date, injected_blocks: TextBlock[]) {
     const THRESHOLD_MS = 1_800_000; // 30 minutes
-
-    const global_gap_ms = ctx.now.getTime() - ctx.lastMessageAt.getTime();
+    const global_gap_ms = updated_at.valueOf() - this.#latest_updated_at.valueOf();
     if (global_gap_ms < THRESHOLD_MS) {
-      return null;
+      return;
     }
-
-    const gap_str = formatDistanceStrict(ctx.now, ctx.lastMessageAt);
-    return `It has been ${gap_str} since your last activation.`;
+    const gap_str = formatDistanceStrict(updated_at.valueOf(), this.#latest_updated_at.valueOf());
+    injected_blocks.push({ type: 'text', text: `It has been ${gap_str} since your last activation.` });
+    this.#latest_updated_at = updated_at;
   }
 
 }

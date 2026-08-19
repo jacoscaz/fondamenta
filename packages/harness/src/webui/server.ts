@@ -28,7 +28,7 @@ export class WebUIServer extends WithContext {
   }
 
   #onMainSession = async (): Promise<number> => {
-    return await this._ctx.managers.sessions.getOrCreateMain();
+    return this._ctx.managers.sessions.main_session_id;
   };
 
   #onListening = () => {

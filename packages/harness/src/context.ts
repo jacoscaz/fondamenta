@@ -2,13 +2,10 @@
 import { type Logger } from "pinetto";
 import { type Emygdala } from "./emygdala/emygdala.js";
 import { type PromptManager } from "./prompts/manager.js";
-import { type SessionRepository } from "./sessions/repository.js";
-import { type RunnerRegistry } from "./sessions/registry.js";
+import { type SessionManager } from "./sessions/manager.js";
 import { type Compactor } from "./sessions/compactor.js";
-import { type MailNotifier } from "./mail/notifier.js";
-import { type TerminalNotifier } from "./mcp-servers/terminal/notifier.js";
+import { type MailNotifier } from "./mcp-servers/mail/notifier.js";
 import { type Heartbeat } from "./heartbeat.js";
-import { type InjectionProvider } from "./injection.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
@@ -54,9 +51,7 @@ export interface CompleteContext {
   logger: Logger;
   emygdala: Emygdala;
   mailNotifier: MailNotifier;
-  terminalNotifier: TerminalNotifier;
   heartbeat: Heartbeat;
-  injectionProviders: InjectionProvider[];
   compactor: Compactor;
   distiller: Distiller;
   embedder: Embedder;
@@ -65,8 +60,7 @@ export interface CompleteContext {
     mcp: RootMcpManager;
     models: ModelManager;
     prompts: PromptManager;
-    sessions: SessionRepository;
-    runners: RunnerRegistry;
+    sessions: SessionManager;
   };
 }
 

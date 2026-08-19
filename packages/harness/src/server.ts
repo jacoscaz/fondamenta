@@ -8,10 +8,8 @@ import { getDB } from "./database/client.js";
 import { getConfigFromProcessArgv } from "./config/config.js";
 import { WebUIServer } from "./webui/server.js";
 import { PromptManager } from "./prompts/manager.js";
-import { SessionRepository } from "./sessions/repository.js";
-import { RunnerRegistry } from "./sessions/registry.js";
-import { MailNotifier } from "./mail/notifier.js";
-import { TerminalNotifier } from "./mcp-servers/terminal/notifier.js";
+import { SessionManager } from "./sessions/manager.js";
+import { MailNotifier } from "./mcp-servers/mail/notifier.js";
 import { Heartbeat } from "./heartbeat.js";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
@@ -48,40 +46,37 @@ const complete_context: CompleteContext = {
   config,
   emygdala: new Emygdala(init_context),
   mailNotifier: new MailNotifier(init_context),
-  terminalNotifier: new TerminalNotifier(init_context),
   heartbeat: new Heartbeat(init_context),
   compactor: new Compactor(init_context),
   distiller: new Distiller(init_context),
   embedder: new Embedder(init_context),
-  get injectionProviders() {
-    return [
-      this.terminalNotifier,
-      this.mailNotifier,
-      this.emygdala,
-    ];
-  },
+  // get injectionProviders() {
+  //   return [
+  //     this.mailNotifier,
+  //     this.emygdala,
+  //   ];
+  // },
   managers: {
     io: new IOManager(init_context),
     mcp: new RootMcpManager(init_context),
     models: new ModelManager(init_context),
     prompts: new PromptManager(init_context),
-    sessions: new SessionRepository(init_context),
-    runners: new RunnerRegistry(init_context),
+    sessions: new SessionManager(init_context),
   },
 };
 
 await complete_context.managers.models.initialize();
+await complete_context.managers.sessions.initialize();
+await complete_context.managers.mcp.initialize();
+await complete_context.emygdala.initialize();
 await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
-await complete_context.managers.mcp.initialize();
 await complete_context.mailNotifier.initialize(120_000);
 complete_context.heartbeat.initialize();
 
 // Resolve the main session and ensure its runner is alive
-const main_session_id = await complete_context.managers.sessions.getOrCreateMain();
-const main_runner = complete_context.managers.runners.ensure(main_session_id);
-main_runner.run();
-logger.info('main session %d is live', main_session_id);
+logger.info('main session %d is live', complete_context.managers.sessions.main_session_id);
+
 logger.info('PID %s', process.pid);
 process.title = 'fondamenta';
 

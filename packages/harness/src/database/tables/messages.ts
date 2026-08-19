@@ -23,7 +23,7 @@ export type AInsertableDBMessage = Insertable<ADBMessage>;
 export type ASelectableDBMessage = Selectable<ADBMessage>;
 export type AUpdateableDBMessage = Updateable<ADBMessage>;
 
-export const insertMessage = async (db: DB, message: AInsertableDBMessage): Promise<ASelectableDBMessage> => {
+export const insertMessage = async (db: DB, message: AInsertableDBMessage | AInsertableDBMessage[]): Promise<ASelectableDBMessage> => {
   const result = await db.insertInto('messages')
     .values(message)
     .returningAll()

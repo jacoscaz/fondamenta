@@ -3,7 +3,7 @@ import { Config } from "../config/config.js";
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { HarnessMcpToolCallContext } from "./types.js";
+import { HarnessMcpToolCallContext } from "../types.js";
 
 interface ReadFileParams {
   path: string;

@@ -3,9 +3,10 @@
 
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { Config } from "../../config/config.js";
-import { type HarnessMcpToolCallContext } from "../types.js";
+import { type HarnessMcpToolCallContext } from "../../types.js";
 import { TerminalSession, type TerminalSessionOptions, type SessionInfo } from "./session.js";
-import { TerminalNotifier } from "./notifier.js";
+import { CompleteContext } from "../../context.js";
+import { errToString } from "@fondamenta/utils";
 
 interface SpawnParams {
   command?: string;
@@ -70,12 +71,14 @@ Use \\r for Enter, \\x03 for Ctrl-C, \\x1b for Escape, etc.`;
 
 export const initTerminalMcpServer = (
   config: Config,
-  notifier?: TerminalNotifier,
+  ctx: CompleteContext,
 ): McpLocalServer<HarnessMcpToolCallContext> => {
 
+  const logger = ctx.logger.child('[mcp][terminal]');
   const mcp_server = new McpLocalServer<HarnessMcpToolCallContext>();
 
   const sessions = new Map<number, TerminalSession>();
+
   let nextId = 1;
 
   const getSession = (id: number): TerminalSession => {
@@ -108,7 +111,7 @@ export const initTerminalMcpServer = (
     'spawn',
     'Spawn Terminal Session',
     SPAWN_DESC,
-    async (params) => {
+    async (params, opts) => {
       const id = nextId++;
       const options: TerminalSessionOptions = {
         command: params.command,
@@ -118,14 +121,20 @@ export const initTerminalMcpServer = (
         cwd: params.cwd,
         env: params.env,
       };
-      const session = new TerminalSession(id, options);
-
-      if (notifier) {
-        notifier.attach(session);
-      }
-
-      sessions.set(id, session);
-      return [{ type: 'text', text: `Spawned terminal session ${id} (pid: ${session.pid}, command: ${session.process}).` }];
+      const terminal_session = new TerminalSession(id, options);
+      terminal_session.onIdle = (event, delta) => {
+        if (delta.length > 10_000) {
+          delta = delta.slice(0, 10_000) + `\n\n --- Truncated to 10_000 out of ${delta.length} chars. ---`;
+        }
+        ctx.managers.sessions.addHarnessMessage(opts.target_session_id, {
+          role: 'user',
+          blocks: [{ type: 'text', text: `Terminal session ${id} is idle. New output available: \n\n ${delta}.` }],
+        }).catch((err) => {
+          logger.error('failed to notify idle: %s', errToString(err));
+        });
+      };
+      sessions.set(id, terminal_session);
+      return [{ type: 'text', text: `Spawned terminal session ${id} (pid: ${terminal_session.pid}, command: ${terminal_session.process}).` }];
     },
   );
 
@@ -137,6 +146,7 @@ export const initTerminalMcpServer = (
 The session ID is no longer valid after this.`,
     async (params) => {
       const session = getSession(params.id);
+      session.onIdle = null;
       session.destroy();
       sessions.delete(params.id);
       return [{ type: 'text', text: `Destroyed terminal session ${params.id}.` }];

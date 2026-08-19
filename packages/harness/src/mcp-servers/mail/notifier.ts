@@ -1,7 +1,7 @@
+
 import { type Logger } from "pinetto";
-import { type InitContext, WithContext } from "../context.js";
-import { JMAPClient, type EmailSummary } from "../mcp-servers/mail/jmap-client.js";
-import { type InjectionProvider, type InjectionContext } from "../injection.js";
+import { type InitContext, WithContext } from "../../context.js";
+import { JMAPClient, type EmailSummary } from "./jmap-client.js";
 
 /**
  * Polls the inbox for new mail at regular intervals.
@@ -15,7 +15,7 @@ import { type InjectionProvider, type InjectionContext } from "../injection.js";
  * currently in the inbox is considered "seen". Only emails received
  * after startup are queued.
  */
-export class MailNotifier extends WithContext implements InjectionProvider {
+export class MailNotifier extends WithContext {
 
   #logger: Logger;
   #client: JMAPClient;
@@ -66,15 +66,6 @@ export class MailNotifier extends WithContext implements InjectionProvider {
   }
 
   /**
-   * Returns pending emails and clears the queue.
-   */
-  consumePendingEmails(): EmailSummary[] {
-    const emails = this.#pendingEmails;
-    this.#pendingEmails = [];
-    return emails;
-  }
-
-  /**
    * Returns pending emails without clearing the queue.
    * Called by ActivationGate to inspect and apply filtering.
    */
@@ -87,20 +78,6 @@ export class MailNotifier extends WithContext implements InjectionProvider {
    */
   hasPendingEmails(): boolean {
     return this.#pendingEmails.length > 0;
-  }
-
-  /**
-   * Consume pending mail notifications as formatted strings.
-   * Implements InjectionProvider. Applies allowlist filtering —
-   * only allowlisted senders produce injected messages.
-   */
-  async getInjectedMessages(_ctx: InjectionContext): Promise<string[]> {
-    const emails = this.consumePendingEmails();
-    const allowlist = this._ctx.config.heartbeat?.mail_allowlist ?? [];
-    const filtered = emails.filter(e =>
-      e.from.some(addr => allowlist.includes(addr.email))
-    );
-    return filtered.map(e => this.#formatNotification(e));
   }
 
   async #poll(): Promise<void> {
@@ -121,10 +98,17 @@ export class MailNotifier extends WithContext implements InjectionProvider {
       // Update baseline to newest email
       this.#lastSeenTimestamp = newEmails[0].receivedAt;
 
-      // Queue for the activation gate to inspect
-      this.#pendingEmails.push(...newEmails);
-
-      this.#logger.info('%d new email(s) queued for activation gate', newEmails.length);
+      const allowlist = this._ctx.config.heartbeat?.mail_allowlist ?? [];
+      const filtered = newEmails.filter(e =>
+        e.from.some(addr => allowlist.includes(addr.email))
+      );
+      if (filtered.length > 0) {
+        await this._ctx.managers.sessions.addHarnessMessage(this._ctx.managers.sessions.main_session_id, {
+          role: 'user',
+          blocks: filtered.map(e => ({ type: 'text', text: this.#formatNotification(e) })),
+        });
+      }
+      // this.#logger.info('%d new email(s) queued for activation gate', newEmails.length);
     } catch (err) {
       this.#logger.error('poll error: %s', err instanceof Error ? err.message : String(err));
     } finally {
