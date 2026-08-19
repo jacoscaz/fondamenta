@@ -68,7 +68,7 @@ export class Emygdala extends WithContext {
       .where('id', '=', main_session_id)
       .select(['prompt_size', 'updated_at'])
       .executeTakeFirstOrThrow();
-    this.#latest_updated_at = updated_at;
+    this.#latest_updated_at = new Date(updated_at);
     this.#evaluateContextPressure(prompt_size, []);
     this._ctx.managers.sessions.addPreQueryListener(
       this._ctx.managers.sessions.main_session_id,
@@ -115,12 +115,8 @@ export class Emygdala extends WithContext {
       if (PRESSURE_LEVELS[newLevel].message) {
         injected_blocks.push({ type: 'text', text: PRESSURE_LEVELS[newLevel].message! });
       }
-    }
-
-    // If we dropped below the current level (e.g. after compaction),
-    // reset the state so future increases will re-trigger
-    if (newLevel < this.#currentPressureLevel) {
-      injected_blocks.push({ type: 'text', text: `Context pressure has dropped to ${newLevel}%` });
+    } else if (newLevel < this.#currentPressureLevel) {
+      // Dropped below current level (e.g. after compaction)
       this.#currentPressureLevel = newLevel;
     }
 
@@ -129,13 +125,14 @@ export class Emygdala extends WithContext {
 
   #evaluatePassingOfTime(updated_at: Date, injected_blocks: TextBlock[]) {
     const THRESHOLD_MS = 1_800_000; // 30 minutes
-    const global_gap_ms = updated_at.valueOf() - this.#latest_updated_at.valueOf();
+    const current = new Date(updated_at);
+    const global_gap_ms = current.valueOf() - this.#latest_updated_at.valueOf();
     if (global_gap_ms < THRESHOLD_MS) {
       return;
     }
-    const gap_str = formatDistanceStrict(updated_at.valueOf(), this.#latest_updated_at.valueOf());
+    const gap_str = formatDistanceStrict(current.valueOf(), this.#latest_updated_at.valueOf());
     injected_blocks.push({ type: 'text', text: `It has been ${gap_str} since your last activation.` });
-    this.#latest_updated_at = updated_at;
+    this.#latest_updated_at = current;
   }
 
 }
