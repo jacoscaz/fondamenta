@@ -62,10 +62,10 @@ export class Compactor extends WithContext {
       const model = this._ctx.managers.models.compaction;
       const system_prompt = makeCompactionPrompt();
       const { messages: raw_res_messages, input_size, output_size } = await model.query({
-        messages: model.format({
+        messages: [model.format({
           role: 'user',
           block: { type: 'text', text: conversation_text },
-        }) as any,
+        })],
         tools: [],
         session_id: `compactor-${session_id}`,
         system_prompt,
