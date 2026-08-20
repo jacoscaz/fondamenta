@@ -74,7 +74,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         session_id: this.#origin_session_id,
         data: message,
         raw: this.#model.format(message),
-        created_at: new Date(),
+        created_at: getMonotonicDate(),
         processed_at: null,
         role: 'user',
       });
