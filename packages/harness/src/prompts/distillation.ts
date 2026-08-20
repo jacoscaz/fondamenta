@@ -60,16 +60,15 @@ export const formatExistingRecords = (records: SelectableContinuityRecord[]): st
 export const formatMessagesForDistillation = (
   messages: ASelectableDBMessage[],
 ): string => {
-  return messages
-    .filter(m => m.processed_at !== null)
-    .map(m => {
-      const blocks = m.data.blocks || [];
-      const text = blocks
-        .filter((b: any) => b.type === 'text' || b.type === 'thinking')
-        .map((b: any) => b.text || '')
-        .join('\n');
-      const label = m.role === 'agent' ? 'Sage' : 'User';
-      return `[${label}] ${text}`;
-    })
-    .join('\n\n');
+  const formatted: string[] = [];
+  for (const m of messages) {
+    switch (m.data.block.type) {
+      case 'text':
+      case 'thinking':
+        const label = m.role === 'agent' ? 'Sage' : 'User';
+        formatted.push(`[${label}] ${m.data.block.text || ''}`);
+        break;
+    }
+  }
+  return formatted.join('\n\n');
 };

@@ -3,7 +3,7 @@ import { type DB, ensureTrx } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, updateMessageRaw, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
-import { type Message, type UserMessage } from "../models/session/types/messages.js";
+import { AgentBlock, type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../types.js";
@@ -155,37 +155,49 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
     const res_db_messages: AInsertableDBMessage[] = [];
     const created_at = new Date();
-
+    const tool_use_context: HarnessMcpToolCallContext = {
+      db,
+      runner: this,
+      origin_session_id: this.#origin_session_id,
+      target_session_id: this.#target_session_id,
+    };
     for (const raw_res_message of raw_res_messages) {
-      res_db_messages.push({
-        role: 'agent',
-        raw: raw_res_message,
-        data: this.#model.parse(raw_res_message, tool_use_reqs),
-        session_id: this.#origin_session_id,
-        created_at,
-        processed_at: created_at,
-      });
+
+      const parsed = this.#model.parse(raw_res_message);
+      for (const [raw, msg] of parsed) {
+        if (msg.block.type === 'tool_use_req') {
+          const res = await this.#callTool(mcp_manager, msg.block, tool_use_context);
+          res_db_messages.push(
+            {
+              role: 'agent',
+              raw,
+              data: msg,
+              session_id: this.#origin_session_id,
+              created_at,
+              processed_at: created_at,
+            },
+            {
+              role: 'user',
+              raw: this.#model.format({ role: 'user', block: res }),
+              data: { role: 'user', block: res },
+              session_id: this.#origin_session_id,
+              created_at,
+              processed_at: null,
+            },
+          );
+        } else {
+          res_db_messages.push({
+            role: 'agent',
+            raw,
+            data: msg,
+            session_id: this.#origin_session_id,
+            created_at,
+            processed_at: created_at,
+          });
+        }
+      }
     }
 
-    if (tool_use_reqs.length > 0) {
-      const tool_use_context: HarnessMcpToolCallContext = {
-        db,
-        runner: this,
-        origin_session_id: this.#origin_session_id,
-        target_session_id: this.#target_session_id,
-      };
-      await Promise.all(tool_use_reqs.map(async (call) => {
-        const res = await this.#callTool(mcp_manager, call, tool_use_context);
-        res_db_messages.push({
-          role: 'user',
-          raw: this.#model.format({ role: 'user', blocks: [res] }),
-          data: { role: 'user', blocks: [res] },
-          session_id: this.#origin_session_id,
-          created_at,
-          processed_at: null,
-        });
-      }));
-    }
     for (const message of res_db_messages) {
       this.emit(`message`, message.data);
     }

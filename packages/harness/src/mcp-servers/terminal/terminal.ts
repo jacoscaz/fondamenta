@@ -132,7 +132,7 @@ export const initTerminalMcpServer = (
         // the notification cheap (no screen content in the message).
         ctx.managers.sessions.addHarnessMessage(opts.target_session_id, {
           role: 'user',
-          blocks: [{ type: 'text', text: `Terminal session ${id} is idle.` }],
+          block: { type: 'text', text: `Terminal session ${id} is idle.` },
         }).catch((err) => {
           logger.error('failed to notify idle: %s', errToString(err));
         });
@@ -217,7 +217,7 @@ The session ID is no longer valid after this.`,
         () => {
           ctx.managers.sessions.addHarnessMessage(target_session_id, {
             role: 'user',
-            blocks: [{ type: 'text', text: `Terminal session ${params.id} matched pattern "${params.match}".` }],
+            block: { type: 'text', text: `Terminal session ${params.id} matched pattern "${params.match}".` },
           }).catch((err) => {
             logger.error('failed to notify waitFor match: %s', errToString(err));
           });
@@ -225,7 +225,7 @@ The session ID is no longer valid after this.`,
         () => {
           ctx.managers.sessions.addHarnessMessage(target_session_id, {
             role: 'user',
-            blocks: [{ type: 'text', text: `Terminal session ${params.id} timed out waiting for pattern "${params.match}" (${timeout}ms).` }],
+            block: { type: 'text', text: `Terminal session ${params.id} timed out waiting for pattern "${params.match}" (${timeout}ms).` },
           }).catch((err) => {
             logger.error('failed to notify waitFor timeout: %s', errToString(err));
           });

@@ -2,7 +2,7 @@
 import { type McpToolDescriptor } from "@fondamenta/mcp-core";
 import { type ConfigModelBase } from "../../config/config.js";
 
-import { AgentMessage, UserMessage } from "./types/messages.js";
+import { AgentBlock, AgentMessage, UserMessage } from "./types/messages.js";
 import { ToolUseRequestBlock } from "./types/blocks.js";
 
 export interface ModelQueryOpts<ReqMessage> {
@@ -40,7 +40,7 @@ export abstract class AbstractSessionModel<ReqMessage, ResMessage = ReqMessage> 
 
   abstract query(opts: ModelQueryOpts<ReqMessage>): Promise<ModelQueryResults<ResMessage>>;
 
-  abstract parse(message: ResMessage, tool_calls: ToolUseRequestBlock[]): AgentMessage;
+  abstract parse(message: ResMessage): [raw: any, parsed: AgentMessage][];
 
   abstract format(message: UserMessage): ReqMessage | ReqMessage[];
 

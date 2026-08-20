@@ -105,7 +105,7 @@ export class MailNotifier extends WithContext {
       if (filtered.length > 0) {
         await this._ctx.managers.sessions.addHarnessMessage(this._ctx.managers.sessions.main_session_id, {
           role: 'user',
-          blocks: filtered.map(e => ({ type: 'text', text: this.#formatNotification(e) })),
+          block: { type: 'text', text: filtered.map(e => (this.#formatNotification(e))).join('\n\n') },
         });
       }
       // this.#logger.info('%d new email(s) queued for activation gate', newEmails.length);

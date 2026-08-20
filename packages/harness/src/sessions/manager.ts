@@ -78,10 +78,10 @@ export class SessionManager extends WithContext {
   async addHarnessMessage(session_id: number, message: UserMessage<TextBlock>, db?: DB, run: boolean = true): Promise<void> {
     message = {
       ...message,
-      blocks: message.blocks.map(block => ({
-        ...block,
-        text: `[automated harness message] ${block.text}`,
-      })),
+      block: {
+        ...message.block,
+        text: `[automated harness message] ${message.block.text}`,
+      },
     };
     await this.addUserMessage(session_id, message, db, run);
   }

@@ -93,10 +93,13 @@ export class OpenAISessionModel extends AbstractSessionModel<OpenAI.ChatCompleti
     }
   }
 
-  parse(message: OpenAI.ChatCompletionMessage, tool_calls: ToolUseRequestBlock[]): AgentMessage {
-    const parsed: AgentMessage = { role: 'agent', blocks: [] };
+  parse(message: OpenAI.ChatCompletionMessage): [raw: OpenAI.ChatCompletionMessage, parsed: AgentMessage][] {
+    const parsed: [raw: OpenAI.ChatCompletionMessage, parsed: AgentMessage][] = [];
     if (message.content) {
-      parsed.blocks.push({ type: 'text', text: message.content });
+      parsed.push([
+        { role: 'assistant', content: message.content, refusal: null },
+        { role: 'agent', block: { type: 'text', text: message.content } },
+      ]);
     }
     if (message.tool_calls) {
       for (const call of message.tool_calls) {
@@ -109,39 +112,42 @@ export class OpenAISessionModel extends AbstractSessionModel<OpenAI.ChatCompleti
             params,
           };
           call.function.arguments = JSON.stringify(params);
-          tool_calls.push(tool_call);
-          parsed.blocks.push(tool_call);
+          parsed.push([
+            { role: 'assistant', content: null, refusal: null, tool_calls: [call] },
+            { role: 'agent', block: tool_call },
+          ]);
         }
       }
     }
     if (message.refusal) {
-      parsed.blocks.push({ type: 'refusal', text: message.refusal });
+      parsed.push([
+        { role: 'assistant', content: null, refusal: message.refusal },
+        { role: 'agent', block: { type: 'text', text: message.refusal } },
+      ]);
     }
     return parsed;
   }
 
-  format(message: UserMessage): OpenAI.ChatCompletionMessageParam[] {
-    return message.blocks.map((block): OpenAI.ChatCompletionMessageParam => {
-      switch (block.type) {
-        case 'text':
-          return {
-            role: 'user',
-            content: block.text,
-          };
-        case 'tool_use_err':
-          return {
-            role: 'tool',
-            tool_call_id: block.req_id,
-            content: `error: ${formatToolUseResultBlocks(block.error)}`,
-          };
-        case 'tool_use_res':
+  format(message: UserMessage): OpenAI.ChatCompletionMessageParam {
+    switch (message.block.type) {
+      case 'text':
+        return {
+          role: 'user',
+          content: message.block.text,
+        };
+      case 'tool_use_err':
         return {
           role: 'tool',
-          tool_call_id: block.req_id,
-          content: formatToolUseResultBlocks(block.result),
+          tool_call_id: message.block.req_id,
+          content: `error: ${formatToolUseResultBlocks(message.block.error)}`,
         };
-      }
-    });
+      case 'tool_use_res':
+      return {
+        role: 'tool',
+        tool_call_id: message.block.req_id,
+        content: formatToolUseResultBlocks(message.block.result),
+      };
+    }
   }
 
 }

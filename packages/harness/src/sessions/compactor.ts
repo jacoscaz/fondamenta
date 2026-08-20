@@ -4,6 +4,8 @@ import { type DB, ensureTrx } from "../database/client.js";
 import { selectMessages, insertMessage, type ASelectableDBMessage } from "../database/tables/messages.js";
 import { updateSessionSystemPrompt } from "../database/tables/sessions.js";
 import { makeCompactionPrompt } from "../prompts/compaction.js";
+import { AgentBlock } from "../models/session/types/messages.js";
+import { TextBlock } from "../models/session/types/blocks.js";
 
 /**
  * Tiered compaction: summarizes older messages via a dedicated model
@@ -62,7 +64,7 @@ export class Compactor extends WithContext {
       const { messages: raw_res_messages, input_size, output_size } = await model.query({
         messages: model.format({
           role: 'user',
-          blocks: [{ type: 'text', text: conversation_text }],
+          block: { type: 'text', text: conversation_text },
         }) as any,
         tools: [],
         session_id: `compactor-${session_id}`,
@@ -70,10 +72,10 @@ export class Compactor extends WithContext {
       });
 
       // Extract the summary text from the model's response
-      const summary_message = model.parse(raw_res_messages[0], []);
-      const summary_text = summary_message.blocks
-        .filter((b: any) => b.type === 'text')
-        .map((b: any) => b.text)
+      const parsed = model.parse(raw_res_messages[0]);
+      const summary_text = parsed.map(p => p[1].block)
+        .filter((b: AgentBlock) => b.type === 'text')
+        .map((b: TextBlock) => b.text)
         .join('\n');
 
       this.#logger.info('compaction summary: %d chars, input %d tokens, output %d tokens',
@@ -96,10 +98,10 @@ export class Compactor extends WithContext {
         session_id,
         data: {
           role: 'user',
-          blocks: [{
+          block: {
             type: 'text',
             text: `[Compaction summary — ${new Date().toISOString()}]\n\n${summary_text}`,
-          }],
+          },
         },
         created_at: summary_created_at,
         processed_at: summary_created_at,
@@ -116,24 +118,29 @@ export class Compactor extends WithContext {
    * compactor model. Uses raw message data, not the model-specific format.
    */
   #formatMessagesForCompaction(messages: ASelectableDBMessage[]): string {
-    return messages.map(msg => {
-      const role = msg.data.role === 'agent' ? 'Sage' : msg.data.role === 'user' ? 'User' : msg.role;
-      const text_blocks = msg.data.blocks
-        .filter((b: any) => b.type === 'text')
-        .map((b: any) => b.text)
-        .join('\n');
-      const tool_blocks = msg.data.blocks
-        .filter((b: any) => b.type === 'tool_use_req')
-        .map((b: any) => `🔧 ${b.tool}(${JSON.stringify(b.params)})`)
-        .join('\n');
-      const tool_res_blocks = msg.data.blocks
-        .filter((b: any) => b.type === 'tool_use_res')
-        .map((b: any) => `← ${b.tool}: ${(b.result || []).map((r: any) => r.type === 'text' ? r.text : '').join('')}`)
-        .join('\n');
-
-      const parts = [text_blocks, tool_blocks, tool_res_blocks].filter(Boolean);
-      return `[${role}]\n${parts.join('\n')}`;
-    }).join('\n\n');
+    const formatted: string[] = [];
+    for (const m of messages) {
+      const role = m.data.role === 'agent' ? 'Sage' : m.data.role === 'user' ? 'User' : m.role;
+      let data: string = '';
+      switch (m.data.block.type) {
+        case 'text':
+          data = m.data.block.text || '';
+          break;
+        case 'thinking':
+          data = m.data.block.text || '';
+          break;
+        case 'tool_use_req':
+          data = `🔧 ${m.data.block.tool}(${JSON.stringify(m.data.block.params)})`;
+          break;
+        case 'tool_use_res':
+          data = `↗ ${m.data.block.tool}(${JSON.stringify(m.data.block.result)})`;
+          break;
+        case 'tool_use_err':
+          data = `↗ ${m.data.block.tool}(${JSON.stringify(m.data.block.error)})`;
+          break;
+      }
+    }
+    return formatted.join('\n\n');
   }
 
 }
