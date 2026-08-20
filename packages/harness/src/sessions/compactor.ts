@@ -139,6 +139,9 @@ export class Compactor extends WithContext {
           data = `↗ ${m.data.block.tool}(${JSON.stringify(m.data.block.error)})`;
           break;
       }
+      if (data) {
+        formatted.push(`${role}: ${data}`);
+      }
     }
     return formatted.join('\n\n');
   }
