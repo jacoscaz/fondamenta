@@ -410,23 +410,20 @@ export const ChatPage: FC<ChatPageProps> = ({ session_id, io_host, io_port }) =>
             try {
               const msg = JSON.parse(event.data);
               console.log('Received:', msg.role, msg);
+              const block = msg.block;
 
-              msg.blocks.forEach((block) => {
+              const info = getDisplayInfo(block);
+              if (!info) return; // Skip non-displayable blocks
 
-                const info = getDisplayInfo(block);
-                if (!info) return; // Skip non-displayable blocks
-
-                if (msg.role === 'agent') {
-                  appendMessage(info.text, info.cssClass);
-                  // Reset to idle when response is complete
-                  setStatus('idle');
-                } else if (msg.role === 'user') {
-                  appendMessage(info.text, 'user');
-                  // Set to working when user message is sent (waiting for agent response)
-                  setStatus('working');
-                }
-
-              });
+              if (msg.role === 'agent') {
+                appendMessage(info.text, info.cssClass);
+                // Reset to idle when response is complete
+                setStatus('idle');
+              } else if (msg.role === 'user') {
+                appendMessage(info.text, 'user');
+                // Set to working when user message is sent (waiting for agent response)
+                setStatus('working');
+              }
 
             } catch (err) {
               console.error('Failed to parse message:', err);
@@ -441,7 +438,7 @@ export const ChatPage: FC<ChatPageProps> = ({ session_id, io_host, io_port }) =>
             // Send to server
             ws.send(JSON.stringify({
               role: 'user',
-              blocks: [{ type: 'text', text: content }],
+              block: { type: 'text', text: content },
             }));
 
             // Clear input
