@@ -75,7 +75,9 @@ await complete_context.mailNotifier.initialize(120_000);
 complete_context.heartbeat.initialize();
 
 // Resolve the main session and ensure its runner is alive
-logger.info('main session %d is live', complete_context.managers.sessions.main_session_id);
+const { main_session_id } = complete_context.managers.sessions;
+complete_context.managers.sessions.run(main_session_id);
+logger.info('main session %d is live', main_session_id);
 
 logger.info('PID %s', process.pid);
 process.title = 'fondamenta';

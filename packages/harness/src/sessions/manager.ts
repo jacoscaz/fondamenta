@@ -45,6 +45,10 @@ export class SessionManager extends WithContext {
     return this.#main_session_id;
   }
 
+  run(session_id: number): Promise<void> {
+    return this.#ensureRunner(session_id).run();
+  }
+
   #ensureRunner(session_id: number): SessionRunner {
     let runner = this.#runners[session_id];
     if (!runner) {
