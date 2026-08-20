@@ -10,6 +10,7 @@ import { type HarnessMcpToolCallContext } from "../types.js";
 import { type McpManager } from "../mcp-manager/manager.js";
 import assert from "node:assert";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
+import { getMonotonicDate } from "../monotonic.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
@@ -105,12 +106,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     try {
       let has_more = true;
       while (has_more) {
-        // Collect injected messages from all providers first.
-        // They are inserted as unprocessed user messages so that
-        // selectMessagesForActivation picks them up alongside any
-        // real user messages in the same tick.
-        // await this.#collectAndInsertInjections(db);
-        // Process unprocessed messages (real user messages + injected)
         has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages, _db: DB) => {
           return await this.#query(messages, _db, mcp_manager);
         });
@@ -151,10 +146,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       output_tokens_delta: output_size,
     });
     this.#prompt_size = input_size;
-    const tool_use_reqs: ToolUseRequestBlock[] = [];
 
     const res_db_messages: AInsertableDBMessage[] = [];
-    const created_at = new Date();
     const tool_use_context: HarnessMcpToolCallContext = {
       db,
       runner: this,
@@ -162,30 +155,30 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       target_session_id: this.#target_session_id,
     };
     for (const raw_res_message of raw_res_messages) {
-
       const parsed = this.#model.parse(raw_res_message);
       for (const [raw, msg] of parsed) {
         if (msg.block.type === 'tool_use_req') {
+          const req_created_at = getMonotonicDate();
+          res_db_messages.push({
+            role: 'agent',
+            raw,
+            data: msg,
+            session_id: this.#origin_session_id,
+            created_at: req_created_at,
+            processed_at: req_created_at,
+          });
           const res = await this.#callTool(mcp_manager, msg.block, tool_use_context);
-          res_db_messages.push(
-            {
-              role: 'agent',
-              raw,
-              data: msg,
-              session_id: this.#origin_session_id,
-              created_at,
-              processed_at: created_at,
-            },
-            {
-              role: 'user',
-              raw: this.#model.format({ role: 'user', block: res }),
-              data: { role: 'user', block: res },
-              session_id: this.#origin_session_id,
-              created_at,
-              processed_at: null,
-            },
-          );
+          const res_created_at = getMonotonicDate();
+          res_db_messages.push({
+            role: 'user',
+            raw: this.#model.format({ role: 'user', block: res }),
+            data: { role: 'user', block: res },
+            session_id: this.#origin_session_id,
+            created_at: res_created_at,
+            processed_at: null,
+          });
         } else {
+          const created_at = getMonotonicDate();
           res_db_messages.push({
             role: 'agent',
             raw,
