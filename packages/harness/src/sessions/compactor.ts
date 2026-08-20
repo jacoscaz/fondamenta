@@ -48,7 +48,15 @@ export class Compactor extends WithContext {
         return;
       }
 
-      const split_index = all_messages.length - retain_count;
+      let split_index = all_messages.length - retain_count;
+
+      // Compaction can never break ordered pairs comprised of a tool use
+      // request and the following result (response or error). If the split
+      // index falls within such a pair, move it back to the request.
+      while (split_index > 0 && (all_messages[split_index].data.block.type === 'tool_use_err' || all_messages[split_index].data.block.type === 'tool_use_res')) {
+        split_index -= 1;
+      }
+
       const to_summarize = all_messages.slice(0, split_index);
       const to_retain = all_messages.slice(split_index);
 
