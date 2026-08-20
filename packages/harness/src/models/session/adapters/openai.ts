@@ -42,36 +42,41 @@ export class OpenAISessionModel extends AbstractSessionModel<OpenAI.ChatCompleti
   }
 
   async query(opts: ModelQueryOpts<OpenAI.ChatCompletionMessage>): Promise<ModelQueryResults<OpenAI.ChatCompletionMessage>> {
-    const messages: ChatCompletionMessageParam[] = [...opts.messages];
-    messages.unshift({
-      role: 'system',
-      content: opts.system_prompt,
-    } satisfies ChatCompletionMessageParam);
-    const stream = this.#client.chat.completions.stream({
-      ...this.#extras,
-      messages,
-      max_tokens: opts.max_output_size ?? this.max_ouput_size,
-      session_id: opts.session_id,
-      model: this.#model,
-      reasoning_effort: this.#reasoning,
-      stream_options: { include_usage: true },
-      tools: opts.tools.map(t => ({
-        type: 'function',
-        function: {
-          name: t.name,
-          description: t.description,
-          parameters: t.input_schema,
-        },
-      })),
-    });
-    const response = await stream.finalMessage();
-    const usage = await stream.totalUsage();
-    return {
-      messages: [response],
-      input_size: usage.prompt_tokens,
-      cached_size: usage.prompt_tokens_details?.cached_tokens ?? 0,
-      output_size: usage.completion_tokens,
-    };
+    try {
+      const messages: ChatCompletionMessageParam[] = [...opts.messages];
+      messages.unshift({
+        role: 'system',
+        content: opts.system_prompt,
+      } satisfies ChatCompletionMessageParam);
+      const stream = this.#client.chat.completions.stream({
+        ...this.#extras,
+        messages,
+        max_tokens: opts.max_output_size ?? this.max_ouput_size,
+        session_id: opts.session_id,
+        model: this.#model,
+        reasoning_effort: this.#reasoning,
+        stream_options: { include_usage: true },
+        tools: opts.tools.map(t => ({
+          type: 'function',
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: t.input_schema,
+          },
+        })),
+      });
+      const response = await stream.finalMessage();
+      const usage = await stream.totalUsage();
+      return {
+        messages: [response],
+        input_size: usage.prompt_tokens,
+        cached_size: usage.prompt_tokens_details?.cached_tokens ?? 0,
+        output_size: usage.completion_tokens,
+      };
+    } catch (e) {
+      console.error(e);
+      throw new Error(`Failed to query OpenAI model: ${e}`);
+    }
   }
 
   /**
