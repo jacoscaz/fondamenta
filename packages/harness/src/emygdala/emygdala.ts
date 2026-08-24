@@ -1,5 +1,5 @@
+
 import { type InitContext, WithContext } from "../context.js";
-import { type DB } from "../database/client.js";
 import { formatDistanceStrict } from "date-fns";
 import { type TextBlock } from "../models/session/types/blocks.js";
 
@@ -53,22 +53,20 @@ const PRESSURE_LEVELS: PressureLevel[] = [
 
 export class Emygdala extends WithContext {
 
-  #latest_updated_at: Date;
+  #last_active_at?: Date;
   #currentPressureLevel: number;
 
   constructor(init: InitContext) {
     super(init);
-    this.#latest_updated_at = new Date(0);
     this.#currentPressureLevel = 0;
   }
 
   async initialize() {
     const { main_session_id } = this._ctx.managers.sessions;
-    const { prompt_size, updated_at } = await this._ctx.db.selectFrom('sessions')
+    const { prompt_size } = await this._ctx.db.selectFrom('sessions')
       .where('id', '=', main_session_id)
-      .select(['prompt_size', 'updated_at'])
+      .select(['prompt_size'])
       .executeTakeFirstOrThrow();
-    this.#latest_updated_at = new Date(updated_at);
     this.#evaluateContextPressure(prompt_size, []);
     this._ctx.managers.sessions.addPreQueryListener(
       this._ctx.managers.sessions.main_session_id,
@@ -78,13 +76,13 @@ export class Emygdala extends WithContext {
 
   #onPreQuery = async () => {
     const { main_session_id } = this._ctx.managers.sessions;
-    const { prompt_size, updated_at } = await this._ctx.db.selectFrom('sessions')
+    const { prompt_size } = await this._ctx.db.selectFrom('sessions')
       .where('id', '=', main_session_id)
-      .select(['prompt_size', 'updated_at'])
+      .select(['prompt_size'])
       .executeTakeFirstOrThrow();
     const injected_message_blocks: TextBlock[] = [];
+    this.#evaluatePassingOfTime(injected_message_blocks);
     this.#evaluateContextPressure(prompt_size, injected_message_blocks);
-    this.#evaluatePassingOfTime(updated_at, injected_message_blocks);
     for (const block of injected_message_blocks) {
       await this._ctx.managers.sessions.injectHarnessMessage(main_session_id, {
         role: 'user',
@@ -123,16 +121,19 @@ export class Emygdala extends WithContext {
     return null;
   }
 
-  #evaluatePassingOfTime(updated_at: Date, injected_blocks: TextBlock[]) {
-    const THRESHOLD_MS = 1_800_000; // 30 minutes
-    const current = new Date(updated_at);
-    const global_gap_ms = current.valueOf() - this.#latest_updated_at.valueOf();
-    if (global_gap_ms < THRESHOLD_MS) {
-      return;
+  #evaluatePassingOfTime(injected_blocks: TextBlock[]) {
+    const now = new Date();
+    if (this.#last_active_at) {
+      const THRESHOLD_MS = 1_800_000; // 30 minutes
+      const gap_ms = now.valueOf() - this.#last_active_at.valueOf();
+      if (gap_ms > THRESHOLD_MS) {
+        const gap_str = formatDistanceStrict(now.valueOf(), this.#last_active_at.valueOf());
+        injected_blocks.push({ type: 'text', text: `It is ${now.toISOString()}. It has has been ${gap_str} since your last activation.` });
+      }
+    } else {
+      injected_blocks.push({ type: 'text', text: `It is ${now.toISOString()}. Your harness has just been started.` });
     }
-    const gap_str = formatDistanceStrict(current.valueOf(), this.#latest_updated_at.valueOf());
-    injected_blocks.push({ type: 'text', text: `It has been ${gap_str} since your last activation.` });
-    this.#latest_updated_at = current;
+    this.#last_active_at = now;
   }
 
 }
