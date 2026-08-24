@@ -1,9 +1,9 @@
 import { ellipsis, errToString } from "@fondamenta/utils";
-import { type DB, ensureTrx } from "../database/client.js";
+import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, updateMessageRaw, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
-import { AgentBlock, type Message, type UserMessage } from "../models/session/types/messages.js";
+import { type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../types.js";
@@ -23,40 +23,42 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #model: AbstractSessionModel<any, any>;
   #logger: Logger;
   #running: boolean;
+  #injected: AInsertableDBMessage[] = [];
   #prompt_size?: number;
   #origin_session_id: number;
   #target_session_id: number;
-  #pre_query_listeners: ((db: DB, session_id: number) => Promise<void>)[] = [];
-  #post_query_listeners: ((db: DB, session_id: number) => Promise<void>)[] = [];
+  #pre_query_listeners: (() => Promise<void>)[] = [];
+  #post_query_listeners: (() => Promise<void>)[] = [];
 
   constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel<any, any>) {
     super(ctx);
     this.#model = model;
     this.#logger = ctx.logger.child(`[session:${origin_session_id}]`);
     this.#running = false;
+    this.#injected = [];
     this.#origin_session_id = origin_session_id;
     this.#target_session_id = target_session_id;
     this.#pre_query_listeners = [];
     this.#post_query_listeners = [];
   }
 
-  addPreQueryListener(listener: (db: DB, session_id: number) => Promise<void>) {
+  addPreQueryListener(listener: () => Promise<void>) {
     this.#pre_query_listeners.push(listener);
   }
 
   async #runPreQueryListeners(db: DB) {
     for (const listener of this.#pre_query_listeners) {
-      await listener(db, this.session_id);
+      await listener();
     }
   }
 
-  addPostQueryListener(listener: (db: DB, session_id: number) => Promise<void>) {
+  addPostQueryListener(listener: () => Promise<void>) {
     this.#post_query_listeners.push(listener);
   }
 
   async #runPostQueryListeners(db: DB) {
     for (const listener of this.#post_query_listeners) {
-      await listener(db, this.session_id);
+      await listener();
     }
   }
 
@@ -68,18 +70,14 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * Insert a user message into the session and trigger the activation loop.
    * Absorbed from SessionManager.
    */
-  async addMessage(message: UserMessage, db?: DB): Promise<void> {
-    await ensureTrx(db ?? this._ctx.db, async (trx) => {
-      await insertMessage(trx, {
-        session_id: this.#origin_session_id,
-        data: message,
-        raw: this.#model.format(message),
-        created_at: getMonotonicDate(),
-        processed_at: null,
-        role: 'user',
-      });
+  async injectMessage(data: UserMessage): Promise<void> {
+    await insertMessage(this._ctx.db, {
+      role: data.role,
+      session_id: this.#target_session_id,
+      data,
+      raw: this._ctx.managers.models.session.format(data),
+      created_at: getMonotonicDate(),
     });
-    this.run();
   }
 
   /**
@@ -106,8 +104,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     try {
       let has_more = true;
       while (has_more) {
-        has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages, _db: DB) => {
-          return await this.#query(messages, _db, mcp_manager);
+        has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages) => {
+          return await this.#query(messages, db, mcp_manager);
         });
       }
     } catch (err) {

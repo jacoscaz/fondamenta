@@ -130,10 +130,10 @@ export const initTerminalMcpServer = (
         // screen content via readScreen/read. This avoids duplicating output
         // that shell_exec already returns for blocking commands, and keeps
         // the notification cheap (no screen content in the message).
-        ctx.managers.sessions.addHarnessMessage(opts.target_session_id, {
+        ctx.managers.sessions.injectHarnessMessage(opts.target_session_id, {
           role: 'user',
           block: { type: 'text', text: `Terminal session ${id} is idle.` },
-        }).catch((err) => {
+        }, true).catch((err) => {
           logger.error('failed to notify idle: %s', errToString(err));
         });
       };
@@ -215,18 +215,18 @@ The session ID is no longer valid after this.`,
         params.match,
         timeout,
         () => {
-          ctx.managers.sessions.addHarnessMessage(target_session_id, {
+          ctx.managers.sessions.injectHarnessMessage(target_session_id, {
             role: 'user',
             block: { type: 'text', text: `Terminal session ${params.id} matched pattern "${params.match}".` },
-          }).catch((err) => {
+          }, true).catch((err) => {
             logger.error('failed to notify waitFor match: %s', errToString(err));
           });
         },
         () => {
-          ctx.managers.sessions.addHarnessMessage(target_session_id, {
+          ctx.managers.sessions.injectHarnessMessage(target_session_id, {
             role: 'user',
             block: { type: 'text', text: `Terminal session ${params.id} timed out waiting for pattern "${params.match}" (${timeout}ms).` },
-          }).catch((err) => {
+          }, true).catch((err) => {
             logger.error('failed to notify waitFor timeout: %s', errToString(err));
           });
         },

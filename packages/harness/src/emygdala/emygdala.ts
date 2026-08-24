@@ -76,9 +76,9 @@ export class Emygdala extends WithContext {
     );
   }
 
-  #onPreQuery = async (db: DB) => {
+  #onPreQuery = async () => {
     const { main_session_id } = this._ctx.managers.sessions;
-    const { prompt_size, updated_at } = await db.selectFrom('sessions')
+    const { prompt_size, updated_at } = await this._ctx.db.selectFrom('sessions')
       .where('id', '=', main_session_id)
       .select(['prompt_size', 'updated_at'])
       .executeTakeFirstOrThrow();
@@ -86,10 +86,10 @@ export class Emygdala extends WithContext {
     this.#evaluateContextPressure(prompt_size, injected_message_blocks);
     this.#evaluatePassingOfTime(updated_at, injected_message_blocks);
     for (const block of injected_message_blocks) {
-      await this._ctx.managers.sessions.addHarnessMessage(main_session_id, {
+      await this._ctx.managers.sessions.injectHarnessMessage(main_session_id, {
         role: 'user',
         block,
-      }, db);
+      });
     }
   };
 

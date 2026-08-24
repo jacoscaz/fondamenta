@@ -103,10 +103,10 @@ export class MailNotifier extends WithContext {
         e.from.some(addr => allowlist.includes(addr.email))
       );
       if (filtered.length > 0) {
-        await this._ctx.managers.sessions.addHarnessMessage(this._ctx.managers.sessions.main_session_id, {
+        await this._ctx.managers.sessions.injectHarnessMessage(this._ctx.managers.sessions.main_session_id, {
           role: 'user',
           block: { type: 'text', text: filtered.map(e => (this.#formatNotification(e))).join('\n\n') },
-        });
+        }, true);
       }
       // this.#logger.info('%d new email(s) queued for activation gate', newEmails.length);
     } catch (err) {

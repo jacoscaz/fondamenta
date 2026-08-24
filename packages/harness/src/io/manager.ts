@@ -36,7 +36,7 @@ export class IOManager extends WithContext {
           data = Buffer.isBuffer(data) ? data.toString() : data;
           console.log('received message: %s', data);
           const message = cast<UserMessage>(JSON.parse(data));
-          await this._ctx.managers.sessions.addUserMessage(session_id, message);
+          await this._ctx.managers.sessions.injectUserMessage(session_id, message, true);
         } catch (err) {
           this.#logger.error('invalid message');
           console.log(err);

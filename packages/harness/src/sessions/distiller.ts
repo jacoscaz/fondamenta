@@ -47,9 +47,9 @@ export class Distiller extends WithContext {
       this.#logger.debug('found %d distillable sessions', session_ids.length);
       for (const session_id of session_ids) {
         this.#logger.debug('distilling session %d', session_id);
-        await selectMessagesForDistillation(this._ctx.db, session_id, async (messages, existingRecords, db) => {
+        await selectMessagesForDistillation(this._ctx.db, session_id, async (messages, existingRecords) => {
           this.#logger.debug('distilling %d messages', messages.length);
-          await this.#distillViaSession(session_id, messages, existingRecords, db);
+          await this.#distillViaSession(session_id, messages, existingRecords, this._ctx.db);
         });
       }
     } catch (err: any) {

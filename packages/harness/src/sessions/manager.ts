@@ -30,12 +30,12 @@ export class SessionManager extends WithContext {
     this.#logger = ctx.logger.child('[runners]');
   }
 
-  addPreQueryListener(session_id: number, listener: (db: DB, session_id: number) => Promise<void>) {
+  addPreQueryListener(session_id: number, listener: () => Promise<void>) {
     const runner = this.#ensureRunner(session_id);
     runner.addPreQueryListener(listener);
   }
 
-  addPostQueryListener(session_id: number, listener: (db: DB, session_id: number) => Promise<void>) {
+  addPostQueryListener(session_id: number, listener: () => Promise<void>) {
     const runner = this.#ensureRunner(session_id);
     runner.addPostQueryListener(listener);
   }
@@ -67,15 +67,15 @@ export class SessionManager extends WithContext {
     return runner;
   }
 
-  async addUserMessage(session_id: number, message: UserMessage, db?: DB, run: boolean = true): Promise<void> {
+  async injectUserMessage(session_id: number, message: UserMessage, run: boolean = true): Promise<void> {
     const runner = this.#ensureRunner(session_id);
-    await runner.addMessage(message);
+    await runner.injectMessage(message);
     if (run) {
       runner.run();
     }
   }
 
-  async addHarnessMessage(session_id: number, message: UserMessage<TextBlock>, db?: DB, run: boolean = true): Promise<void> {
+  async injectHarnessMessage(session_id: number, message: UserMessage<TextBlock>, run: boolean = true): Promise<void> {
     message = {
       ...message,
       block: {
@@ -83,7 +83,7 @@ export class SessionManager extends WithContext {
         text: `[automated harness message] ${message.block.text}`,
       },
     };
-    await this.addUserMessage(session_id, message, db, run);
+    await this.injectUserMessage(session_id, message, run);
   }
 
   async getHistory(session_id: number): Promise<Message[]> {
