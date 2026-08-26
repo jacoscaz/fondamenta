@@ -12,6 +12,13 @@ interface ReadFileParams {
   char_offset?: number;
   line_limit?: number;
   line_offset?: number;
+  /**
+   * For image files: maximum width/height in pixels before resizing
+   * (default 1024). Ignored for text files.
+   */
+  max_dimension?: number;
+  /** Force text decoding even if the file looks like an image. */
+  force_text?: boolean;
 }
 
 interface EditFileParams {
@@ -25,16 +32,54 @@ interface WriteFileParams {
   content: string;
 }
 
-interface ReadImageParams {
-  path: string;
-  /** Maximum width/height in pixels before resizing; default 1024. */
-  max_dimension?: number;
-}
-
 /** Defaults bounding the context cost of image content. */
 const IMAGE_MAX_DIMENSION = 1024;
 const IMAGE_MAX_BASE64_CHARS = 400_000; // ~300KB raw / ~100k+ visual tokens equivalent worst-case
-const IMAGE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif', 'image/tiff']);
+
+/**
+ * Content-type sniffing via magic bytes. Returns 'text' for UTF-8-ish text,
+ * 'image' when a known image container is recognized, or null for unknown
+ * binaries (which must not be silently decoded as text — their bytes would
+ * contain \u0000 and invalid sequences that Postgres' jsonb rejects).
+ */
+export const sniffContentType = (head: Buffer): 'text' | 'image' | null => {
+  if (head.length >= 12) {
+    if (head[0] === 0xFF && head[1] === 0xD8) return 'image';                              // JPEG
+    if (head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) return 'image'; // PNG
+    if (head.subarray(0, 3).toString('ascii') === 'GIF') return 'image';                   // GIF
+    if (head.subarray(4, 8).toString('ascii') === 'ftyp') return 'image';                  // ISOBMFF (AVIF/TIFF/HEIF)
+    if (head.subarray(0, 4).toString('ascii') === 'RIFF') {
+      const sub = head.subarray(8, 12).toString('ascii');
+      if (sub === 'WEBP') return 'image';
+      if (sub !== 'WAVE') return 'image'; // most RIFF containers with our use-cases are media
+    }
+    if (head[0] === 0x1F && head[1] === 0x8B) return null;                                 // gzip → binary
+    if (head.subarray(0, 2).toString('ascii') === 'PK') return null;                       // zip/office/docx → binary
+    if (head.subarray(0, 4).toString('ascii') === '%PDF') return null;                     // PDF → binary
+    if (head[0] === 0x7F && head[1] === 0x45 && head[2] === 0x4C && head[3] === 0x46) return null;         // ELF
+    if (head.subarray(0, 5).toString('ascii') === '<?xml') return 'text';
+    if (head.subarray(0, 4).toString('ascii') === '{\\rtf') return 'text';
+  }
+
+  // Heuristic fallback: sample for UTF-16 BOMs, NULs and other control noise.
+  const sample = head.subarray(0, Math.min(head.length, 2048));
+  let suspicious = 0;
+  for (let i = 1; i < sample.length; i++) {
+    const b = sample[i];
+    if (b === 0 || (b < 9)) suspicious += 2;
+    else if (b > 126 && b < 160) suspicious += 1;
+  }
+  return suspicious < 10 ? 'text' : null;
+};
+
+/**
+ * Strips characters Postgres jsonb cannot represent (\u0000 and other C0
+ * controls). Defensive: even correct tool outputs occasionally embed stray
+ * control bytes; persistence failure would otherwise wedge the session loop.
+ */
+export const sanitizeForJsonb = (text: string): string =>
+  text.replace(/[\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u000B\u000C\u000E-\u001F]/g, '');
+
 
 /**
  * Normalizes an image for model consumption: resizes to fit within
@@ -86,23 +131,56 @@ const registerTools = (mcpLocalServer: McpLocalServer<HarnessMcpToolCallContext>
   mcpLocalServer.addTool<ReadFileParams>(
     'read',
     'Read File',
-    `Reads a file, optionally with a character or line offset and limit.
+    `Reads a file, automatically detecting its content type.
 
-If both are provided, the line-based offset and limit are applied before
-their character-based equivalents.
+Text files return their contents as text. Image files (PNG, JPEG, GIF, WebP,
+AVIF...) are detected via magic bytes and returned as visual content blocks,
+automatically resized (default max 1024px) and recompressed to bound token
+cost — no separate image tool needed. Unknown binary types are rejected with
+a clear error rather than decoded into garbage.
 
-WARNING: this tool does not enforce limits on the number of tokens that may
-enter your context. ALWAYS employ token economy principles when using it.
+If both line- and char-based offsets/limits are provided, the line-based ones
+are applied first. Options \`max_dimension\` and \`force_text\` affect image
+handling only.
+
+WARNING: this tool does not enforce limits on the number of tokens that text
+files may contribute to your context. ALWAYS employ token economy principles
+when using it.
 
 Usage:
 
   // Read the first 10 lines of a file starting from line 132
   { "path": "file.ts", "line_limit": 10, "line_offset": 132 }
 
-  // Read the entirety of a file
+  // Read an image (auto-detected), resized to fit 512px
+  { "path": "photo.jpg", "max_dimension": 512 }
+
+  // Read the entirety of a text file
   { "path": "file.ts" }`,
     async (params, ctx) => {
-      const { path, char_limit, char_offset, line_limit, line_offset } = params;
+      const { path, char_limit, char_offset, line_limit, line_offset, max_dimension, force_text } = params;
+
+      // Content negotiation: sniff before decoding. Images are returned as
+      // visual blocks (sharp-normalized); unknown binaries are rejected with
+      // a clean error rather than silently decoded into invalid UTF-8 whose
+      // \u0000 bytes would wedge Postgres jsonb persistence.
+      const head_buffer = await readFile(path).then((b) => b.subarray(0, 2048));
+      const kind = force_text ? 'text' : sniffContentType(head_buffer);
+
+      if (kind === 'image') {
+        const { mime_type, data, note } = await normalizeImage(await readFile(path), max_dimension);
+        return [
+          { type: 'text', text: `Image file ${path}${note}:` },
+          { type: 'image', mime_type, data },
+        ];
+      }
+      if (kind === null) {
+        throw new Error(
+          `${path} appears to be a binary file of unrecognized type. ` +
+          `Text readers cannot decode it safely; use a type-specific tool or convert it first.`,
+        );
+      }
+
       let content: string | string[] = await readFile(path, 'utf-8');
       if (line_offset || line_limit) {
         content = content.split('\n');
@@ -120,61 +198,7 @@ Usage:
       if (char_limit) {
         content = content.slice(0, char_limit);
       }
-      return [{ type: 'text', text: content }];
-    },
-  );
-
-  mcpLocalServer.addTool<ReadImageParams>(
-    'read_image',
-    'Read Image',
-    `Reads an image file and returns it as a visual content block for models
-with image input support.
-
-The image is automatically normalized before entering the model context:
-resized to fit within max_dimension (default 1024px) and recompressed as
-JPEG (quality 80) to bound token cost. Images already within limits pass
-through byte-identical.
-
-WARNING: the model perceives image pixels as content. Any text rendered
-inside an image is NOT scanned by prompt-injection guardrails. Only read
-images from sources you trust.
-
-Usage:
-  { "path": "screenshot.png" }
-  { "path": "photo.jpg", "max_dimension": 512 }`,
-    async (params) => {
-      const { path, max_dimension } = params;
-      const info = await stat(path);
-      if (!info.isFile()) {
-        throw new Error(`${path} is not a regular file`);
-      }
-      const buffer = await readFile(path);
-
-      // Cheap sniff: magic-byte check prevents accidental reads of huge
-      // non-image binaries being piped through sharp.
-      const head = buffer.subarray(0, 12);
-      const looks_like_image =
-        (head[0] === 0xFF && head[1] === 0xD8) ||                         // JPEG
-        (head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))) || // PNG
-        (head.subarray(0, 4).toString('ascii') === 'RIFF') ||             // WebP/AVIF-ish container
-        (head.subarray(0, 3).toString('ascii') === 'GIF') ||              // GIF
-        (head.subarray(4, 8).toString('ascii') === 'ftyp');               // ISO-BMFF (AVIF/TIFF variants)
-      if (!looks_like_image && !IMAGE_MIME_TYPES.has('')) {
-        throw new Error(`${path} does not look like a supported image (magic-byte sniff failed)`);
-      }
-
-      try {
-        const { mime_type, data, note } = await normalizeImage(buffer, max_dimension);
-        return [
-          {
-            type: 'text',
-            text: `Image ${path}${note}:`,
-          },
-          { type: 'image', mime_type, data },
-        ];
-      } catch (err) {
-        throw new Error(`failed to normalize image ${path}: ${(err as Error).message}`);
-      }
+      return [{ type: 'text', text: sanitizeForJsonb(content) }];
     },
   );
 
