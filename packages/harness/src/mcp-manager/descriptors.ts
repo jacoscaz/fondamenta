@@ -19,26 +19,31 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
     {
       type: 'local',
       name: 'notes',
+      safe: true,
       server: initNotesMcpServer(ctx),
     },
     {
       type: 'local',
       name: 'logs',
+      safe: true,
       server: initLogsMcpServer(ctx),
     },
     {
       type: 'local',
       name: 'anchors',
+      safe: true,
       server: initAnchorsMcpServer(ctx),
     },
     {
       type: 'local',
       name: 'process',
+      safe: true,
       server: initProcessMcpServer(ctx.config),
     },
     {
       type: 'local',
       name: 'time',
+      safe: true,
       server: initTimeMcpServer(ctx.config),
     },
     {
@@ -54,6 +59,7 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
     {
       type: 'local',
       name: 'session',
+      safe: true,
       server: initSessionMcpServer(ctx),
     },
     {

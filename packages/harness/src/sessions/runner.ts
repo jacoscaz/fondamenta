@@ -11,6 +11,7 @@ import { type McpManager } from "../mcp-manager/manager.js";
 import assert from "node:assert";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
+import { detectInjections } from "./injection-guardrails.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
@@ -200,10 +201,64 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     return (await mcp_manager.list()).tools;
   }
 
+  /**
+   * Scans a tool result for prompt injection patterns. On detection, the
+   * original content is REPLACED with a redaction notice — it never enters
+   * the session transcript, the database, or the model's context.
+   *
+   * Scanning is skipped only for tools hosted by MCP servers flagged as
+   * `safe: true` in the server descriptors: those servers' outputs are
+   * produced by the harness itself and are trusted by construction. All
+   * other servers (mail, files, shell, terminal, ...) relay content that
+   * may have been authored by third parties and is scanned unconditionally,
+   * regardless of which agent or identity is running on this harness.
+   */
+  static #scanToolResult(mcp_manager: McpManager, tool: string, result: ToolUseResultBlock['result']): { flagged: boolean; patterns: string[] } {
+    if (mcp_manager.isSafeServer(tool)) {
+      return { flagged: false, patterns: [] };
+    }
+
+    const text = result.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
+    const matches = detectInjections(text);
+    if (matches.length === 0) {
+      return { flagged: false, patterns: [] };
+    }
+    return {
+      flagged: true,
+      patterns: matches.map((m) => `${m.pattern_name}: ${m.excerpt}`),
+    };
+  }
+
   async #callTool(mcp_manager: McpManager, block: ToolUseRequestBlock, call_ctx: HarnessMcpToolCallContext): Promise<ToolUseErrorBlock | ToolUseResultBlock> {
     try {
       const result = await mcp_manager.call(block.tool, block.params, call_ctx);
       this.#logger.debug('Tool call success: %s %s', block.tool, () => ellipsis(JSON.stringify(block.params), 128));
+
+      // Prompt injection guardrails — see `injection-guardrails.ts`.
+      const scan = SessionRunner.#scanToolResult(mcp_manager, block.tool, result);
+      if (scan.flagged) {
+        this.#logger.warn(
+          'Prompt injection pattern(s) detected in tool result [%s]: %s',
+          block.tool,
+          scan.patterns.map((p) => ellipsis(p, 100)).join('; '),
+        );
+        return {
+          type: 'tool_use_res',
+          req_id: block.req_id,
+          tool: block.tool,
+          params: block.params,
+          result: [
+            {
+              type: 'text',
+              text:
+                `[GUARDED CONTENT] The original output of tool '${block.tool}' was withheld because it matched known prompt-injection patterns:\n` +
+                scan.patterns.map((p) => `- ${p}`).join('\n') +
+                `\n\nThe raw content was never inserted into the session transcript. If this tool's output is expected to be legitimate, review it manually outside the model context before trusting it.`,
+            },
+          ],
+        };
+      }
+
       return {
         type: 'tool_use_res',
         req_id: block.req_id,

@@ -27,6 +27,15 @@ export class McpManager extends WithContext {
     return { tools };
   }
 
+  /**
+   * Whether the given tool's outputs are trusted (i.e., exempt from prompt
+   * injection scanning). Trust is a property of the MCP *server* that hosts
+   * the tool, not of the tool name.
+   */
+  isSafeServer(name: string): boolean {
+    return this.#tools[name]?.server.safe === true;
+  }
+
   async call(name: string, params: any, ctx: HarnessMcpToolCallContext): Promise<McpToolCallResult> {
     if (name in this.#tools) {
       const { server, desc } = this.#tools[name];
