@@ -73,12 +73,22 @@ export const sniffContentType = (head: Buffer): 'text' | 'image' | null => {
 };
 
 /**
- * Strips characters Postgres jsonb cannot represent (\u0000 and other C0
- * controls). Defensive: even correct tool outputs occasionally embed stray
- * control bytes; persistence failure would otherwise wedge the session loop.
+ * Ensures a string is valid, model-friendly UTF-8:
+ *
+ * 1. Strips C0 control characters except tab/LF/CR. These carry no meaning
+ *    for a language model and \u0000 in particular is unrepresentable in
+ *    Postgres jsonb ("unsupported Unicode escape sequence").
+ * 2. Strips Unicode non-characters and surrogates (U+FFFE/U+FFFF and the
+ *    U+D800..U+DFFF range), also rejected by jsonb.
+ *
+ * NOTE: the regex below is deliberately written with escape sequences so
+ * this source file itself contains no raw control bytes. Raw bytes here
+ * would echo back into tool results and re-poison the session transcript.
  */
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F\uFFFE\uFFFF\uD800-\uDFFF]/g;
+
 export const sanitizeForJsonb = (text: string): string =>
-  text.replace(/[\u0000\u0001\u0002\u0003\u0004\u0005\u0006\u0007\u000B\u000C\u000E-\u001F]/g, '');
+  text.replace(CONTROL_CHARS, '');
 
 
 /**
