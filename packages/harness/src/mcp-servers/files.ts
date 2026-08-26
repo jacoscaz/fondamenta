@@ -1,6 +1,7 @@
 
 import { Config } from "../config/config.js";
 import { McpLocalServer } from "@fondamenta/mcp-local";
+import { isUtf8 } from "node:buffer";
 import { readFile, writeFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { HarnessMcpToolCallContext } from "../types.js";
@@ -191,7 +192,14 @@ Usage:
         );
       }
 
-      let content: string | string[] = await readFile(path, 'utf-8');
+      const file_bytes = await readFile(path);
+      if (!isUtf8(file_bytes)) {
+        throw new Error(
+          `${path} is not valid UTF-8 text. Sniffed as text-like but bytes fail UTF-8 decoding; ` +
+          `convert or transcode the file before reading.`,
+        );
+      }
+      let content: string | string[] = file_bytes.toString('utf-8');
       if (line_offset || line_limit) {
         content = content.split('\n');
         if (line_offset) {
