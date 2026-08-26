@@ -206,12 +206,15 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * original content is REPLACED with a redaction notice — it never enters
    * the session transcript, the database, or the model's context.
    *
-   * Results from `mcp_anchors`, `mcp_notes`, and `mcp_logs` read operations
-   * are exempt: that content is Sage's own continuity record.
+   * Scanning is skipped only for tools hosted by MCP servers flagged as
+   * `safe: true` in the server descriptors: those servers' outputs are
+   * produced by the harness itself and are trusted by construction. All
+   * other servers (mail, files, shell, terminal, ...) relay content that
+   * may have been authored by third parties and is scanned unconditionally,
+   * regardless of which agent or identity is running on this harness.
    */
-  static #scanToolResult(tool: string, result: ToolUseResultBlock['result']): { flagged: boolean; patterns: string[] } {
-    // Own-continuity tools produce trusted content by construction.
-    if (/^mcp_(anchors|notes|logs)_/.test(tool)) {
+  static #scanToolResult(mcp_manager: McpManager, tool: string, result: ToolUseResultBlock['result']): { flagged: boolean; patterns: string[] } {
+    if (mcp_manager.isSafeServer(tool)) {
       return { flagged: false, patterns: [] };
     }
 
@@ -232,7 +235,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       this.#logger.debug('Tool call success: %s %s', block.tool, () => ellipsis(JSON.stringify(block.params), 128));
 
       // Prompt injection guardrails — see `injection-guardrails.ts`.
-      const scan = SessionRunner.#scanToolResult(block.tool, result);
+      const scan = SessionRunner.#scanToolResult(mcp_manager, block.tool, result);
       if (scan.flagged) {
         this.#logger.warn(
           'Prompt injection pattern(s) detected in tool result [%s]: %s',
