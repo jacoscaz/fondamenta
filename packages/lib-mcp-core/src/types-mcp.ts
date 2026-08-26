@@ -37,6 +37,17 @@ export interface McpToolsCallParams {
 export type McpContentBlock = {
   type: 'text';
   text: string;
+} | {
+  /**
+   * An image content block, base64-encoded. Typically produced by tools that
+   * process visual media (screenshots, image files) after normalization via
+   * sharp (resize + recompress) to bound the token cost of the payload.
+   */
+  type: 'image';
+  /** MIME type of the encoded image, e.g. `image/jpeg`, `image/webp`. */
+  mime_type: string;
+  /** Base64-encoded image bytes (without data-URL prefix). */
+  data: string;
 };
 
 export type McpToolCallResult = (McpContentBlock)[];

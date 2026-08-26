@@ -139,26 +139,53 @@ export class OpenAISessionModel extends AbstractSessionModel<OpenAI.ChatCompleti
         return {
           role: 'tool',
           tool_call_id: message.block.req_id,
-          content: `error: ${formatToolUseResultBlocks(message.block.error)}`,
+          content: formatTextOnly(message.block.error),
         };
       case 'tool_use_res':
       return {
         role: 'tool',
         tool_call_id: message.block.req_id,
-        content: formatToolUseResultBlocks(message.block.result),
-      };
+        content: formatToolUseResultContent(message.block.result),
+      } as OpenAI.ChatCompletionToolMessageParam;
     }
   }
 
 }
 
-const formatToolUseResultBlocks = (blocks: ToolUseResultBlock['result']): string => {
+/**
+ * Formats tool result blocks into an OpenAI-compatible `content` value.
+ * Text-only results produce a plain string; results containing image blocks
+ * produce a multipart content array with text parts and data-URL image parts.
+ */
+const formatToolUseResultContent = (blocks: ToolUseResultBlock['result']): string | OpenAI.ChatCompletionContentPart[] => {
+  const has_images = blocks.some((block) => block.type === 'image');
+  if (!has_images) {
+    return formatTextOnly(blocks);
+  }
+  const parts: OpenAI.ChatCompletionContentPart[] = [];
+  for (const block of blocks) {
+    switch (block.type) {
+      case 'text':
+        if (block.text.trim().length > 0) parts.push({ type: 'text', text: block.text });
+        break;
+      case 'image':
+        parts.push({
+          type: 'image_url',
+          image_url: { url: `data:${block.mime_type};base64,${block.data}` },
+        });
+        break;
+    }
+  }
+  return parts.length > 0 ? parts : [{ type: 'text', text: '(empty tool result)' }];
+};
+
+const formatTextOnly = (blocks: ToolUseResultBlock['result']): string => {
   return blocks.map((block) => {
     switch (block.type) {
       case 'text':
         return block.text;
-      default:
-        return `unsupported content type: ${block.type}`;
+      case 'image':
+        return `[image withheld: ${block.mime_type}, ${block.data.length} base64 chars]`;
     }
-  }).join('\n');
+  }).filter((s): s is string => s !== undefined).join('\n');
 };

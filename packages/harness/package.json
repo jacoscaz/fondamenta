@@ -33,6 +33,7 @@
     "@fondamenta/utils": "^0.0.1",
     "@hono/node-server": "^2.0.6",
     "@runtyped/type": "^2.0.0",
+    "@xterm/headless": "^6.0.0",
     "croner": "^10.0.1",
     "date-fns": "^4.4.0",
     "dotenv": "^17.4.2",
@@ -43,10 +44,10 @@
     "openai": "^6.45.0",
     "pinetto": "^4.0.0",
     "postgres": "^3.4.9",
+    "sharp": "^0.35.4",
     "turndown": "^7.2.4",
     "uid": "^2.0.2",
     "ws": "^8.21.0",
-    "@xterm/headless": "^6.0.0",
     "zigpty": "^0.2.1"
   },
   "files": [
