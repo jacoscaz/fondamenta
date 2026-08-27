@@ -12,8 +12,7 @@
     "build": "npm run ts:build"
   },
   "bin": {
-    "dir2bundle": "dist/bin/dir2bundle.js",
-    "html2md": "dist/bin/html2md.js"
+    "dir2bundle": "dist/bin/dir2bundle.js"
   },
   "author": "Jacopo Scazzosi <jacopo@scazzosi.com>",
   "homepage": "https://github.com/fondamenta/fondamenta",
@@ -21,7 +20,6 @@
   "devDependencies": {
     "@runtyped/type-compiler": "^2.0.0",
     "@types/node": "^26.0.1",
-    "@types/turndown": "^5.0.6",
     "@types/ws": "^8.18.1",
     "typescript": "^6.0.3"
   },
@@ -45,7 +43,6 @@
     "pinetto": "^4.0.0",
     "postgres": "^3.4.9",
     "sharp": "^0.35.4",
-    "turndown": "^7.2.4",
     "uid": "^2.0.2",
     "ws": "^8.21.0",
     "zigpty": "^0.2.1"
