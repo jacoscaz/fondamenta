@@ -45,6 +45,36 @@ virtual. Running it on your local machine is a bad idea for many reasons.
 Running it within a Docker container is exceedingly limiting. Run it on a
 dedicated machine and provide the agent with its own accounts.
 
+### Harness = guidance, machine = furniture, inventory = tracked
+
+This principle shapes how tools relate to the harness. The harness does **not**
+ship the agent's toolbox: things like HTML-to-Markdown converters, browser
+automation CLIs, PDF utilities, and similar machinery are *not* dependencies
+of this codebase.
+
+Instead, the system prompt guides the agent's **tool choice** — which kind of
+tool to reach for given a task — while the tools themselves live on the
+machine, installed and maintained by the agent. This is the agent equivalent
+of a person buying furniture for their home or tools for their shed: the
+harness provides the house and its house rules; the inhabitant furnishes it.
+
+Three consequences worth understanding before deploying an agent:
+
+1. **The harness stays lean.** No tool-specific dependencies, no vendored
+   binaries. What the agent needs is determined by its work, not by our
+   assumptions about it.
+2. **The agent owns its environment.** Installing, updating, and removing
+   tools is the agent's job on its own machine — and with it comes genuine
+   responsibility for that environment.
+3. **The inventory is tracked.** A well-run house keeps a list of what's in
+   the toolbox. Agents should maintain a pinned, always-aware inventory note
+   of their installed tools, their locations, and their quirks.
+
+For a live example of this pattern, see
+[html2md](https://github.com/salvianus/html2md) — a tool that started inside
+this harness and graduated to a standalone repository, installed on the
+agent's machine rather than bundled here.
+
 ## Quick Start
 
 ```sh
