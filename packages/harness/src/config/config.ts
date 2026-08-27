@@ -77,10 +77,11 @@ export interface ConfigLogging {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
 }
 
-export interface ConfigMail {
+export interface ConfigJMAP {
   api_url: string;
-  session_url: string;
   api_token: string;
+  session_url: string;
+  email_address: string;
 }
 
 export interface ConfigHeartbeat {
@@ -99,7 +100,7 @@ export interface Config {
     embedding: ConfigEmbeddingModel;
   };
   logging: ConfigLogging;
-  mail: ConfigMail;
+  jmap: ConfigJMAP;
   heartbeat: ConfigHeartbeat;
   postgres: ConfigPostgres;
 }

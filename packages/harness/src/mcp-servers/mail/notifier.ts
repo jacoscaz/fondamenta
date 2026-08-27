@@ -32,9 +32,9 @@ export class MailNotifier extends WithContext {
     super(ctx);
     this.#logger = ctx.logger.child('[mail-notifier]');
     this.#client = new JMAPClient({
-      apiUrl: ctx.config.mail.api_url,
-      sessionUrl: ctx.config.mail.session_url,
-      token: ctx.config.mail.api_token,
+      apiUrl: ctx.config.jmap.api_url,
+      sessionUrl: ctx.config.jmap.session_url,
+      token: ctx.config.jmap.api_token,
     });
   }
 

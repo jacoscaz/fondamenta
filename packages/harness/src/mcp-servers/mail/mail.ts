@@ -70,9 +70,9 @@ export const initMailMcpServer = (config: Config): McpLocalServer<HarnessMcpTool
   const mcp = new McpLocalServer<HarnessMcpToolCallContext>();
 
   const client = new JMAPClient({
-    apiUrl: config.mail.api_url,
-    sessionUrl: config.mail.session_url,
-    token: config.mail.api_token,
+    token: config.jmap.api_token,
+    apiUrl: config.jmap.api_url,
+    sessionUrl: config.jmap.session_url,
   });
 
   mcp.addTool<InboxParams>(
