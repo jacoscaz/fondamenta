@@ -118,6 +118,31 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     }
   }
 
+  /**
+   * Filters content blocks unsupported by the active model's declared input
+   * modalities. Unsupported blocks (e.g., images for a text-only model) are
+   * replaced with placeholder text so downstream tool req/res pairing and
+   * ordering remain intact.
+   */
+  #filterUnsupportedBlocks(message: UserMessage): UserMessage {
+    const block = message.block;
+    if (block.type !== 'tool_use_res') return message;
+
+    const result = block.result.map((b) => {
+      if (b.type === 'text' || this.#model.supportsImageInput) return b;
+      if (b.type === 'image') {
+        return {
+          type: 'text' as const,
+          text: `[image content withheld — model '${this.#model.constructor.name}' does not support image input]`,
+        };
+      }
+      return b;
+    });
+
+    if (result === block.result) return message;
+    return { ...message, block: { ...block, result } };
+  }
+
   async #query(req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
     await this.#runPreQueryListeners(db);
@@ -128,7 +153,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       }
       if (!raw) {
         assert(message.data.role === 'user', 'message must be a user message');
-        raw = await this.#model.format(message.data);
+        const data = this.#filterUnsupportedBlocks(message.data as UserMessage);
+        raw = await this.#model.format(data);
         await updateMessageRaw(db, message.id, message.raw);
       }
       return raw;

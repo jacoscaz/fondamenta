@@ -25,12 +25,29 @@ export interface ConfigWebUI {
   port: number;
 }
 
+/**
+ * Content modalities a model can consume/produce. Defaults to text-only when
+ * absent. The session runner filters content blocks unsupported by the active
+ * model before sending (e.g., images to a text-only model are replaced with
+ * placeholder notices rather than sent).
+ */
+export interface ConfigModalities {
+  input: ('text' | 'image')[];
+  output: ('text' | 'image')[];
+}
+
 export interface ConfigModelBase {
   adapter: string;
   options: Record<string, any>;
   max_output_size: number;
   max_context_size: number;
+  modalities?: ConfigModalities;
 }
+
+export const DEFAULT_MODALITIES: ConfigModalities = {
+  input: ['text'],
+  output: ['text'],
+};
 
 export interface ConfigEmbeddingsModelBase {
   adapter: string;
