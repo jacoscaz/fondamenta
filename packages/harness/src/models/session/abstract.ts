@@ -1,9 +1,8 @@
 
 import { type McpToolDescriptor } from "@fondamenta/mcp-core";
-import { type ConfigModelBase, type ConfigModalities, DEFAULT_MODALITIES } from "../../config/config.js";
+import { type ConfigModelBase, type ConfigModalities } from "../../config/config.js";
 
-import { AgentBlock, AgentMessage, UserMessage } from "./types/messages.js";
-import { ToolUseRequestBlock } from "./types/blocks.js";
+import { AgentMessage, UserMessage } from "./types/messages.js";
 
 export interface ModelQueryOpts<ReqMessage> {
   tools: McpToolDescriptor[];
@@ -29,7 +28,7 @@ export abstract class AbstractSessionModel<ReqMessage, ResMessage = ReqMessage> 
   constructor(opts: ConfigModelBase) {
     this.#max_output_size = opts.max_output_size;
     this.#max_context_size = opts.max_context_size;
-    this.#modalities = opts.modalities ?? DEFAULT_MODALITIES;
+    this.#modalities = opts.modalities ?? {};
   }
 
   get max_ouput_size(): number {
@@ -40,17 +39,8 @@ export abstract class AbstractSessionModel<ReqMessage, ResMessage = ReqMessage> 
     return this.#max_context_size
   }
 
-  /**
-   * Content modalities supported by this model. Input modalities determine
-   * which content blocks the runner forwards; unsupported blocks are filtered
-   * out and replaced with placeholder text notices.
-   */
-  get modalities(): ConfigModalities {
-    return this.#modalities;
-  }
-
   get supportsImageInput(): boolean {
-    return this.#modalities.input.includes('image');
+    return this.#modalities.images ?? false;
   }
 
   abstract query(opts: ModelQueryOpts<ReqMessage>): Promise<ModelQueryResults<ResMessage>>;

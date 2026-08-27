@@ -32,22 +32,16 @@ export interface ConfigWebUI {
  * placeholder notices rather than sent).
  */
 export interface ConfigModalities {
-  input: ('text' | 'image')[];
-  output: ('text' | 'image')[];
+  images?: boolean;
 }
 
 export interface ConfigModelBase {
   adapter: string;
-  options: Record<string, any>;
+  options?: Record<string, any>;
   max_output_size: number;
   max_context_size: number;
   modalities?: ConfigModalities;
 }
-
-export const DEFAULT_MODALITIES: ConfigModalities = {
-  input: ['text'],
-  output: ['text'],
-};
 
 export interface ConfigEmbeddingsModelBase {
   adapter: string;
@@ -103,8 +97,6 @@ export interface Config {
   models: {
     session: ConfigSessionModel;
     embedding: ConfigEmbeddingModel;
-    distillation?: ConfigSessionModel;
-    compaction?: ConfigSessionModel;
   };
   logging: ConfigLogging;
   mail: ConfigMail;

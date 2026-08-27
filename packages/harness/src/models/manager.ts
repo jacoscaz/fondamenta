@@ -19,8 +19,8 @@ export class ModelManager extends WithContext {
   async initialize() {
     this.#session = await initializeSessionModel(this._ctx.config.models.session);
     this.#embedding = await initializeEmbeddingModel(this._ctx.config.models.embedding);
-    this.#distillation = await initializeSessionModel(this._ctx.config.models.distillation ?? this._ctx.config.models.session);
-    this.#compaction = await initializeSessionModel(this._ctx.config.models.compaction ?? this._ctx.config.models.distillation ?? this._ctx.config.models.session);
+    this.#distillation = await initializeSessionModel(this._ctx.config.models.session);
+    this.#compaction = await initializeSessionModel(this._ctx.config.models.session);
   }
 
   get session(): AbstractSessionModel<any> {
