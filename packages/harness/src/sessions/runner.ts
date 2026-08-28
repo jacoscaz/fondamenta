@@ -12,6 +12,7 @@ import assert from "node:assert";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
 import { detectInjections } from "./injection-guardrails.js";
+import { makeActivationPrompt } from "../prompts/activation.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
@@ -30,6 +31,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #target_session_id: number;
   #pre_query_listeners: (() => Promise<void>)[] = [];
   #post_query_listeners: (() => Promise<void>)[] = [];
+  #heartbeat_timer: NodeJS.Timeout | null = null;
+  #last_heartbeat_activation_at?: Date;
 
   constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel<any, any>) {
     super(ctx);
@@ -41,6 +44,58 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#target_session_id = target_session_id;
     this.#pre_query_listeners = [];
     this.#post_query_listeners = [];
+  }
+
+  /**
+   * Start the internal heartbeat. Only called for the main session
+   * runner; transient runners (distiller) have no heartbeat.
+   */
+  startHeartbeat(): void {
+    if (this.#heartbeat_timer) return;
+    const interval_ms = this._ctx.config.heartbeat?.interval ?? 30_000;
+    this.#heartbeat_timer = setInterval(() => this.#onHeartbeatTick(), interval_ms);
+    const activation_ms = this._ctx.config.heartbeat?.activation_interval_ms ?? 0;
+    this.#logger.info('heartbeat every %dms (activation interval: %dms)', interval_ms, activation_ms);
+  }
+
+  stopHeartbeat(): void {
+    if (this.#heartbeat_timer) {
+      clearInterval(this.#heartbeat_timer);
+      this.#heartbeat_timer = null;
+    }
+  }
+
+  /**
+   * Heartbeat tick: drain pending messages. If the minimum activation
+   * interval has elapsed since the last heartbeat-driven activation,
+   * inject the honest activation message first — the injection itself
+   * is the work that run() then processes.
+   */
+  #onHeartbeatTick(): void {
+    if (this.#running) {
+      this.#logger.debug('heartbeat tick skipped: already running');
+      return;
+    }
+    const activation_interval_ms = this._ctx.config.heartbeat?.activation_interval_ms ?? 0;
+    if (activation_interval_ms > 0) {
+      const now = new Date();
+      const last = this.#last_heartbeat_activation_at;
+      if (!last || (now.valueOf() - last.valueOf()) >= activation_interval_ms) {
+        const elapsed = last ? Math.round((now.valueOf() - last.valueOf()) / 60_000) : null;
+        this.#last_heartbeat_activation_at = now;
+        this.#logger.info('heartbeat activation triggered (last activation %s)', elapsed !== null ? `${elapsed}m ago` : 'at boot');
+        this.injectMessage({
+          role: 'user',
+          block: {
+            type: 'text',
+            text: makeActivationPrompt(now, elapsed),
+          },
+        }).catch(err => {
+          this.#logger.error('heartbeat activation injection error: %s', errToString(err));
+        });
+      }
+    }
+    this.run();
   }
 
   /** Whether the runner is currently processing an activation loop. */
