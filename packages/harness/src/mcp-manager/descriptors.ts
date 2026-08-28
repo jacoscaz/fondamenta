@@ -11,6 +11,7 @@ import { initTerminalMcpServer } from "../mcp-servers/terminal/terminal.js";
 import { type CompleteContext } from "../context.js";
 import { initNotesMcpServer } from "../mcp-servers/notes.js";
 import { initTodosMcpServer } from "../mcp-servers/todos.js";
+import { initPinningMcpServer } from "../mcp-servers/pinning.js";
 import { initLogsMcpServer } from "../mcp-servers/logs.js";
 import { initAnchorsMcpServer } from "../mcp-servers/anchors.js";
 
@@ -28,6 +29,12 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
       name: 'todos',
       safe: true,
       server: initTodosMcpServer(ctx),
+    },
+    {
+      type: 'local',
+      name: 'pinning',
+      safe: true,
+      server: initPinningMcpServer(ctx),
     },
     {
       type: 'local',
