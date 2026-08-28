@@ -43,6 +43,18 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#post_query_listeners = [];
   }
 
+  /** Whether the runner is currently processing an activation loop. */
+  get running(): boolean {
+    return this.#running;
+  }
+
+  /** Timestamp of the moment the runner last became idle (undefined if never ran). */
+  #last_idle_at?: Date;
+
+  get lastIdleAt(): Date | undefined {
+    return this.#last_idle_at;
+  }
+
   addPreQueryListener(listener: () => Promise<void>) {
     this.#pre_query_listeners.push(listener);
   }
@@ -113,6 +125,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       this.#logger.error('run error: %s', errToString(err));
     } finally {
       this.#running = false;
+      this.#last_idle_at = new Date();
       this.#logger.debug('idle');
       this.emit('idle', this.#prompt_size);
     }

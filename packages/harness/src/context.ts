@@ -6,6 +6,7 @@ import { type SessionManager } from "./sessions/manager.js";
 import { type Compactor } from "./sessions/compactor.js";
 import { type MailNotifier } from "./mcp-servers/mail/notifier.js";
 import { type Heartbeat } from "./heartbeat.js";
+import { type ActivationGate } from "./sessions/activation-gate.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
@@ -52,6 +53,7 @@ export interface CompleteContext {
   emygdala: Emygdala;
   mailNotifier: MailNotifier;
   heartbeat: Heartbeat;
+  activationGate: ActivationGate;
   compactor: Compactor;
   distiller: Distiller;
   embedder: Embedder;

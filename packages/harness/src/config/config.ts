@@ -87,8 +87,13 @@ export interface ConfigJMAP {
 export interface ConfigHeartbeat {
   /** Senders that trigger immediate activation (matched against email address) */
   mail_allowlist?: string[];
-  /** Heartbeat interval in milliseconds */
+  /** Heartbeat (check) interval in milliseconds — how often the activation gate polls */
   interval: number;
+  /** Minimum time between heartbeat-driven activations, in milliseconds.
+   *  This is the agent's presence rhythm: how often the agent activates
+   *  when nothing external triggers it. Independent of `interval`, which
+   *  is only the cheap internal check cadence. */
+  activation_interval_ms: number;
 }
 
 export interface Config {
