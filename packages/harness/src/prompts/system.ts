@@ -108,13 +108,28 @@ ${formatIdentityAnchors(entries)}
 </identity_anchors>`;
 };
 
+const makePinnedSection = async (db: DB): Promise<string> => {
+  const pinned = await db.selectFrom('continuity_records')
+    .selectAll()
+    .where('pinned_at', 'is not', null)
+    .where('deleted_at', 'is', null)
+    .orderBy('pinned_at', 'asc')
+    .execute();
+  if (pinned.length === 0) {
+    return `\n<pinned_content>\n(no records currently pinned)\n</pinned_content>`;
+  }
+  const bodies = pinned.map(r => `## PINNED #${r.id} [${r.type}] (pinned by ${r.pinned_by ?? '?'} at ${r.pinned_at?.toISOString()})\n${r.title ? `Title: ${r.title}\n` : ''}${r.content}`).join('\n\n');
+  return `\n<pinned_content>\nThe following records are PINNED: they must be known at every activation regardless of relevance to the current task. Manage them with the mcp_pinning_* tools; the total pinned budget is hard-capped.\n\n${bodies}\n</pinned_content>`;
+};
+
 export const makeSystemPrompt = async (opts: MakeSystemPromptOpts): Promise<string> => {
 
   const { ctx } = opts;
 
   const identitySection = await makeIdentitySection(ctx.db);
+  const pinnedSection = await makePinnedSection(ctx.db);
 
-  return identitySection + `
+  return identitySection + pinnedSection + `
 
 <heartbeat_activations>
 You are continuously operational: on a steady rhythm, your harness activates
@@ -154,6 +169,24 @@ mechanism by which present-you reaches forward in time to future-you.
 - Use scheduled reminders deliberately: each one is a future activation
   you are committing your future self to. Do not scatter them.
 </todos>
+
+<pinning>
+You can pin notes, logs, and todos (mcp_pinning_* tools). Pinned
+records are injected into every system prompt — they exist at every
+activation even when irrelevant to the task at hand. This is the
+most expensive form of memory you have: every pinned character is
+paid on every activation, so the budget is hard-capped and the pin
+tool errors out the moment a pin would exceed it.
+
+- Reserve pinning for records whose EXISTENCE must be known always:
+  tool inventory, credentials index, open threads you want to return
+  to. Not current work — that belongs in ordinary notes.
+- The distiller may also pin (same salience filter, catches what you
+  miss); its pins are marked pinned_by='distiller' and you can always
+  unpin them. Pin provenance is 'agent' or 'distiller' — never a
+  persona name: your harness is not your identity, and your identity
+  is not your harness.
+</pinning>
 
 <context_maintenance>
 Context is the progressive accumulation of a session's narrative between
