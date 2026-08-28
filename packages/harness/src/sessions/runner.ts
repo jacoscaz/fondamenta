@@ -2,7 +2,7 @@ import { ellipsis, errToString } from "@fondamenta/utils";
 import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, updateMessageRaw, insertMessage, selectMessages } from "../database/tables/messages.js";
-import { type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
+import { type TextBlock, type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
 import { type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
@@ -13,6 +13,7 @@ import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
 import { detectInjections } from "./injection-guardrails.js";
 import { makeActivationPrompt } from "../prompts/activation.js";
+import { AUTOMATED_MESSAGE_PREFIX } from "../constants.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
@@ -84,13 +85,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         const elapsed = last ? Math.round((now.valueOf() - last.valueOf()) / 60_000) : null;
         this.#last_heartbeat_activation_at = now;
         this.#logger.info('heartbeat activation triggered (last activation %s)', elapsed !== null ? `${elapsed}m ago` : 'at boot');
-        this.injectMessage({
-          role: 'user',
-          block: {
-            type: 'text',
-            text: makeActivationPrompt(now, elapsed),
-          },
-        }, false).catch(err => {
+        this.injectAutomatedTextMessage(makeActivationPrompt(now, elapsed), false).catch(err => {
           this.#logger.error('heartbeat activation injection error: %s', errToString(err));
         });
       }
@@ -149,6 +144,14 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     if (run) {
       this.run();
     }
+  }
+
+  async injectAutomatedTextMessage(text: string, run: boolean): Promise<void> {
+    const message: UserMessage<TextBlock> = {
+      role: 'user',
+      block: { type: 'text', text: `${AUTOMATED_MESSAGE_PREFIX} ${text}` },
+    };
+    await this.injectMessage(message, run);
   }
 
   /**

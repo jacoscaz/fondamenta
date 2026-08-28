@@ -89,11 +89,8 @@ export class SessionManager extends WithContext {
   }
 
   async injectAutomatedTextMessage(session_id: number, text: string, run: boolean): Promise<void> {
-    const message: UserMessage<TextBlock> = {
-      role: 'user',
-      block: { type: 'text', text: `${AUTOMATED_MESSAGE_PREFIX} ${text}` },
-    };
-    await this.injectMessage(session_id, message, run);
+    const runner = this.#ensureRunner(session_id);
+    await runner.injectAutomatedTextMessage(text, run);
   }
 
   async getHistory(session_id: number): Promise<Message[]> {
