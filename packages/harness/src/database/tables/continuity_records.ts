@@ -238,12 +238,10 @@ export const updateRecord = async (
  * Select open todo records whose notification time has arrived.
  *
  * A todo is a continuity record with `due_at` set, `done_at` NULL, and
- * `notify_at` in the past. `notify_at` NULL means the notification was
- * already consumed (the scanner clears it after injecting) — this makes
- * the trigger fire exactly once per todo. Snoozing sets `notify_at`
- * forward in time; the due date stays as the commitment.
- *
- * Used by the todo scanner (Emygdala-style pre-query listener).
+ * `notify_at` in the past (or absent, meaning notify immediately).
+ * Used by the todo scanner (Emygdala-style pre-query listener) to
+ * inject reminders exactly once per todo — the caller clears
+ * `notify_at` after injection to avoid re-triggering.
  */
 export const selectTodosDueForNotification = async (
   db: DB,
@@ -254,8 +252,10 @@ export const selectTodosDueForNotification = async (
     .where('due_at', 'is not', null)
     .where('done_at', 'is', null)
     .where('deleted_at', 'is', null)
-    .where('notify_at', 'is not', null)
-    .where('notify_at', '<=', now)
+    .where(eb => eb.or([
+      eb('notify_at', '<=', now),
+      eb('notify_at', 'is', null),
+    ]))
     .orderBy('due_at', 'asc')
     .execute();
 };

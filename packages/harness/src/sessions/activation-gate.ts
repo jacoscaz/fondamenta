@@ -22,13 +22,6 @@
 
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from "pinetto";
-import {
-  selectTodosDueForNotification,
-  updateRecord,
-  type SelectableContinuityRecord,
-} from "../database/tables/continuity_records.js";
-import { ellipsis } from "@fondamenta/utils";
-import { type TextBlock } from "../models/session/types/blocks.js";
 
 export class ActivationGate extends WithContext {
 
@@ -44,60 +37,11 @@ export class ActivationGate extends WithContext {
     const { heartbeat } = this._ctx;
     heartbeat.on('beat', () => { this.#onBeat(); });
     this.#logger.info('activation gate subscribed to heartbeat (interval: %dms)', heartbeat.intervalMs);
-    // Todo scanner: runs just before every model query (Emygdala pattern),
-    // injecting reminders for todos whose notify_at has arrived. Clearing
-    // notify_at after injection makes the trigger fire exactly once.
-    this._ctx.managers.sessions.addPreQueryListener(
-      this._ctx.managers.sessions.main_session_id,
-      this.#scanTodos,
-    );
-    this.#logger.info('todo scanner registered as pre-query listener');
   }
 
   stop(): void {
     // Listeners are removed with the heartbeat itself; nothing to clear.
   }
-
-  /**
-   * Todo scanner: fires each due todo's reminder into the session, then
-   * clears notify_at so the reminder is delivered once. Runs before
-   * every model query, so reminders arrive with the next activation
-   * regardless of what triggered it.
-   */
-  #scanTodos = async (): Promise<void> => {
-    const { sessions } = this._ctx.managers;
-    const session_id = sessions.main_session_id;
-    const now = new Date();
-    let due: SelectableContinuityRecord[];
-    try {
-      due = await selectTodosDueForNotification(this._ctx.db, now);
-    } catch (err) {
-      this.#logger.error('todo scan error: %s', err instanceof Error ? err.message : String(err));
-      return;
-    }
-    if (due.length === 0) return;
-    for (const todo of due) {
-      // Clear notify_at FIRST: if injection fails we lose the reminder
-      // rather than risk an injection loop. Snoozing or re-notifying is
-      // a deliberate act; re-firing automatically is noise.
-      await updateRecord(this._ctx.db, todo.id, { notify_at: null });
-    }
-    const blocks: TextBlock[] = due.map(todo => ({
-      type: 'text' as const,
-      text: [
-        `⏰ TODO DUE — #${todo.id}${todo.title ? `: ${todo.title}` : ''}`,
-        todo.due_at ? `  due: ${todo.due_at.toISOString()}${todo.due_at < now ? ' (overdue)' : ''}` : '',
-        ``,
-        `This reminder was scheduled by your past self (notify_at has now arrived; it has been consumed).`,
-        todo.content ? `\n${ellipsis(todo.content, 400, '...')}` : '',
-      ].filter(s => s !== '').join('\n'),
-    }));
-    await sessions.injectHarnessMessage(session_id, {
-      role: 'user',
-      block: { type: 'text', text: blocks.map(b => b.text).join('\n\n') },
-    }, false);
-    this.#logger.info('injected %d todo reminder(s)', due.length);
-  };
 
   #onBeat = async (): Promise<void> => {
     try {
