@@ -10,6 +10,7 @@ import { initMailMcpServer } from "../mcp-servers/mail/mail.js";
 import { initTerminalMcpServer } from "../mcp-servers/terminal/terminal.js";
 import { type CompleteContext } from "../context.js";
 import { initNotesMcpServer } from "../mcp-servers/notes.js";
+import { initTodosMcpServer } from "../mcp-servers/todos.js";
 import { initLogsMcpServer } from "../mcp-servers/logs.js";
 import { initAnchorsMcpServer } from "../mcp-servers/anchors.js";
 
@@ -21,6 +22,12 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
       name: 'notes',
       safe: true,
       server: initNotesMcpServer(ctx),
+    },
+    {
+      type: 'local',
+      name: 'todos',
+      safe: true,
+      server: initTodosMcpServer(ctx),
     },
     {
       type: 'local',
