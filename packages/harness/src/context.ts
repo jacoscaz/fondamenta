@@ -5,7 +5,7 @@ import { type PromptManager } from "./prompts/manager.js";
 import { type SessionManager } from "./sessions/manager.js";
 import { type Compactor } from "./sessions/compactor.js";
 import { type MailNotifier } from "./mcp-servers/mail/notifier.js";
-import { type TodoReminderScheduler } from "./sessions/todo-scheduler.js";
+import { type TodoNotifier } from "./sessions/todo-scheduler.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
@@ -50,11 +50,13 @@ export interface CompleteContext {
   config: Config;
   logger: Logger;
   emygdala: Emygdala;
-  mailNotifier: MailNotifier;
-  todoReminderScheduler: TodoReminderScheduler;
   compactor: Compactor;
   distiller: Distiller;
   embedder: Embedder;
+  notifiers: {
+    todo: TodoNotifier;
+    mail: MailNotifier;
+  };
   managers: {
     io: IOManager;
     mcp: RootMcpManager;

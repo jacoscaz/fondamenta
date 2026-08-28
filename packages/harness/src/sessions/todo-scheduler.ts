@@ -17,7 +17,7 @@ import { ellipsis, errToString } from "@fondamenta/utils";
  * simple NodeJS interval. Clearing notify_at after injection makes the
  * trigger fire exactly once.
  */
-export class TodoReminderScheduler extends WithContext {
+export class TodoNotifier extends WithContext {
 
   #logger: Logger;
   #timer: NodeJS.Timeout | null = null;
