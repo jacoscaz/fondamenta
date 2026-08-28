@@ -88,7 +88,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           role: 'user',
           block: {
             type: 'text',
-            text: makeActivationPrompt(now, elapsed),
+            text: `[automated harness message] ${makeActivationPrompt(now, elapsed)}`,
           },
         }).catch(err => {
           this.#logger.error('heartbeat activation injection error: %s', errToString(err));
