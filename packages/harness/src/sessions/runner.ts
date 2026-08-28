@@ -90,7 +90,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
             type: 'text',
             text: makeActivationPrompt(now, elapsed),
           },
-        }).catch(err => {
+        }, false).catch(err => {
           this.#logger.error('heartbeat activation injection error: %s', errToString(err));
         });
       }
@@ -138,7 +138,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * Insert a user message into the session and trigger the activation loop.
    * Absorbed from SessionManager.
    */
-  async injectMessage(data: UserMessage): Promise<void> {
+  async injectMessage(data: UserMessage, run: boolean): Promise<void> {
     await insertMessage(this._ctx.db, {
       role: data.role,
       session_id: this.#target_session_id,
@@ -146,6 +146,9 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       raw: this._ctx.managers.models.session.format(data),
       created_at: getMonotonicDate(),
     });
+    if (run) {
+      this.run();
+    }
   }
 
   /**

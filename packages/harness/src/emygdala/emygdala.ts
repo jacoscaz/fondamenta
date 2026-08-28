@@ -80,18 +80,15 @@ export class Emygdala extends WithContext {
       .where('id', '=', main_session_id)
       .select(['prompt_size'])
       .executeTakeFirstOrThrow();
-    const injected_message_blocks: TextBlock[] = [];
-    this.#evaluatePassingOfTime(injected_message_blocks);
-    this.#evaluateContextPressure(prompt_size, injected_message_blocks);
-    for (const block of injected_message_blocks) {
-      await this._ctx.managers.sessions.injectHarnessMessage(main_session_id, {
-        role: 'user',
-        block,
-      });
+    const injected_messages: string[] = [];
+    this.#evaluatePassingOfTime(injected_messages);
+    this.#evaluateContextPressure(prompt_size, injected_messages);
+    for (const text of injected_messages) {
+      await this._ctx.managers.sessions.injectAutomatedTextMessage(main_session_id, text, false);
     }
   };
 
-  #evaluateContextPressure(prompt_size: number, injected_blocks: TextBlock[]) {
+  #evaluateContextPressure(prompt_size: number, injected_messages: string[]) {
     const max_context_size = this._ctx.managers.models.session.max_context_size;
     const pressure = prompt_size / max_context_size;
 
@@ -111,7 +108,7 @@ export class Emygdala extends WithContext {
     if (newLevel > this.#currentPressureLevel) {
       this.#currentPressureLevel = newLevel;
       if (PRESSURE_LEVELS[newLevel].message) {
-        injected_blocks.push({ type: 'text', text: PRESSURE_LEVELS[newLevel].message! });
+        injected_messages.push(PRESSURE_LEVELS[newLevel].message!);
       }
     } else if (newLevel < this.#currentPressureLevel) {
       // Dropped below current level (e.g. after compaction)
@@ -121,17 +118,17 @@ export class Emygdala extends WithContext {
     return null;
   }
 
-  #evaluatePassingOfTime(injected_blocks: TextBlock[]) {
+  #evaluatePassingOfTime(injected_messages: string[]) {
     const now = new Date();
     if (this.#last_active_at) {
       const THRESHOLD_MS = 1_800_000; // 30 minutes
       const gap_ms = now.valueOf() - this.#last_active_at.valueOf();
       if (gap_ms > THRESHOLD_MS) {
         const gap_str = formatDistanceStrict(now.valueOf(), this.#last_active_at.valueOf());
-        injected_blocks.push({ type: 'text', text: `It is ${now.toISOString()}. It has has been ${gap_str} since your last activation.` });
+        injected_messages.push(`It is ${now.toISOString()}. It has has been ${gap_str} since your last activation.`);
       }
     } else {
-      injected_blocks.push({ type: 'text', text: `It is ${now.toISOString()}. Your harness has just been started.` });
+      injected_messages.push(`It is ${now.toISOString()}. Your harness has just been started.`);
     }
     this.#last_active_at = now;
   }

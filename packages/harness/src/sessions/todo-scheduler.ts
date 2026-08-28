@@ -69,10 +69,7 @@ export class TodoNotifier extends WithContext {
         `This reminder was scheduled by your past self (notify_at has now arrived; it has been consumed).`,
         todo.content ? `\n${ellipsis(todo.content, 400, '...')}` : '',
       ].filter(s => s !== '').join('\n')).join('\n\n');
-      await sessions.injectHarnessMessage(session_id, {
-        role: 'user',
-        block: { type: 'text', text },
-      }, true);
+      await sessions.injectAutomatedTextMessage(session_id, text, true);
       this.#logger.info('injected %d todo reminder(s)', due.length);
     } catch (err) {
       this.#logger.error('todo reminder error: %s', errToString(err));

@@ -5,7 +5,7 @@ import { insertSession, selectSessionById } from "../database/tables/sessions.js
 import { type UserMessage, type Message } from "../models/session/types/messages.js";
 import { type TextBlock } from "../models/session/types/blocks.js";
 import assert from "node:assert";
-import { type DB } from "../database/client.js";
+import { AUTOMATED_MESSAGE_PREFIX } from "../constants.js";
 
 export interface SessionManagerEvents extends Record<string, any[]> {
   [key: `session-${number}-message`]: [message: Message];
@@ -83,23 +83,17 @@ export class SessionManager extends WithContext {
     return runner;
   }
 
-  async injectUserMessage(session_id: number, message: UserMessage, run: boolean = true): Promise<void> {
+  async injectMessage(session_id: number, message: UserMessage, run: boolean): Promise<void> {
     const runner = this.#ensureRunner(session_id);
-    await runner.injectMessage(message);
-    if (run) {
-      runner.run();
-    }
+    await runner.injectMessage(message, run);
   }
 
-  async injectHarnessMessage(session_id: number, message: UserMessage<TextBlock>, run: boolean = true): Promise<void> {
-    message = {
-      ...message,
-      block: {
-        ...message.block,
-        text: `[automated harness message] ${message.block.text}`,
-      },
+  async injectAutomatedTextMessage(session_id: number, text: string, run: boolean): Promise<void> {
+    const message: UserMessage<TextBlock> = {
+      role: 'user',
+      block: { type: 'text', text: `${AUTOMATED_MESSAGE_PREFIX} ${text}` },
     };
-    await this.injectUserMessage(session_id, message, run);
+    await this.injectMessage(session_id, message, run);
   }
 
   async getHistory(session_id: number): Promise<Message[]> {
