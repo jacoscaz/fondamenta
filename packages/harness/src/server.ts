@@ -10,8 +10,7 @@ import { WebUIServer } from "./webui/server.js";
 import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
 import { MailNotifier } from "./mcp-servers/mail/notifier.js";
-import { Heartbeat } from "./heartbeat.js";
-import { ActivationGate } from "./sessions/activation-gate.js";
+import { TodoReminderScheduler } from "./sessions/todo-scheduler.js";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -47,8 +46,7 @@ const complete_context: CompleteContext = {
   config,
   emygdala: new Emygdala(init_context),
   mailNotifier: new MailNotifier(init_context),
-  heartbeat: new Heartbeat(init_context),
-  activationGate: new ActivationGate(init_context),
+  todoReminderScheduler: new TodoReminderScheduler(init_context),
   compactor: new Compactor(init_context),
   distiller: new Distiller(init_context),
   embedder: new Embedder(init_context),
@@ -74,8 +72,7 @@ await complete_context.emygdala.initialize();
 await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
 await complete_context.mailNotifier.initialize(120_000);
-complete_context.heartbeat.initialize();
-await complete_context.activationGate.initialize();
+complete_context.todoReminderScheduler.initialize(60_000);
 
 // Resolve the main session and ensure its runner is alive
 const { main_session_id } = complete_context.managers.sessions;
@@ -94,8 +91,7 @@ const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
   logger.warn('Received signal %s, shutting down...', signal);
   webui_server.close();
   complete_context.mailNotifier.stop();
-  complete_context.heartbeat.stop();
-  complete_context.activationGate.stop();
+  complete_context.todoReminderScheduler.stop();
   db.destroy();
   setTimeout(() => process.exit(0), 1000);
 };

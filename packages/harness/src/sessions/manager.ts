@@ -50,14 +50,6 @@ export class SessionManager extends WithContext {
   }
 
   /**
-   * Direct runner access — used by the activation gate to check whether
-   * the main runner is busy and when it was last idle.
-   */
-  getRunner(session_id: number): SessionRunner | undefined {
-    return this.#runners[session_id];
-  }
-
-  /**
    * Whether the runner has any unprocessed message pending. Does not
    * trigger an activation loop.
    */
@@ -76,15 +68,17 @@ export class SessionManager extends WithContext {
     if (!runner) {
       runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session);
       this.#runners[session_id] = runner;
-      // Subscribe the runner to heartbeat events
-      this._ctx.heartbeat.on('beat', () => { runner.run(); });
+      // The main session runner owns its own heartbeat cadence.
+      if (session_id === this.main_session_id) {
+        runner.startHeartbeat();
+      }
       runner.on('message', (message) => {
         this.emit(`session-${session_id}-message`, message);
       });
       runner.on('idle', () => {
         this.emit(`session-${session_id}-idle`);
       });
-      this.#logger.info('runner for session %d subscribed to heartbeat', session_id);
+      this.#logger.info('runner for session %d started', session_id);
     }
     return runner;
   }

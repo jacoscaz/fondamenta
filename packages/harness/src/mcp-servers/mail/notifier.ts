@@ -67,7 +67,7 @@ export class MailNotifier extends WithContext {
 
   /**
    * Returns pending emails without clearing the queue.
-   * Called by ActivationGate to inspect and apply filtering.
+   * Called before filtering decisions to inspect allowlist state.
    */
   peekPendingEmails(): EmailSummary[] {
     return this.#pendingEmails;

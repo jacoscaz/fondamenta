@@ -10,7 +10,7 @@
 // - snooze: move notify_at forward. The due date stays as the commitment.
 // - reopen: clear done_at.
 //
-// The todo scanner (see sessions/activation-gate.ts) watches for
+// The todo reminder scheduler (see sessions/todo-scheduler.ts) watches for
 // notify_at arriving and injects reminders into the session. notify_at
 // is cleared after firing so each todo triggers exactly once.
 //

@@ -1,4 +1,4 @@
-import { makeHeartbeatPrompt } from "./heartbeat.js";
+
 import { makeSystemPrompt } from "./system.js";
 import { type InitContext, WithContext } from "../context.js";
 
@@ -14,8 +14,6 @@ export class PromptManager extends WithContext {
     });
   }
 
-  async getHeartbeatPrompt(): Promise<string> {
-    return await makeHeartbeatPrompt();
-  }
+  
 
 }
