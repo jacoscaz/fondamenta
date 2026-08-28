@@ -28,6 +28,13 @@ export interface ContinuityRecord {
   created_at: Date;
   updated_at: Date | null;
   deleted_at: Date | null;
+  // Todo semantics (nullable: a record is a todo only when due_at is set)
+  due_at: Date | null;
+  notify_at: Date | null;
+  done_at: Date | null;
+  // Pinning semantics (nullable: a record is pinned only when pinned_at is set)
+  pinned_at: Date | null;
+  pinned_by: 'agent' | 'distiller' | null;
 }
 
 export type InsertableContinuityRecord = Insertable<ContinuityRecord>;
@@ -190,6 +197,17 @@ export interface UpdateRecordOpts {
   title?: string;
   content?: string;
   embedding?: number[] | null;
+  due_at?: Date | null;
+  notify_at?: Date | null;
+  done_at?: Date | null;
+  pinned_at?: Date | null;
+  pinned_by?: 'agent' | 'distiller' | null;
+}
+
+/** Options for querying todo-like records (records with due_at set, not done). */
+export interface TodoFilterOpts {
+  /** Only records with notify_at <= now are returned. */
+  due_for_notification?: boolean;
 }
 
 export const updateRecord = async (
@@ -197,15 +215,49 @@ export const updateRecord = async (
   id: number,
   opts: UpdateRecordOpts,
 ): Promise<SelectableContinuityRecord> => {
+  const { due_at, notify_at, done_at, pinned_at, pinned_by, ...rest } = opts;
   return await db.updateTable('continuity_records')
     .where('id', '=', id)
     .set({
-      ...opts,
+      ...rest,
+      due_at,
+      notify_at,
+      done_at,
+      pinned_at,
+      pinned_by,
       embedding: Array.isArray(opts.embedding) ? sqlEmbeddingArray(opts.embedding) : opts.embedding,
       updated_at: new Date()
     })
     .returningAll()
     .executeTakeFirstOrThrow();
+};
+
+// ── Todos ──
+
+/**
+ * Select open todo records whose notification time has arrived.
+ *
+ * A todo is a continuity record with `due_at` set, `done_at` NULL, and
+ * `notify_at` in the past (or absent, meaning notify immediately).
+ * Used by the todo scanner (Emygdala-style pre-query listener) to
+ * inject reminders exactly once per todo — the caller clears
+ * `notify_at` after injection to avoid re-triggering.
+ */
+export const selectTodosDueForNotification = async (
+  db: DB,
+  now: Date,
+): Promise<SelectableContinuityRecord[]> => {
+  return await db.selectFrom('continuity_records')
+    .selectAll()
+    .where('due_at', 'is not', null)
+    .where('done_at', 'is', null)
+    .where('deleted_at', 'is', null)
+    .where(eb => eb.or([
+      eb('notify_at', '<=', now),
+      eb('notify_at', 'is', null),
+    ]))
+    .orderBy('due_at', 'asc')
+    .execute();
 };
 
 // ── Soft delete ──

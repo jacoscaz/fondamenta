@@ -43,6 +43,11 @@ export class Heartbeat extends WithContext<HeartbeatEvents> {
       this.initialize();
     }
   }
+
+  /** Current heartbeat interval in milliseconds. */
+  get intervalMs(): number {
+    return this.#intervalMs;
+  }
 }
 
 export interface HeartbeatEvents extends Record<string, any[]> {

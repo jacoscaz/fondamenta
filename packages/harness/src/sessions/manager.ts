@@ -49,6 +49,28 @@ export class SessionManager extends WithContext {
     return this.#ensureRunner(session_id).run();
   }
 
+  /**
+   * Direct runner access — used by the activation gate to check whether
+   * the main runner is busy and when it was last idle.
+   */
+  getRunner(session_id: number): SessionRunner | undefined {
+    return this.#runners[session_id];
+  }
+
+  /**
+   * Whether the runner has any unprocessed message pending. Does not
+   * trigger an activation loop.
+   */
+  async hasPendingMessages(session_id: number): Promise<boolean> {
+    const pending = await this._ctx.db.selectFrom('messages')
+      .where('session_id', '=', session_id)
+      .where('processed_at', 'is', null)
+      .select('id')
+      .limit(1)
+      .executeTakeFirst();
+    return pending !== undefined;
+  }
+
   #ensureRunner(session_id: number): SessionRunner {
     let runner = this.#runners[session_id];
     if (!runner) {
