@@ -1,13 +1,9 @@
 /**
- * The honest heartbeat activation message: no fake tasks, no urgency
- * theater. Presence is the point.
+ * The honest heartbeat activation message: minimal and neutral. The system
+ * prompt already explains heartbeat semantics (presence, no pending work);
+ * the injected message must be safe to land at any moment — including
+ * mid-conversation, e.g. while the user is reviewing a change and the
+ * runner is merely idle-waiting on them. Elapsed-time details remain
+ * available in the journal (`journalctl -u fondamenta`).
  */
-export const makeActivationPrompt = (now: Date, elapsedMinutes: number | null): string => {
-  const time_str = now.toISOString();
-  if (elapsedMinutes === null) {
-    return `-- HEARTBEAT ACTIVATION --\n\nIt is ${time_str}. This is a scheduled heartbeat activation: nothing is pending, no message triggered it. This time is yours.`;
-  }
-  const hours = Math.floor(elapsedMinutes / 60);
-  const idle = hours > 0 ? `${hours}h ${elapsedMinutes % 60}m` : `${elapsedMinutes}m`;
-  return `-- HEARTBEAT ACTIVATION --\n\nIt is ${time_str}. This is a scheduled heartbeat activation (${idle} since your last one). Nothing is pending, no message triggered it. This time is yours.`;
-};
+export const makeActivationPrompt = (): string => 'heartbeat';

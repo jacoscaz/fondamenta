@@ -85,7 +85,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         const elapsed = last ? Math.round((now.valueOf() - last.valueOf()) / 60_000) : null;
         this.#last_heartbeat_activation_at = now;
         this.#logger.info('heartbeat activation triggered (last activation %s)', elapsed !== null ? `${elapsed}m ago` : 'at boot');
-        this.injectAutomatedTextMessage(makeActivationPrompt(now, elapsed), false).catch(err => {
+        this.injectAutomatedTextMessage(makeActivationPrompt(), false).catch(err => {
           this.#logger.error('heartbeat activation injection error: %s', errToString(err));
         });
       }
