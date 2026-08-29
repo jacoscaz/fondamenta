@@ -2,24 +2,24 @@
 import { type McpToolDescriptor } from "@fondamenta/mcp-core";
 import { type ConfigModelBase, type ConfigModalities } from "../../config/config.js";
 
-import { AgentMessage, UserMessage } from "./types/messages.js";
+import { AgentMessage, Message } from "./types/messages.js";
 
-export interface ModelQueryOpts<ReqMessage> {
+export interface ModelQueryOpts {
   tools: McpToolDescriptor[];
-  messages: ReqMessage[];
+  messages: Message[];
   session_id: string;
   system_prompt: string;
   max_output_size?: number;
 }
 
-export interface ModelQueryResults<ResMessage> {
-  messages: ResMessage[];
+export interface ModelQueryResults {
+  messages: AgentMessage[];
   input_size: number;
   cached_size: number;
   output_size: number;
 }
 
-export abstract class AbstractSessionModel<ReqMessage, ResMessage = ReqMessage> {
+export abstract class AbstractSessionModel {
 
   readonly #max_output_size: number;
   readonly #max_context_size: number;
@@ -43,11 +43,6 @@ export abstract class AbstractSessionModel<ReqMessage, ResMessage = ReqMessage> 
     return this.#modalities.images ?? false;
   }
 
-  abstract query(opts: ModelQueryOpts<ReqMessage>): Promise<ModelQueryResults<ResMessage>>;
-
-  abstract parse(message: ResMessage): AgentMessage[];
-
-  abstract format(message: UserMessage): ReqMessage;
-
+  abstract query(opts: ModelQueryOpts): Promise<ModelQueryResults>;
 
 }

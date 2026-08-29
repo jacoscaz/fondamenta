@@ -7,10 +7,10 @@ import { initializeEmbeddingModel } from "./embedding/init.js";
 
 export class ModelManager extends WithContext {
 
-  #session?: AbstractSessionModel<any>;
+  #session?: AbstractSessionModel;
   #embedding?: AbstractEmbeddingModel;
-  #distillation?: AbstractSessionModel<any>;
-  #compaction?: AbstractSessionModel<any>;
+  #distillation?: AbstractSessionModel;
+  #compaction?: AbstractSessionModel;
 
   constructor(init: InitContext) {
     super(init);
@@ -23,7 +23,7 @@ export class ModelManager extends WithContext {
     this.#compaction = await initializeSessionModel(this._ctx.config.models.session);
   }
 
-  get session(): AbstractSessionModel<any> {
+  get session(): AbstractSessionModel {
     assert(this.#session);
     return this.#session;
   }
@@ -33,12 +33,12 @@ export class ModelManager extends WithContext {
     return this.#embedding;
   }
 
-  get distillation(): AbstractSessionModel<any> {
+  get distillation(): AbstractSessionModel {
     assert(this.#distillation);
     return this.#distillation;
   }
 
-  get compaction(): AbstractSessionModel<any> {
+  get compaction(): AbstractSessionModel {
     assert(this.#compaction);
     return this.#compaction;
   }

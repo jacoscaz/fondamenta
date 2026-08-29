@@ -3,7 +3,7 @@ import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { type TextBlock, type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
-import { type Message, type UserMessage } from "../models/session/types/messages.js";
+import { AgentMessage, type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../types.js";
@@ -22,7 +22,7 @@ export interface SessionRunnerEvents extends Record<string, any[]> {
 
 export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
-  #model: AbstractSessionModel<any, any>;
+  #model: AbstractSessionModel;
   #logger: Logger;
   #running: boolean;
   #injected: AInsertableDBMessage[] = [];
@@ -34,7 +34,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #heartbeat_timer: NodeJS.Timeout | null = null;
   #last_heartbeat_activation_at?: Date;
 
-  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel<any, any>) {
+  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel) {
     super(ctx);
     this.#model = model;
     this.#logger = ctx.logger.child(`[session:${origin_session_id}]`);
@@ -196,7 +196,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * replaced with placeholder text so downstream tool req/res pairing and
    * ordering remain intact.
    */
-  #filterUnsupportedBlocks(message: UserMessage): UserMessage {
+  #filterUnsupportedBlocks<M extends Message>(message: M): M {
     const block = message.block;
     if (block.type !== 'tool_use_res') return message;
 
@@ -215,21 +215,21 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     return { ...message, block: { ...block, result } };
   }
 
-  async #query(req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
+  async #query(db_req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
     await this.#runPreQueryListeners(db);
     // Translate the canonical representation to the provider format on
     // every query — never cache it. The canonical `data` column is the
     // single source of truth (migration 2026-08-29-A dropped `raw`).
-    const raw_req_messages = req_messages.map((message) => {
+    const req_messages = db_req_messages.map((message) => {
       if (!message.processed_at) {
         this.emit(`message`, message.data);
       }
-      const data = this.#filterUnsupportedBlocks(message.data as UserMessage);
-      return this.#model.format(data);
+      const data = this.#filterUnsupportedBlocks(message.data);
+      return data;
     }).flat(1);
-    const { messages: raw_res_messages, input_size, output_size } = await this.#model.query({
-      messages: raw_req_messages,
+    const { messages: res_messages, input_size, output_size } = await this.#model.query({
+      messages: req_messages,
       tools: await this.#listTools(mcp_manager),
       session_id: `fondamenta-${this.#origin_session_id}`,
       system_prompt: session.system_prompt,
@@ -241,52 +241,49 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     });
     this.#prompt_size = input_size;
 
-    const res_db_messages: AInsertableDBMessage[] = [];
+    const db_res_messages: AInsertableDBMessage[] = [];
     const tool_use_context: HarnessMcpToolCallContext = {
       db,
       runner: this,
       origin_session_id: this.#origin_session_id,
       target_session_id: this.#target_session_id,
     };
-    for (const raw_res_message of raw_res_messages) {
-      const parsed = this.#model.parse(raw_res_message);
-      for (const msg of parsed) {
-        if (msg.block.type === 'tool_use_req') {
-          const req_created_at = getMonotonicDate();
-          res_db_messages.push({
-            role: 'agent',
-            data: msg,
-            session_id: this.#origin_session_id,
-            created_at: req_created_at,
-            processed_at: req_created_at,
-          });
-          const res = await this.#callTool(mcp_manager, msg.block, tool_use_context);
-          const res_created_at = getMonotonicDate();
-          res_db_messages.push({
-            role: 'user',
-            data: { role: 'user', block: res },
-            session_id: this.#origin_session_id,
-            created_at: res_created_at,
-            processed_at: null,
-          });
-        } else {
-          const created_at = getMonotonicDate();
-          res_db_messages.push({
-            role: 'agent',
-            data: msg,
-            session_id: this.#origin_session_id,
-            created_at,
-            processed_at: created_at,
-          });
-        }
+    for (const msg of res_messages) {
+      if (msg.block.type === 'tool_use_req') {
+        const req_created_at = getMonotonicDate();
+        db_res_messages.push({
+          role: 'agent',
+          data: msg,
+          session_id: this.#origin_session_id,
+          created_at: req_created_at,
+          processed_at: req_created_at,
+        });
+        const res = await this.#callTool(mcp_manager, msg.block, tool_use_context);
+        const res_created_at = getMonotonicDate();
+        db_res_messages.push({
+          role: 'user',
+          data: { role: 'user', block: res },
+          session_id: this.#origin_session_id,
+          created_at: res_created_at,
+          processed_at: null,
+        });
+      } else {
+        const created_at = getMonotonicDate();
+        db_res_messages.push({
+          role: 'agent',
+          data: msg,
+          session_id: this.#origin_session_id,
+          created_at,
+          processed_at: created_at,
+        });
       }
     }
 
-    for (const message of res_db_messages) {
+    for (const message of db_res_messages) {
       this.emit(`message`, message.data);
     }
     await this.#runPostQueryListeners(db);
-    return res_db_messages;
+    return db_res_messages;
   }
 
   async #listTools(mcp_manager: McpManager) {

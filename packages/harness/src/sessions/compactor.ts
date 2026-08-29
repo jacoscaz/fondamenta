@@ -73,19 +73,18 @@ export class Compactor extends WithContext {
       // Run the compactor model
       const model = this._ctx.managers.models.compaction;
       const system_prompt = makeCompactionPrompt();
-      const { messages: raw_res_messages, input_size, output_size } = await model.query({
-        messages: [model.format({
+      const { messages: res_messages, input_size, output_size } = await model.query({
+        messages: [{
           role: 'user',
           block: { type: 'text', text: conversation_text },
-        })],
+        }],
         tools: [],
         session_id: `compactor-${session_id}`,
         system_prompt,
       });
 
       // Extract the summary text from the model's response
-      const parsed = model.parse(raw_res_messages[0]);
-      const summary_text = parsed.map(p => p.block)
+      const summary_text = res_messages.map(p => p.block)
         .filter((b: AgentBlock) => b.type === 'text')
         .map((b: TextBlock) => b.text)
         .join('\n');
