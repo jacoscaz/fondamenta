@@ -255,10 +255,11 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     };
     for (const msg of res_messages) {
       // One agent message may carry multiple blocks (e.g. text + several
-      // tool_use_req). Tool calls within it are executed in order, each
-      // producing its own user message with a single result block — which
-      // restores the provider's expected wire shape (one assistant message
-      // with tool_calls, followed by one tool message per call).
+      // tool_use_req). All tool calls within it are executed in order and
+      // their results/errors accumulate into ONE following user message —
+      // the canonical store models the exchange (agent acted, environment
+      // answered), not the provider's one-tool-message-per-result wire
+      // format, which #format reconstructs at request time.
       const tool_reqs = msg.blocks.filter((b): b is ToolUseRequestBlock => b.type === 'tool_use_req');
       if (tool_reqs.length > 0) {
         const req_created_at = getMonotonicDate();
@@ -269,17 +270,18 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           created_at: req_created_at,
           processed_at: req_created_at,
         });
+        const results: (ToolUseErrorBlock | ToolUseResultBlock)[] = [];
         for (const req of tool_reqs) {
-          const res = await this.#callTool(mcp_manager, req, tool_use_context);
-          const res_created_at = getMonotonicDate();
-          db_res_messages.push({
-            role: 'user',
-            data: { role: 'user', blocks: [res] },
-            session_id: this.#origin_session_id,
-            created_at: res_created_at,
-            processed_at: null,
-          });
+          results.push(await this.#callTool(mcp_manager, req, tool_use_context));
         }
+        const res_created_at = getMonotonicDate();
+        db_res_messages.push({
+          role: 'user',
+          data: { role: 'user', blocks: results },
+          session_id: this.#origin_session_id,
+          created_at: res_created_at,
+          processed_at: null,
+        });
       } else {
         const created_at = getMonotonicDate();
         db_res_messages.push({

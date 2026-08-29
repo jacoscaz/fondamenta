@@ -2,10 +2,11 @@
 import {
   type AgentMessage,
   type Message,
+  type UserBlock,
 } from "../types/messages.js";
 
 import {
-  ToolUseRequestBlock,
+  type ToolUseErrorBlock,
   type ToolUseResultBlock,
 } from '../types/blocks.js';
 
@@ -39,7 +40,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
 
   async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
     try {
-      const messages: ChatCompletionMessageParam[] = opts.messages.map(m => this.#format(m));
+      const messages: ChatCompletionMessageParam[] = opts.messages.flatMap(m => this.#format(m));
       messages.unshift({
         role: 'system',
         content: opts.system_prompt,
@@ -121,36 +122,44 @@ export class OpenAISessionModel extends AbstractSessionModel {
   }
 
   /**
-   * Formats one canonical message into provider format. Agent messages
-   * become a single assistant message carrying text, tool_calls and refusal
-   * together — preserving the grouping the provider originally produced.
-   * Thinking blocks are NOT replayed (stored for continuity only), matching
-   * the decision recorded in the harness design log 2026-08-29.
+   * Formats one canonical message into ZERO OR MORE provider messages:
+   * - agent messages become one assistant message carrying text, tool_calls
+   *   and refusal together — preserving the grouping the provider originally
+   *   produced;
+   * - user messages with tool results/errors expand to one tool message per
+   *   block (the wire format requires one tool_call_id per message), while
+   *   user messages with any other block type become one user message;
+   * - thinking blocks are NOT replayed (stored for continuity only).
+   * The canonical store models the conversation; provider wire quirks live
+   * here, in the adapter.
    */
-  #format(message: Message): OpenAI.ChatCompletionMessageParam {
+  #format(message: Message): OpenAI.ChatCompletionMessageParam[] {
     if (message.role === 'user') {
-      for (const block of message.blocks) {
-        switch (block.type) {
-          case 'tool_use_err':
-            return {
-              role: 'tool',
-              tool_call_id: block.req_id,
-              content: formatTextOnly(block.error),
-            } as OpenAI.ChatCompletionToolMessageParam;
-          case 'tool_use_res':
-            return {
-              role: 'tool',
-              tool_call_id: block.req_id,
-              content: formatToolUseResultContent(block.result),
-            } as OpenAI.ChatCompletionToolMessageParam;
-          default:
-            return {
-              role: 'user',
-              content: formatUserBlocks(message.blocks),
-            };
-        }
+      const tool_blocks = message.blocks.filter(
+        (b): b is ToolUseErrorBlock | ToolUseResultBlock => b.type === 'tool_use_err' || b.type === 'tool_use_res',
+      );
+      if (tool_blocks.length > 0) {
+        return tool_blocks.map((block) => {
+          switch (block.type) {
+            case 'tool_use_err':
+              return {
+                role: 'tool',
+                tool_call_id: block.req_id,
+                content: formatTextOnly(block.error),
+              } as OpenAI.ChatCompletionToolMessageParam;
+            case 'tool_use_res':
+              return {
+                role: 'tool',
+                tool_call_id: block.req_id,
+                content: formatToolUseResultContent(block.result),
+              } as OpenAI.ChatCompletionToolMessageParam;
+          }
+        });
       }
-      return { role: 'user', content: '' };
+      return [{
+        role: 'user',
+        content: formatUserBlocks(message.blocks),
+      }];
     }
 
     let text: string | null = null;
@@ -182,12 +191,12 @@ export class OpenAISessionModel extends AbstractSessionModel {
           break;
       }
     }
-    return {
+    return [{
       role: 'assistant',
       content: text,
       refusal,
       tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
-    };
+    }];
   }
 
 }

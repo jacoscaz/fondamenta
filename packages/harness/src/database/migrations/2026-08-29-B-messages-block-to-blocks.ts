@@ -16,13 +16,9 @@ export async function up(trx: Kysely<any>): Promise<void> {
   await trx.updateTable('messages')
     .set({
       data: sql`
-        jsonb_set(
-          jsonb_build_object(
-            'role', data->'role',
-            'blocks', jsonb_build_array(data->'block')
-          ),
-          '{processed_at}',
-          data->'processed_at'
+        jsonb_build_object(
+          'role', data->'role',
+          'blocks', jsonb_build_array(data->'block')
         )
       `,
     })
@@ -33,14 +29,10 @@ export async function down(trx: Kysely<any>): Promise<void> {
   await trx.updateTable('messages')
     .set({
       data: sql`
-        jsonb_set(
-          jsonb_build_object(
-            'role', data->'role',
-            'block', data->'blocks'->0
-          ),
-          '{processed_at}',
-          data->'processed_at'
-        )
+        jsonb_build_object(
+          'role', data->'role',
+          'block', data->'blocks'->0
+        ),
       `,
     })
     .execute();

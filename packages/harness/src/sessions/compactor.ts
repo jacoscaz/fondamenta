@@ -51,9 +51,11 @@ export class Compactor extends WithContext {
 
       let split_index = all_messages.length - retain_count;
 
-      // Compaction can never break ordered pairs comprised of a tool use
-      // request and the following result (response or error). If the split
-      // index falls within such a pair, move it back to the request.
+      // Compaction can never break the ordered pair comprised of an agent
+      // message carrying tool use requests and the following user message
+      // carrying their results/errors. With results grouped in one user
+      // message, the pair is simply (agent, next message): if the split
+      // index lands on the results message, move it back to the request.
       if (all_messages[split_index].data.blocks.some(b => b.type === 'tool_use_err' || b.type === 'tool_use_res')) {
         split_index -= 1;
         if (!all_messages[split_index]?.data.blocks.some(b => b.type === 'tool_use_req')) {
