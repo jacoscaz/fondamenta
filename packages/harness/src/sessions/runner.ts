@@ -147,7 +147,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   async injectAutomatedTextMessage(text: string, run: boolean): Promise<void> {
     const message: UserMessage<TextBlock> = {
       role: 'user',
-      block: { type: 'text', text: `${AUTOMATED_MESSAGE_PREFIX} ${text}` },
+      blocks: [{ type: 'text', text: `${AUTOMATED_MESSAGE_PREFIX} ${text}` }],
     };
     await this.injectMessage(message, run);
   }
@@ -197,22 +197,27 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * ordering remain intact.
    */
   #filterUnsupportedBlocks<M extends Message>(message: M): M {
-    const block = message.block;
-    if (block.type !== 'tool_use_res') return message;
-
-    const result = block.result.map((b) => {
-      if (b.type === 'text' || this.#model.supportsImageInput) return b;
-      if (b.type === 'image') {
-        return {
-          type: 'text' as const,
-          text: `[image content withheld — model '${this.#model.constructor.name}' does not support image input]`,
-        };
-      }
-      return b;
+    const blocks = message.blocks;
+    let changed = false;
+    const filtered = blocks.map((block) => {
+      if (block.type !== 'tool_use_res') return block;
+      const result = block.result.map((b) => {
+        if (b.type === 'text' || this.#model.supportsImageInput) return b;
+        if (b.type === 'image') {
+          changed = true;
+          return {
+            type: 'text' as const,
+            text: `[image content withheld — model '${this.#model.constructor.name}' does not support image input]`,
+          };
+        }
+        return b;
+      });
+      if (result === block.result) return block;
+      changed = true;
+      return { ...block, result };
     });
-
-    if (result === block.result) return message;
-    return { ...message, block: { ...block, result } };
+    if (!changed) return message;
+    return { ...message, blocks: filtered } as M;
   }
 
   async #query(db_req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
@@ -249,7 +254,13 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       target_session_id: this.#target_session_id,
     };
     for (const msg of res_messages) {
-      if (msg.block.type === 'tool_use_req') {
+      // One agent message may carry multiple blocks (e.g. text + several
+      // tool_use_req). Tool calls within it are executed in order, each
+      // producing its own user message with a single result block — which
+      // restores the provider's expected wire shape (one assistant message
+      // with tool_calls, followed by one tool message per call).
+      const tool_reqs = msg.blocks.filter((b): b is ToolUseRequestBlock => b.type === 'tool_use_req');
+      if (tool_reqs.length > 0) {
         const req_created_at = getMonotonicDate();
         db_res_messages.push({
           role: 'agent',
@@ -258,15 +269,17 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           created_at: req_created_at,
           processed_at: req_created_at,
         });
-        const res = await this.#callTool(mcp_manager, msg.block, tool_use_context);
-        const res_created_at = getMonotonicDate();
-        db_res_messages.push({
-          role: 'user',
-          data: { role: 'user', block: res },
-          session_id: this.#origin_session_id,
-          created_at: res_created_at,
-          processed_at: null,
-        });
+        for (const req of tool_reqs) {
+          const res = await this.#callTool(mcp_manager, req, tool_use_context);
+          const res_created_at = getMonotonicDate();
+          db_res_messages.push({
+            role: 'user',
+            data: { role: 'user', blocks: [res] },
+            session_id: this.#origin_session_id,
+            created_at: res_created_at,
+            processed_at: null,
+          });
+        }
       } else {
         const created_at = getMonotonicDate();
         db_res_messages.push({

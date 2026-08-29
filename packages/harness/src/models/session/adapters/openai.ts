@@ -89,90 +89,118 @@ export class OpenAISessionModel extends AbstractSessionModel {
     }
   }
 
+  /**
+   * One provider response maps to ONE canonical message whose `blocks` array
+   * preserves the response's grouping (content + tool_calls together, etc.).
+   * Thinking/reasoning content is captured as a thinking block for continuity
+   * purposes but is filtered out at replay time (see #format), mirroring the
+   * common harness behavior of storing-but-not-replaying reasoning.
+   */
   #parse(message: OpenAI.ChatCompletionMessage): AgentMessage[] {
-    const parsed: AgentMessage[] = [];
+    const parsed: AgentMessage = { role: 'agent', blocks: [] };
     if (message.content) {
-      parsed.push({ role: 'agent', block: { type: 'text', text: message.content } });
+      parsed.blocks.push({ type: 'text', text: message.content });
     }
     if (message.tool_calls) {
       for (const call of message.tool_calls) {
         if (call.type === 'function') {
           const params = this.parseFunctionCallArgs(call);
-          parsed.push({
-            role: 'agent',
-            block: {
-              type: 'tool_use_req',
-              req_id: call.id,
-              tool: call.function.name,
-              params,
-            },
+          parsed.blocks.push({
+            type: 'tool_use_req',
+            req_id: call.id,
+            tool: call.function.name,
+            params,
           });
         }
       }
     }
     if (message.refusal) {
-      parsed.push({ role: 'agent', block: { type: 'text', text: message.refusal } });
+      parsed.blocks.push({ type: 'text', text: message.refusal });
     }
-    return parsed;
+    return parsed.blocks.length > 0 ? [parsed] : [];
   }
 
+  /**
+   * Formats one canonical message into provider format. Agent messages
+   * become a single assistant message carrying text, tool_calls and refusal
+   * together — preserving the grouping the provider originally produced.
+   * Thinking blocks are NOT replayed (stored for continuity only), matching
+   * the decision recorded in the harness design log 2026-08-29.
+   */
   #format(message: Message): OpenAI.ChatCompletionMessageParam {
-    switch (message.block.type) {
-      case 'text':
-        return {
-          role: message.role === 'agent' ? 'assistant' : 'user',
-          content: message.block.text,
-        };
-      case 'thinking':
-        return {
-          role: 'assistant',
-          content: message.block.text,
-        };
-      case 'tool_use_req':
-        return {
-          role: 'assistant',
-          tool_calls: [
-            {
-              id: message.block.req_id,
-              type: 'function',
-              function: {
-                name: message.block.tool,
-                arguments: JSON.stringify(message.block.params),
-              },
-            }
-          ],
-        };
-      case 'tool_use_err':
-        return {
-          role: 'tool',
-          tool_call_id: message.block.req_id,
-          content: formatTextOnly(message.block.error),
-        } as OpenAI.ChatCompletionToolMessageParam;
-      case 'tool_use_res':
-        return {
-          role: 'tool',
-          tool_call_id: message.block.req_id,
-          content: formatToolUseResultContent(message.block.result),
-        } as OpenAI.ChatCompletionToolMessageParam;
-      case 'refusal':
-        return {
-          role: 'assistant',
-          refusal: message.block.text,
-        };
-      case 'thinking_redacted':
-        return {
-          role: 'assistant',
-          content: '-- redacted thinking --',
-        };
-      case 'unsupported':
-        return {
-          role: message.role === 'agent' ? 'assistant' : 'user',
-          content: message.block.text,
-        };
+    if (message.role === 'user') {
+      for (const block of message.blocks) {
+        switch (block.type) {
+          case 'tool_use_err':
+            return {
+              role: 'tool',
+              tool_call_id: block.req_id,
+              content: formatTextOnly(block.error),
+            } as OpenAI.ChatCompletionToolMessageParam;
+          case 'tool_use_res':
+            return {
+              role: 'tool',
+              tool_call_id: block.req_id,
+              content: formatToolUseResultContent(block.result),
+            } as OpenAI.ChatCompletionToolMessageParam;
+          default:
+            return {
+              role: 'user',
+              content: formatUserBlocks(message.blocks),
+            };
+        }
+      }
+      return { role: 'user', content: '' };
     }
+
+    let text: string | null = null;
+    let refusal: string | null = null;
+    const tool_calls: OpenAI.ChatCompletionMessageToolCall[] = [];
+    for (const block of message.blocks) {
+      switch (block.type) {
+        case 'text':
+          text = (text ?? '') + block.text;
+          break;
+        case 'tool_use_req':
+          tool_calls.push({
+            id: block.req_id,
+            type: 'function',
+            function: {
+              name: block.tool,
+              arguments: JSON.stringify(block.params),
+            },
+          });
+          break;
+        case 'refusal':
+          refusal = (refusal ?? '') + block.text;
+          break;
+        case 'unsupported':
+          text = (text ?? '') + block.text;
+          break;
+        case 'thinking':
+        case 'thinking_redacted':
+          break;
+      }
+    }
+    return {
+      role: 'assistant',
+      content: text,
+      refusal,
+      tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
+    };
   }
 
 }
+
+/**
+ * Formats user text blocks into a plain string content value.
+ */
+const formatUserBlocks = (blocks: { type: string; text?: string }[]): string => {
+  return blocks
+    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
+    .map((b) => b.text)
+    .join('\n');
+};
 
 /**
  * Formats tool result blocks into an OpenAI-compatible `content` value.

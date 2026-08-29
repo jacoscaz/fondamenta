@@ -54,9 +54,9 @@ export class Compactor extends WithContext {
       // Compaction can never break ordered pairs comprised of a tool use
       // request and the following result (response or error). If the split
       // index falls within such a pair, move it back to the request.
-      if (all_messages[split_index].data.block.type === 'tool_use_err' || all_messages[split_index].data.block.type === 'tool_use_res') {
+      if (all_messages[split_index].data.blocks.some(b => b.type === 'tool_use_err' || b.type === 'tool_use_res')) {
         split_index -= 1;
-        if (all_messages[split_index]?.data.block.type !== 'tool_use_req') {
+        if (!all_messages[split_index]?.data.blocks.some(b => b.type === 'tool_use_req')) {
           throw new Error(`invalid tool use request/result pair at index ${split_index}`);
         }
       }
@@ -76,7 +76,7 @@ export class Compactor extends WithContext {
       const { messages: res_messages, input_size, output_size } = await model.query({
         messages: [{
           role: 'user',
-          block: { type: 'text', text: conversation_text },
+          blocks: [{ type: 'text', text: conversation_text }],
         }],
         tools: [],
         session_id: `compactor-${session_id}`,
@@ -84,7 +84,7 @@ export class Compactor extends WithContext {
       });
 
       // Extract the summary text from the model's response
-      const summary_text = res_messages.map(p => p.block)
+      const summary_text = res_messages.flatMap(p => p.blocks)
         .filter((b: AgentBlock) => b.type === 'text')
         .map((b: TextBlock) => b.text)
         .join('\n');
@@ -109,10 +109,10 @@ export class Compactor extends WithContext {
         session_id,
         data: {
           role: 'user',
-          block: {
+          blocks: [{
             type: 'text',
             text: `[Compaction summary — ${new Date().toISOString()}]\n\n${summary_text}`,
-          },
+          }],
         },
         created_at: summary_created_at,
         processed_at: summary_created_at,
@@ -131,26 +131,30 @@ export class Compactor extends WithContext {
     const formatted: string[] = [];
     for (const m of messages) {
       const role = m.data.role === 'agent' ? 'Sage' : m.data.role === 'user' ? 'User' : m.role;
-      let data: string = '';
-      switch (m.data.block.type) {
-        case 'text':
-          data = m.data.block.text || '';
-          break;
-        case 'thinking':
-          data = m.data.block.text || '';
-          break;
-        case 'tool_use_req':
-          data = `🔧 ${m.data.block.tool}(${JSON.stringify(m.data.block.params)})`;
-          break;
-        case 'tool_use_res':
-          data = `↗ ${m.data.block.tool}(${JSON.stringify(m.data.block.result)})`;
-          break;
-        case 'tool_use_err':
-          data = `↗ ${m.data.block.tool}(${JSON.stringify(m.data.block.error)})`;
-          break;
+      const parts: string[] = [];
+      for (const block of m.data.blocks) {
+        let data: string = '';
+        switch (block.type) {
+          case 'text':
+          case 'thinking':
+            data = block.text || '';
+            break;
+          case 'tool_use_req':
+            data = `🔧 ${block.tool}(${JSON.stringify(block.params)})`;
+            break;
+          case 'tool_use_res':
+            data = `↗ ${block.tool}(${JSON.stringify(block.result)})`;
+            break;
+          case 'tool_use_err':
+            data = `↗ ${block.tool}(${JSON.stringify(block.error)})`;
+            break;
+        }
+        if (data) {
+          parts.push(data);
+        }
       }
-      if (data) {
-        formatted.push(`${role}: ${data}`);
+      if (parts.length > 0) {
+        formatted.push(`${role}: ${parts.join('\n')}`);
       }
     }
     return formatted.join('\n\n');

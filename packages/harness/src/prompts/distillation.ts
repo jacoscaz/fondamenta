@@ -62,12 +62,14 @@ export const formatMessagesForDistillation = (
 ): string => {
   const formatted: string[] = [];
   for (const m of messages) {
-    switch (m.data.block.type) {
-      case 'text':
-      case 'thinking':
-        const label = m.role === 'agent' ? 'Sage' : 'User';
-        formatted.push(`[${label}] ${m.data.block.text || ''}`);
-        break;
+    const label = m.role === 'agent' ? 'Sage' : 'User';
+    for (const block of m.data.blocks) {
+      switch (block.type) {
+        case 'text':
+        case 'thinking':
+          formatted.push(`[${label}] ${block.text || ''}`);
+          break;
+      }
     }
   }
   return formatted.join('\n\n');

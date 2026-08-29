@@ -27,17 +27,17 @@ export type AgentBlock =
 
 export interface BaseMessage {
   role: 'user' | 'agent';
-  block: (UserBlock | AgentBlock);
+  blocks: (UserBlock | AgentBlock)[];
 }
 
 export interface UserMessage<B extends UserBlock = UserBlock> extends BaseMessage {
   role: 'user';
-  block: B;
+  blocks: B[];
 }
 
 export interface AgentMessage<B extends AgentBlock = AgentBlock> extends BaseMessage {
   role: 'agent';
-  block: B;
+  blocks: B[];
 }
 
 export type Message = UserMessage | AgentMessage;
