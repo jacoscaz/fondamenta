@@ -33,6 +33,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #post_query_listeners: (() => Promise<void>)[] = [];
   #heartbeat_timer: NodeJS.Timeout | null = null;
   #last_heartbeat_activation_at?: Date;
+  #last_activation_at?: Date;
 
   constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel) {
     super(ctx);
@@ -79,6 +80,21 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     const activation_interval_ms = this._ctx.config.heartbeat?.activation_interval_ms ?? 0;
     if (activation_interval_ms > 0) {
       const now = new Date();
+
+      // Quiet period: suppress heartbeat-driven activation for a configurable
+      // time after ANY activation. Pending messages are still drained by the
+      // run() below — only the synthetic activation prompt is deferred. This
+      // keeps heartbeats from fragmenting ongoing exchanges with slow-typing
+      // humans (or slow-working agents).
+      const quiet_after_ms = this._ctx.config.heartbeat?.quiet_after_ms ?? 0;
+      const last_any = this.#last_activation_at;
+      if (quiet_after_ms > 0 && last_any && (now.valueOf() - last_any.valueOf()) < quiet_after_ms) {
+        const elapsed = Math.round((now.valueOf() - last_any.valueOf()) / 60_000);
+        this.#logger.debug('heartbeat tick skipped: quiet period (last activation %dm ago)', elapsed);
+        this.run();
+        return;
+      }
+
       const last = this.#last_heartbeat_activation_at;
       if (!last || (now.valueOf() - last.valueOf()) >= activation_interval_ms) {
         const elapsed = last ? Math.round((now.valueOf() - last.valueOf()) / 60_000) : null;
@@ -185,6 +201,14 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     } finally {
       this.#running = false;
       this.#last_idle_at = new Date();
+      // Track the end of ANY activation loop, regardless of trigger source
+      // (user message, mail injection, heartbeat...). The heartbeat quiet
+      // period measures "time since I was last active", not "time since the
+      // last heartbeat-driven activation": an ongoing conversation — with a
+      // human or with ourselves — IS presence, and synthetic check-ins
+      // should not fragment it. Consequence: the activation rhythm is
+      // effectively "X minutes of quiet", not "X minutes of clock time".
+      this.#last_activation_at = this.#last_idle_at;
       this.#logger.debug('idle');
       this.emit('idle', this.#prompt_size);
     }

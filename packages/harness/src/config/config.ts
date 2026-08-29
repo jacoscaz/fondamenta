@@ -92,8 +92,17 @@ export interface ConfigHeartbeat {
   /** Minimum time between heartbeat-driven activations, in milliseconds.
    *  This is the agent's presence rhythm: how often the agent activates
    *  when nothing external triggers it. Independent of `interval`, which
-   *  is only the cheap internal check cadence. */
+   *  is only the cheap internal check cadence.
+   *  Note: effectively "X ms of quiet", not "X ms of clock time" —
+   *  heartbeat activations are suppressed while the quiet period below
+   *  keeps deferring them during ongoing activity. */
   activation_interval_ms: number;
+  /** Quiet period after ANY activation, in milliseconds, during which
+   *  heartbeat-driven activations are suppressed. Prevents the synthetic
+   *  activation prompt from landing in the middle of an ongoing exchange
+   *  with a slow-typing human (or a long-working agent). Pending messages
+   *  are still drained; only the heartbeat prompt is deferred. 0 disables. */
+  quiet_after_ms: number;
 }
 
 export interface Config {
