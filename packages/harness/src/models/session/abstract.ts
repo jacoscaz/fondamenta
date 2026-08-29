@@ -45,7 +45,7 @@ export abstract class AbstractSessionModel<ReqMessage, ResMessage = ReqMessage> 
 
   abstract query(opts: ModelQueryOpts<ReqMessage>): Promise<ModelQueryResults<ResMessage>>;
 
-  abstract parse(message: ResMessage): [raw: ResMessage, parsed: AgentMessage][];
+  abstract parse(message: ResMessage): AgentMessage[];
 
   abstract format(message: UserMessage): ReqMessage;
 

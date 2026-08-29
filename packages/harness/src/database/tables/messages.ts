@@ -15,7 +15,6 @@ export interface ADBMessage {
   processed_at: Date | null;
   distilled_at: Date | null;
   role: 'user' | 'agent';
-  raw: any | any[] | null;
   data: Message;
 }
 
@@ -29,14 +28,6 @@ export const insertMessage = async (db: DB, message: AInsertableDBMessage | AIns
     .returningAll()
     .executeTakeFirstOrThrow();
   return result;
-};
-
-export const updateMessageRaw = async (db: DB, id: number, raw: any): Promise<ASelectableDBMessage> => {
-  return await db.updateTable('messages')
-    .set({ raw })
-    .where('id', '=', id)
-    .returningAll()
-    .executeTakeFirstOrThrow();
 };
 
 export interface ADBSelectMessagesOpts {

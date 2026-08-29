@@ -95,7 +95,6 @@ export class Distiller extends WithContext {
         processed_at: null,
         distilled_at: new Date(), // distiller messages don't need distillation
         role: 'user',
-        raw: null,
       });
       return origin_session_id;
     });

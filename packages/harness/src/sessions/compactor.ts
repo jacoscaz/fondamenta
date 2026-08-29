@@ -85,7 +85,7 @@ export class Compactor extends WithContext {
 
       // Extract the summary text from the model's response
       const parsed = model.parse(raw_res_messages[0]);
-      const summary_text = parsed.map(p => p[1].block)
+      const summary_text = parsed.map(p => p.block)
         .filter((b: AgentBlock) => b.type === 'text')
         .map((b: TextBlock) => b.text)
         .join('\n');
@@ -118,7 +118,6 @@ export class Compactor extends WithContext {
         created_at: summary_created_at,
         processed_at: summary_created_at,
         role: 'user',
-        raw: null,
       });
 
       this.#logger.info('compaction complete for session %d', session_id);

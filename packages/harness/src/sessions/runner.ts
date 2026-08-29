@@ -1,14 +1,13 @@
 import { ellipsis, errToString } from "@fondamenta/utils";
 import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
-import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, updateMessageRaw, insertMessage, selectMessages } from "../database/tables/messages.js";
+import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { type TextBlock, type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../models/session/types/blocks.js";
 import { type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../types.js";
 import { type McpManager } from "../mcp-manager/manager.js";
-import assert from "node:assert";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
 import { detectInjections } from "./injection-guardrails.js";
@@ -138,7 +137,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       role: data.role,
       session_id: this.#target_session_id,
       data,
-      raw: this._ctx.managers.models.session.format(data),
       created_at: getMonotonicDate(),
     });
     if (run) {
@@ -220,19 +218,16 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   async #query(req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
     await this.#runPreQueryListeners(db);
-    const raw_req_messages = (await Promise.all(req_messages.map(async (message) => {
-      let { raw, processed_at } = message;
-      if (!processed_at) {
+    // Translate the canonical representation to the provider format on
+    // every query — never cache it. The canonical `data` column is the
+    // single source of truth (migration 2026-08-29-A dropped `raw`).
+    const raw_req_messages = req_messages.map((message) => {
+      if (!message.processed_at) {
         this.emit(`message`, message.data);
       }
-      if (!raw) {
-        assert(message.data.role === 'user', 'message must be a user message');
-        const data = this.#filterUnsupportedBlocks(message.data as UserMessage);
-        raw = await this.#model.format(data);
-        await updateMessageRaw(db, message.id, message.raw);
-      }
-      return raw;
-    }))).flat(1);
+      const data = this.#filterUnsupportedBlocks(message.data as UserMessage);
+      return this.#model.format(data);
+    }).flat(1);
     const { messages: raw_res_messages, input_size, output_size } = await this.#model.query({
       messages: raw_req_messages,
       tools: await this.#listTools(mcp_manager),
@@ -255,12 +250,11 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     };
     for (const raw_res_message of raw_res_messages) {
       const parsed = this.#model.parse(raw_res_message);
-      for (const [raw, msg] of parsed) {
+      for (const msg of parsed) {
         if (msg.block.type === 'tool_use_req') {
           const req_created_at = getMonotonicDate();
           res_db_messages.push({
             role: 'agent',
-            raw,
             data: msg,
             session_id: this.#origin_session_id,
             created_at: req_created_at,
@@ -270,7 +264,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           const res_created_at = getMonotonicDate();
           res_db_messages.push({
             role: 'user',
-            raw: this.#model.format({ role: 'user', block: res }),
             data: { role: 'user', block: res },
             session_id: this.#origin_session_id,
             created_at: res_created_at,
@@ -280,7 +273,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           const created_at = getMonotonicDate();
           res_db_messages.push({
             role: 'agent',
-            raw,
             data: msg,
             session_id: this.#origin_session_id,
             created_at,

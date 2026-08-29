@@ -93,37 +93,29 @@ export class OpenAISessionModel extends AbstractSessionModel<OpenAI.ChatCompleti
     }
   }
 
-  parse(message: OpenAI.ChatCompletionMessage): [raw: OpenAI.ChatCompletionMessage, parsed: AgentMessage][] {
-    const parsed: [raw: OpenAI.ChatCompletionMessage, parsed: AgentMessage][] = [];
+  parse(message: OpenAI.ChatCompletionMessage): AgentMessage[] {
+    const parsed: AgentMessage[] = [];
     if (message.content) {
-      parsed.push([
-        { role: 'assistant', content: message.content, refusal: null },
-        { role: 'agent', block: { type: 'text', text: message.content } },
-      ]);
+      parsed.push({ role: 'agent', block: { type: 'text', text: message.content } });
     }
     if (message.tool_calls) {
       for (const call of message.tool_calls) {
         if (call.type === 'function') {
           const params = this.parseFunctionCallArgs(call);
-          const tool_call: ToolUseRequestBlock = {
-            type: 'tool_use_req',
-            req_id: call.id,
-            tool: call.function.name,
-            params,
-          };
-          call.function.arguments = JSON.stringify(params);
-          parsed.push([
-            { role: 'assistant', content: null, refusal: null, tool_calls: [call] },
-            { role: 'agent', block: tool_call },
-          ]);
+          parsed.push({
+            role: 'agent',
+            block: {
+              type: 'tool_use_req',
+              req_id: call.id,
+              tool: call.function.name,
+              params,
+            },
+          });
         }
       }
     }
     if (message.refusal) {
-      parsed.push([
-        { role: 'assistant', content: null, refusal: message.refusal },
-        { role: 'agent', block: { type: 'text', text: message.refusal } },
-      ]);
+      parsed.push({ role: 'agent', block: { type: 'text', text: message.refusal } });
     }
     return parsed;
   }
