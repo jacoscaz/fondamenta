@@ -1,10 +1,7 @@
 
 import {
-  type AgentBlock,
-  type UserBlock,
-  type Message,
   type AgentMessage,
-  UserMessage,
+  type Message,
 } from "../types/messages.js";
 
 import {
@@ -24,7 +21,6 @@ import { ConfigModelOpenAI } from "../../../config/config.js";
 import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort } from "openai/resources/index.mjs";
 
 export class OpenAISessionModel extends AbstractSessionModel {
-  // <OpenAI.ChatCompletionMessageParam, OpenAI.ChatCompletionMessage>
   #model: string;
   #client: OpenAI;
   #extras: Record<string, any>;
