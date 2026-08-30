@@ -253,11 +253,16 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     const req_messages = db_req_messages.map((message) => {
       if (!message.processed_at) {
         this.emit(`message`, message.data);
-        // Mirror new inbound messages (user turns, harness events,
-        // tool results) to the human-facing stdout stream. Agent turns
-        // are mirrored at generation time below — never here, or they
-        // would be logged twice (generated + read-back).
-        if (message.role !== 'agent') {
+        // Mirror genuinely-new inbound messages (user turns, harness
+        // events) at read time. Runner-generated messages — agent turns
+        // AND tool results, which are user-role — are mirrored at
+        // generation time below; mirroring them here too would log
+        // them twice (generated + read-back on the next loop). Tool
+        // results are recognized by block type: nothing injected ever
+        // carries tool_use_res / tool_use_err blocks.
+        const generated = message.data.blocks.length > 0
+          && message.data.blocks.every((b: any) => b?.type === 'tool_use_res' || b?.type === 'tool_use_err');
+        if (!generated) {
           this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
         }
       }
