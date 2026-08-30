@@ -4,7 +4,7 @@
  * McpStdioClient to it.
  */
 
-import { McpStdioClient } from "@fondamenta/mcp-http-client";
+import { McpStdioClient } from "@fondamenta/mcp-stdio-client";
 import { type TransportFactory } from "./suite.js";
 
 const node = process.execPath;
