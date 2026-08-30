@@ -1,4 +1,5 @@
 import { ellipsis } from "@fondamenta/utils";
+import { createLogger, datetimeVoid, ProcessWriter, type Logger } from "pinetto";
 
 /**
  * Human-facing mirror of the session stream (Phase I of the channel
@@ -14,22 +15,27 @@ import { ellipsis } from "@fondamenta/utils";
  *   [agent | tool_use_req] mcp_shell_exec {"command": "...", ...}
  *   [user | tool_use_res] mcp_shell_exec <text with ellipsis, or [image]>
  *
- * Implementation note: we do NOT use Pinetto for this stream. Pinetto
- * entries carry level tags and ISO timestamps; the mirror needs none of
- * that — the journald envelope around stdout already timestamps lines,
- * and block entries have no log level. A plain writer with blank-line
- * separation is the honest format for what this stream is: a transcript,
- * not a log.
+ * Implemented as a pinetto logger: datetimeVoid drops the date (journald
+ * and any orchestrator already timestamp lines) and every block entry is
+ * logged at `info` level so the level tag reads `INF`. Blank-line
+ * separation between messages is emitted as a raw newline via the writer,
+ * since no log entry can carry it.
  */
 /** Truncation limits for the mirror: params and result bodies. */
 const PARAMS_LIMIT = 200;
 const RESULT_LIMIT = 400;
 
 export class MonologueLogger {
+  #logger: Logger;
   #stream: NodeJS.WriteStream;
 
   constructor(stream: NodeJS.WriteStream = process.stdout) {
     this.#stream = stream;
+    this.#logger = createLogger({
+      level: 'info',
+      writer: new ProcessWriter(stream),
+      datetime: datetimeVoid,
+    });
   }
 
   /** Log one message's blocks, one entry per block. */
@@ -37,6 +43,8 @@ export class MonologueLogger {
     for (const block of blocks) {
       this.#writeEntry(role, block);
     }
+    // Blank line between messages, straight to the writer: it is
+    // formatting, not a log entry.
     this.#stream.write('\n');
   }
 
@@ -66,7 +74,7 @@ export class MonologueLogger {
       default:
         body = ellipsis(JSON.stringify(block ?? null), PARAMS_LIMIT);
     }
-    this.#stream.write(`${prefix} ${body}\n`);
+    this.#logger.info('%s %s', prefix, body);
   }
 
   #formatResult(result: readonly any[] | undefined): string {
@@ -78,5 +86,3 @@ export class MonologueLogger {
     }).join('\n').trim();
   }
 }
-
-
