@@ -9,7 +9,7 @@ import { validationErrsToString } from "@fondamenta/utils";
 import { JsonRpcMessage, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse } from "./types-jsonrpc.js";
 
 export const isJsonRpcNotification = (message: JsonRpcMessage): message is JsonRpcNotification => {
-  return !('id' in message) && ('message' in message);
+  return !('id' in message) && ('method' in message);
 };
 
 export const isJsonRpcResponse = (message: JsonRpcMessage): message is JsonRpcResponse => {

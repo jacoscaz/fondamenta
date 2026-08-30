@@ -4,6 +4,7 @@
     "packages/lib-mcp-core",
     "packages/lib-mcp-http-client",
     "packages/lib-mcp-http-server",
+    "packages/lib-mcp-integration-tests",
     "packages/lib-mcp-local",
     "packages/lib-utils"
   ],
@@ -18,6 +19,7 @@
     "ts:clean": "rm -rf packages/*/dist && rm -f packages/*/tsconfig.tsbuildinfo && rm -f ./tsconfig.build.tsbuildinfo",
     "npm:clean": "rm -rf node_modules && rm -rf packages/*/node_modules",
     "build": "npm run ts:build",
+    "test": "npm run build && npm run --workspaces --if-present test",
     "postinstall": "npx runtyped-install-transformer"
   },
   "dependencies": {}

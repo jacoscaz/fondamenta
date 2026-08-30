@@ -1,0 +1,26 @@
+{
+  "name": "@fondamenta/mcp-integration-tests",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "ts:clean": "rm -rf ./dist && rm -f ./tsconfig.tsbuildinfo",
+    "ts:build": "tsc",
+    "build": "npm run ts:clean && npm run ts:build",
+    "test": "node --test dist/"
+  },
+  "devDependencies": {
+    "@runtyped/type-compiler": "^2.0.0",
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@fondamenta/mcp-core": "^0.0.1",
+    "@fondamenta/mcp-local": "^0.0.1",
+    "@fondamenta/mcp-http-client": "^0.0.1",
+    "@fondamenta/mcp-http-server": "^0.0.1",
+    "@runtyped/type": "^2.0.0",
+    "@fondamenta/utils": "^0.0.1",
+    "uid": "^2.0.2"
+  }
+}
