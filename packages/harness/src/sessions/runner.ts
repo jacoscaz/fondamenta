@@ -32,6 +32,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #pre_query_listeners: (() => Promise<void>)[] = [];
   #post_query_listeners: (() => Promise<void>)[] = [];
   #heartbeat_timer: NodeJS.Timeout | null = null;
+  /** Whether this runner mirrors the session stream to the monologue log. */
+  #monologue_enabled: boolean;
   #last_heartbeat_activation_at?: Date;
   #last_activation_at?: Date;
 
@@ -43,6 +45,12 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#injected = [];
     this.#origin_session_id = origin_session_id;
     this.#target_session_id = target_session_id;
+    // Only the main session mirrors its stream to the monologue log:
+    // transient runners (distiller, compactor) write their exchanges
+    // to the ops log, not to the human-facing transcript — same policy
+    // as the heartbeat. Enabled explicitly via enableMonologue() by
+    // the SessionManager for the main session only.
+    this.#monologue_enabled = false;
     this.#pre_query_listeners = [];
     this.#post_query_listeners = [];
   }
@@ -64,6 +72,11 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       clearInterval(this.#heartbeat_timer);
       this.#heartbeat_timer = null;
     }
+  }
+
+  /** Enable mirroring of this session's stream to the monologue log. */
+  enableMonologue(): void {
+    this.#monologue_enabled = true;
   }
 
   /**
@@ -253,16 +266,12 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     const req_messages = db_req_messages.map((message) => {
       if (!message.processed_at) {
         this.emit(`message`, message.data);
-        // Mirror genuinely-new inbound messages (user turns, harness
-        // events) at read time. Runner-generated messages — agent turns
-        // AND tool results, which are user-role — are mirrored at
-        // generation time below; mirroring them here too would log
-        // them twice (generated + read-back on the next loop). Tool
-        // results are recognized by block type: nothing injected ever
-        // carries tool_use_res / tool_use_err blocks.
-        const generated = message.data.blocks.length > 0
-          && message.data.blocks.every((b: any) => b?.type === 'tool_use_res' || b?.type === 'tool_use_err');
-        if (!generated) {
+        // Mirror unprocessed messages as they enter the model's
+        // context: user turns, harness events, and tool results
+        // (which are created unprocessed and read back on the next
+        // loop iteration). Agent turns are created already-processed
+        // and are mirrored at generation time below instead.
+        if (this.#monologue_enabled) {
           this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
         }
       }
@@ -332,8 +341,12 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
     for (const message of db_res_messages) {
       this.emit(`message`, message.data);
-      // Mirror agent turns to the human-facing stdout stream.
-      this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+      // Mirror agent turns at generation time. Tool-result user
+      // messages are created unprocessed and will be mirrored when
+      // they enter the context on the next loop iteration above.
+      if (this.#monologue_enabled && message.role === 'agent') {
+        this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+      }
     }
     await this.#runPostQueryListeners(db);
     return db_res_messages;
