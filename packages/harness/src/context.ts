@@ -1,5 +1,6 @@
 
 import { type Logger } from "pinetto";
+import { type MonologueLogger } from "./sessions/monologue-logger.js";
 import { type Emygdala } from "./emygdala/emygdala.js";
 import { type PromptManager } from "./prompts/manager.js";
 import { type SessionManager } from "./sessions/manager.js";
@@ -38,6 +39,8 @@ export interface InitContext {
   db: DB;
   config: Config;
   logger: Logger;
+  /** Human-facing mirror of the session stream to stdout (Phase I). */
+  monologue: MonologueLogger;
   getCompleteContext: () => CompleteContext;
 }
 
@@ -49,6 +52,7 @@ export interface CompleteContext {
   init: InitContext;
   config: Config;
   logger: Logger;
+  monologue: MonologueLogger;
   emygdala: Emygdala;
   compactor: Compactor;
   distiller: Distiller;

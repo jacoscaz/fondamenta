@@ -253,6 +253,9 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     const req_messages = db_req_messages.map((message) => {
       if (!message.processed_at) {
         this.emit(`message`, message.data);
+        // Mirror new inbound messages (user turns, harness events,
+        // tool results) to the human-facing stdout stream.
+        this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
       }
       const data = this.#filterUnsupportedBlocks(message.data);
       return data;
@@ -320,6 +323,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
     for (const message of db_res_messages) {
       this.emit(`message`, message.data);
+      // Mirror agent turns to the human-facing stdout stream.
+      this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
     }
     await this.#runPostQueryListeners(db);
     return db_res_messages;
