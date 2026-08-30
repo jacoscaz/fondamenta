@@ -3,6 +3,7 @@
 import 'dotenv/config';
 
 import pinetto from 'pinetto';
+import { ProcessWriter } from 'pinetto';
 
 import { getDB } from "./database/client.js";
 import { getConfigFromProcessArgv } from "./config/config.js";
@@ -20,11 +21,20 @@ import { InitContext, type CompleteContext } from './context.js';
 import { IOManager } from './io/manager.js';
 import { RootMcpManager } from './mcp-manager/manager.js';
 import { ModelManager } from './models/manager.js';
+import { MonologueLogger } from './sessions/monologue-logger.js';
 
 const config = await getConfigFromProcessArgv();
 
-// Main logger
-const logger = pinetto({ level: config.logging.level });
+// Main (ops) logger. Everything that is not a formatted block
+// representation of the session stream goes to stderr: stdout is
+// reserved for the monologue mirror (see MonologueLogger).
+const logger = pinetto({ level: config.logging.level, writer: new ProcessWriter('stderr') });
+
+// Human-facing mirror of the session stream, one entry per block,
+// written to its own rotating file. Stdout/stderr stay ops-only.
+const monologue = new MonologueLogger({
+  dir: config.logging.monologue_dir ?? '/var/log/fondamenta',
+});
 
 // Shared database client
 const db = getDB(config);
@@ -35,6 +45,7 @@ await migrateToLatest(db, logger.child('[db:migrations]'));
 const init_context: InitContext = {
   db,
   logger,
+  monologue,
   config,
   getCompleteContext: () => complete_context,
 };
@@ -43,6 +54,7 @@ const complete_context: CompleteContext = {
   db,
   init: init_context,
   logger,
+  monologue,
   config,
   emygdala: new Emygdala(init_context),
   compactor: new Compactor(init_context),

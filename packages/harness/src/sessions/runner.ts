@@ -32,6 +32,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #pre_query_listeners: (() => Promise<void>)[] = [];
   #post_query_listeners: (() => Promise<void>)[] = [];
   #heartbeat_timer: NodeJS.Timeout | null = null;
+  /** Whether this runner mirrors the session stream to the monologue log. */
+  #monologue_enabled: boolean;
   #last_heartbeat_activation_at?: Date;
   #last_activation_at?: Date;
 
@@ -43,6 +45,12 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#injected = [];
     this.#origin_session_id = origin_session_id;
     this.#target_session_id = target_session_id;
+    // Only the main session mirrors its stream to the monologue log:
+    // transient runners (distiller, compactor) write their exchanges
+    // to the ops log, not to the human-facing transcript — same policy
+    // as the heartbeat. Enabled explicitly via enableMonologue() by
+    // the SessionManager for the main session only.
+    this.#monologue_enabled = false;
     this.#pre_query_listeners = [];
     this.#post_query_listeners = [];
   }
@@ -64,6 +72,11 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       clearInterval(this.#heartbeat_timer);
       this.#heartbeat_timer = null;
     }
+  }
+
+  /** Enable mirroring of this session's stream to the monologue log. */
+  enableMonologue(): void {
+    this.#monologue_enabled = true;
   }
 
   /**
@@ -192,9 +205,17 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     try {
       let has_more = true;
       while (has_more) {
+        // Pre-query listeners run BEFORE the activation fetch so that
+        // any message they inject (e.g. emygdala boot/time events) is
+        // included in this iteration's context, mirrored by the read
+        // gate, and marked processed only after actually being read.
+        await this.#runPreQueryListeners(db);
         has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages) => {
           return await this.#query(messages, db, mcp_manager);
         });
+        // Post-query listeners run after the activation's messages
+        // have been persisted.
+        await this.#runPostQueryListeners(db);
       }
     } catch (err) {
       this.#logger.error('run error: %s', errToString(err));
@@ -246,13 +267,20 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
   async #query(db_req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
-    await this.#runPreQueryListeners(db);
     // Translate the canonical representation to the provider format on
     // every query — never cache it. The canonical `data` column is the
     // single source of truth (migration 2026-08-29-A dropped `raw`).
     const req_messages = db_req_messages.map((message) => {
       if (!message.processed_at) {
         this.emit(`message`, message.data);
+        // Mirror unprocessed messages as they enter the model's
+        // context: user turns, harness events, and tool results
+        // (which are created unprocessed and read back on the next
+        // loop iteration). Agent turns are created already-processed
+        // and are mirrored at generation time below instead.
+        if (this.#monologue_enabled) {
+          this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+        }
       }
       const data = this.#filterUnsupportedBlocks(message.data);
       return data;
@@ -320,8 +348,13 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
     for (const message of db_res_messages) {
       this.emit(`message`, message.data);
+      // Mirror agent turns at generation time. Tool-result user
+      // messages are created unprocessed and will be mirrored when
+      // they enter the context on the next loop iteration above.
+      if (this.#monologue_enabled && message.role === 'agent') {
+        this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+      }
     }
-    await this.#runPostQueryListeners(db);
     return db_res_messages;
   }
 

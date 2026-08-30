@@ -9,7 +9,9 @@ export const runAsyncMain = async (fn: () => Promise<void>) => {
     try {
         await fn();
     } catch (error) {
-        console.error(error);
+        // Stdout is reserved for the session-stream mirror in the harness;
+        // startup failures of CLI entry points go to stderr.
+        process.stderr.write(`${String(error)}\n`);
         process.exit(1);
     }
 };

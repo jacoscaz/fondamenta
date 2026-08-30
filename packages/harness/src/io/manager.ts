@@ -34,12 +34,12 @@ export class IOManager extends WithContext {
       (async () => {
         try {
           data = Buffer.isBuffer(data) ? data.toString() : data;
-          console.log('received message: %s', data);
+          this.#logger.debug("received message: %s", data);
           const message = cast<UserMessage>(JSON.parse(data));
           await this._ctx.managers.sessions.injectMessage(session_id, message, true);
         } catch (err) {
           this.#logger.error('invalid message');
-          console.log(err);
+          this.#logger.error("message parse error: %s", errToString(err));
         }
       })().finally(() => {
         ws.resume();
@@ -74,14 +74,14 @@ export class IOManager extends WithContext {
       req.socket.remoteAddress, req.socket.remotePort);
     if (!req.url) {
       ws.terminate();
-      console.error('bad URL');
+      this.#logger.warn('bad URL');
       return;
     }
 
     const session_id = parseInt(new URL(req.url, 'ws://base.url').searchParams.get('session_id') ?? '');
     if (!Number.isSafeInteger(session_id)) {
       ws.terminate();
-      console.error('bad session id');
+      this.#logger.warn('bad session id');
       return;
     }
     this._ctx.managers.sessions.getHistory(session_id)
@@ -93,7 +93,7 @@ export class IOManager extends WithContext {
       })
       .catch((err) => {
         ws.terminate();
-        console.error('resume error', err);
+        this.#logger.error('resume error: %s', errToString(err));
       });
   };
 

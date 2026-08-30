@@ -71,7 +71,6 @@ export class OpenAISessionModel extends AbstractSessionModel {
         output_size: usage.completion_tokens,
       };
     } catch (e) {
-      console.error(e);
       throw new Error(`Failed to query OpenAI model: ${e}`);
     }
   }

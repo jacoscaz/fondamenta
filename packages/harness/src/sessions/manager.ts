@@ -68,9 +68,11 @@ export class SessionManager extends WithContext {
     if (!runner) {
       runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session);
       this.#runners[session_id] = runner;
-      // The main session runner owns its own heartbeat cadence.
+      // The main session runner owns its own heartbeat cadence and is
+      // the only session whose stream is mirrored to the monologue log.
       if (session_id === this.main_session_id) {
         runner.startHeartbeat();
+        runner.enableMonologue();
       }
       runner.on('message', (message) => {
         this.emit(`session-${session_id}-message`, message);
