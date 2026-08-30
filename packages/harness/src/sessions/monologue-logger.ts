@@ -20,6 +20,11 @@ import { createLogger, datetimeVoid, ProcessWriter, type Logger } from "pinetto"
  * logged at `info` level so the level tag reads `INF`. Blank-line
  * separation between messages is emitted as a raw newline via the writer,
  * since no log entry can carry it.
+ *
+ * The `[monologue]` prefix makes entries greppable: journald does not
+ * track which stream (stdout vs stderr) a line came from, so
+ * `journalctl -u fondamenta | grep '[monologue]'` is the way to read
+ * just this stream until/unless we run somewhere with stream tracking.
  */
 /** Truncation limits for the mirror: params and result bodies. */
 const PARAMS_LIMIT = 200;
@@ -35,6 +40,7 @@ export class MonologueLogger {
       level: 'info',
       writer: new ProcessWriter(stream),
       datetime: datetimeVoid,
+      prefix: '[monologue]',
     });
   }
 
