@@ -254,8 +254,12 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       if (!message.processed_at) {
         this.emit(`message`, message.data);
         // Mirror new inbound messages (user turns, harness events,
-        // tool results) to the human-facing stdout stream.
-        this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+        // tool results) to the human-facing stdout stream. Agent turns
+        // are mirrored at generation time below — never here, or they
+        // would be logged twice (generated + read-back).
+        if (message.role !== 'agent') {
+          this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+        }
       }
       const data = this.#filterUnsupportedBlocks(message.data);
       return data;
