@@ -75,6 +75,12 @@ export type ConfigEmbeddingModel = ConfigEmbeddingsModelOpenAI;
 
 export interface ConfigLogging {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
+  /**
+   * Directory for the monologue log (the human-facing mirror of the
+   * session stream) and its rotated files. Defaults to
+   * /var/log/fondamenta.
+   */
+  monologue_dir?: string;
 }
 
 export interface ConfigJMAP {

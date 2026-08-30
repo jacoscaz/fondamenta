@@ -30,8 +30,11 @@ const config = await getConfigFromProcessArgv();
 // reserved for the monologue mirror (see MonologueLogger).
 const logger = pinetto({ level: config.logging.level, writer: new ProcessWriter('stderr') });
 
-// Human-facing mirror of the session stream, one entry per block.
-const monologue = new MonologueLogger(process.stdout);
+// Human-facing mirror of the session stream, one entry per block,
+// written to its own rotating file. Stdout/stderr stay ops-only.
+const monologue = new MonologueLogger({
+  dir: config.logging.monologue_dir ?? '/var/log/fondamenta',
+});
 
 // Shared database client
 const db = getDB(config);
