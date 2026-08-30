@@ -205,9 +205,17 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     try {
       let has_more = true;
       while (has_more) {
+        // Pre-query listeners run BEFORE the activation fetch so that
+        // any message they inject (e.g. emygdala boot/time events) is
+        // included in this iteration's context, mirrored by the read
+        // gate, and marked processed only after actually being read.
+        await this.#runPreQueryListeners(db);
         has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages) => {
           return await this.#query(messages, db, mcp_manager);
         });
+        // Post-query listeners run after the activation's messages
+        // have been persisted.
+        await this.#runPostQueryListeners(db);
       }
     } catch (err) {
       this.#logger.error('run error: %s', errToString(err));
@@ -259,7 +267,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
   async #query(db_req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
-    await this.#runPreQueryListeners(db);
     // Translate the canonical representation to the provider format on
     // every query — never cache it. The canonical `data` column is the
     // single source of truth (migration 2026-08-29-A dropped `raw`).
@@ -348,7 +355,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
       }
     }
-    await this.#runPostQueryListeners(db);
     return db_res_messages;
   }
 
