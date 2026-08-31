@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+  },
+  "references": [
+    { "path": "../lib-utils" },
+    { "path": "../lib-mcp-core" },
+    { "path": "../lib-mcp-local" },
+    { "path": "../lib-mcp-http-client" },
+    { "path": "../lib-mcp-http-server" },
+    { "path": "../lib-mcp-stdio-client" },
+    { "path": "../lib-mcp-stdio-server" },
+  ]
+}

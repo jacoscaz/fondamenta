@@ -6,6 +6,9 @@
     { "path": "packages/lib-mcp-http-client" },
     { "path": "packages/lib-mcp-http-server" },
     { "path": "packages/lib-mcp-local" },
+    { "path": "packages/lib-mcp-integration-tests" },
+    { "path": "packages/lib-mcp-stdio-client" },
+    { "path": "packages/lib-mcp-stdio-server" },
     { "path": "packages/lib-utils" },
   ],
   "include": [
@@ -14,6 +17,9 @@
     "packages/lib-mcp-http-client/src/**/*.ts",
     "packages/lib-mcp-http-server/src/**/*.ts",
     "packages/lib-mcp-local/src/**/*.ts",
+    "packages/lib-mcp-integration-tests/src/**/*.ts",
+    "packages/lib-mcp-stdio-client/src/**/*.ts",
+    "packages/lib-mcp-stdio-server/src/**/*.ts",
     "packages/lib-utils/src/**/*.ts",
   ]
 }

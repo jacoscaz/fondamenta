@@ -15,4 +15,12 @@ export class McpHttpServer extends McpLocalServer {
     await this.#server.start();
   }
 
+  async stop() {
+    await this.#server.stop();
+  }
+
+  get port(): number | null {
+    return this.#server.port;
+  }
+
 }

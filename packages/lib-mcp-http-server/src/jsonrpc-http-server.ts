@@ -92,9 +92,20 @@ export class JsonRpcHttpServer {
     return ctx.text('Method Not Allowed', 405);
   };
 
+  #nodeServer: ReturnType<typeof serve> | null = null;
+
+  /** The bound port — populated after start(). */
+  get port(): number | null {
+    const addr = this.#nodeServer?.address();
+    return addr && typeof addr === 'object' ? addr.port : null;
+  }
+
   async start(): Promise<void> {
+    if (this.#nodeServer) {
+      throw new Error('already started');
+    }
     return new Promise((resolve) => {
-      serve(
+      this.#nodeServer = serve(
         {
           fetch: this.#app.fetch,
           hostname: this.#host,
@@ -104,6 +115,23 @@ export class JsonRpcHttpServer {
           resolve();
         }
       );
+    });
+  }
+
+  async stop(): Promise<void> {
+    if (!this.#nodeServer) {
+      return;
+    }
+    const nodeServer = this.#nodeServer;
+    this.#nodeServer = null;
+    await new Promise((resolve, reject) => {
+      nodeServer.close((err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(null);
+        }
+      });
     });
   }
 }
