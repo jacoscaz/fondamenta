@@ -1,6 +1,7 @@
 
 import { cast, ValidationError} from '@runtyped/type';
 import { validationErrsToString, fillEnvVarsPlaceholders } from "@fondamenta/utils";
+import { type JmapConfig } from "@fondamenta/mcp-jmap";
 import { resolve } from "node:path";
 import JSON5 from 'json5';
 import { readFile } from "node:fs/promises";
@@ -83,16 +84,10 @@ export interface ConfigLogging {
   monologue_dir?: string;
 }
 
-export interface ConfigJMAP {
-  api_url: string;
-  api_token: string;
-  session_url: string;
-  email_address: string;
+export interface ConfigMail extends JmapConfig {
 }
 
 export interface ConfigHeartbeat {
-  /** Senders that trigger immediate activation (matched against email address) */
-  mail_allowlist?: string[];
   /** Heartbeat (check) interval in milliseconds — how often the runner polls for pending work */
   interval: number;
   /** Minimum time between heartbeat-driven activations, in milliseconds.
@@ -120,7 +115,8 @@ export interface Config {
     embedding: ConfigEmbeddingModel;
   };
   logging: ConfigLogging;
-  jmap: ConfigJMAP;
+  /** JMAP mail server configuration (owned by @fondamenta/mcp-jmap). */
+  mail: ConfigMail;
   heartbeat: ConfigHeartbeat;
   postgres: ConfigPostgres;
 }

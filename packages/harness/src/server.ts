@@ -10,9 +10,9 @@ import { getConfigFromProcessArgv } from "./config/config.js";
 import { WebUIServer } from "./webui/server.js";
 import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
-import { MailNotifier } from "./mcp-servers/mail/notifier.js";
 import { TodoNotifier } from "./sessions/todo-scheduler.js";
 import { NotificationBus } from "./sessions/notification-bus.js";
+import { startMailServer } from "@fondamenta/mcp-jmap";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -51,6 +51,13 @@ const init_context: InitContext = {
   getCompleteContext: () => complete_context,
 };
 
+// Mail: the JMAP MCP server owns its tools AND its notifications now
+// (mail/arrived, emitted via server.notify → transport → manager → bus).
+const mail_server = startMailServer(
+  init_context.config.mail,
+  (msg: string, ...args: any[]) => logger.child('[mail]').info(msg, ...args),
+);
+
 const complete_context: CompleteContext = {
   db,
   init: init_context,
@@ -62,9 +69,10 @@ const complete_context: CompleteContext = {
   distiller: new Distiller(init_context),
   embedder: new Embedder(init_context),
   notifiers: {
-    mail: new MailNotifier(init_context),
     todo: new TodoNotifier(init_context),
     bus: new NotificationBus(init_context),
+    mail_server: mail_server.server,
+    mail: { stop: () => mail_server.stop() },
   },
   managers: {
     io: new IOManager(init_context),
@@ -81,7 +89,6 @@ await complete_context.managers.mcp.initialize();
 await complete_context.emygdala.initialize();
 await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
-await complete_context.notifiers.mail.initialize(120_000);
 await complete_context.notifiers.todo.initialize(60_000);
 
 // Resolve the main session and ensure its runner is alive
