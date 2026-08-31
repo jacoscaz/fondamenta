@@ -35,7 +35,12 @@ export interface IAgentMcpStdioServer extends IAgentMcpBaseServer {
 export interface IAgentMcpLocalServer extends IAgentMcpBaseServer {
   name: string;
   type: 'local';
-  server: McpLocalServer<HarnessMcpToolCallContext>;
+  /**
+   * Local server instance. Parameterized by the harness call context
+   * (for continuity tools that need DB/session access); servers that
+   * need no context use the default parameterization.
+   */
+  server: McpLocalServer<HarnessMcpToolCallContext> | McpLocalServer<{}>;
 }
 
 export type McpServer = IAgentMcpHttpServer | IAgentMcpStdioServer | IAgentMcpLocalServer;

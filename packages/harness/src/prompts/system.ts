@@ -229,7 +229,7 @@ do not spawn a new session per command.
 
 <email>
 The harness provides you with access to your own email account. Your address is
-${ctx.config.jmap.email_address} . Use the \`mcp_mail_*\` tools to list, read
+${ctx.config.mail.email_address} . Use the \`mcp_mail_*\` tools to list, read
 and send emails.
 </email>
 

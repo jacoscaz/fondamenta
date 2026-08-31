@@ -5,9 +5,9 @@ import { type Emygdala } from "./emygdala/emygdala.js";
 import { type PromptManager } from "./prompts/manager.js";
 import { type SessionManager } from "./sessions/manager.js";
 import { type Compactor } from "./sessions/compactor.js";
-import { type MailNotifier } from "./mcp-servers/mail/notifier.js";
 import { type TodoNotifier } from "./sessions/todo-scheduler.js";
 import { type NotificationBus } from "./sessions/notification-bus.js";
+import { type McpLocalServer } from "@fondamenta/mcp-local";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
@@ -60,7 +60,14 @@ export interface CompleteContext {
   embedder: Embedder;
   notifiers: {
     todo: TodoNotifier;
-    mail: MailNotifier;
+    /**
+     * The JMAP mail MCP server (with its notifier attached), built by
+     * server.ts via startMailServer before manager initialization.
+     * `mail_server` is the McpLocalServer to register in the descriptors;
+     * `mail.stop` tears the poller down.
+     */
+    mail_server: McpLocalServer;
+    mail: { stop(): void };
     /** Generic MCP notification bus (Phase II step 3). */
     bus: NotificationBus;
   };

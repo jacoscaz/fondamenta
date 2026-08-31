@@ -83,16 +83,30 @@ export interface ConfigLogging {
   monologue_dir?: string;
 }
 
-export interface ConfigJMAP {
+/**
+ * JMAP mail server configuration. Structurally identical to JmapConfig
+ * in @fondamenta/mcp-jmap (which owns the semantic definition).
+ *
+ * NOTE: declared structurally, NOT as `interface ConfigMail extends
+ * JmapConfig`. runtyped's runtime cast encodes cross-package type
+ * references by name only; the harness's compiled config.js cannot
+ * resolve a name it doesn't import as a value, and cast() then
+ * silently strips every key (config.mail becomes an empty object at
+ * runtime while type-checking happily passes). Keep in sync with
+ * JmapConfig.
+ */
+export interface ConfigMail {
   api_url: string;
-  api_token: string;
   session_url: string;
+  api_token: string;
   email_address: string;
+  /** Senders that trigger a mail/arrived notification. */
+  allowlist: string[];
+  /** Inbox polling interval in milliseconds. */
+  poll_interval_ms?: number;
 }
 
 export interface ConfigHeartbeat {
-  /** Senders that trigger immediate activation (matched against email address) */
-  mail_allowlist?: string[];
   /** Heartbeat (check) interval in milliseconds — how often the runner polls for pending work */
   interval: number;
   /** Minimum time between heartbeat-driven activations, in milliseconds.
@@ -120,7 +134,8 @@ export interface Config {
     embedding: ConfigEmbeddingModel;
   };
   logging: ConfigLogging;
-  jmap: ConfigJMAP;
+  /** JMAP mail server configuration (owned by @fondamenta/mcp-jmap). */
+  mail: ConfigMail;
   heartbeat: ConfigHeartbeat;
   postgres: ConfigPostgres;
 }

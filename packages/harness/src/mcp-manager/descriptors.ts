@@ -6,7 +6,8 @@ import { type McpServer } from "./types.js";
 import { initProcessMcpServer } from "../mcp-servers/process.js";
 import { initTimeMcpServer } from "../mcp-servers/time.js";
 import { initSessionMcpServer } from "../mcp-servers/session.js";
-import { initMailMcpServer } from "../mcp-servers/mail/mail.js";
+import { initJmapMcpServer } from "@fondamenta/mcp-jmap";
+
 import { initTerminalMcpServer } from "../mcp-servers/terminal/terminal.js";
 import { type CompleteContext } from "../context.js";
 import { initNotesMcpServer } from "../mcp-servers/notes.js";
@@ -79,7 +80,11 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
     {
       type: 'local',
       name: 'mail',
-      server: initMailMcpServer(ctx.config),
+      // The mail server instance is owned by server.ts's startMailServer
+      // (notifier attached); fetch it from the context to avoid a second
+      // instance with its own poller. The mail server needs no harness
+      // call context, hence the plain McpLocalServer<{}>.
+      server: ctx.notifiers.mail_server,
     },
     {
       type: 'local',
