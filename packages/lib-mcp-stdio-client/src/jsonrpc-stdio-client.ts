@@ -9,9 +9,11 @@ import { createInterface } from "node:readline";
 import { is, ReceiveType, resolveReceiveType } from '@runtyped/type';
 import { uid } from "uid";
 import {
+  isJsonRpcNotification,
   isJsonRpcResponse,
   JsonRpcClient,
   JsonRpcMessage,
+  JsonRpcNotification,
   JsonRpcParams,
   JsonRpcRequest,
 } from '@fondamenta/mcp-core';
@@ -20,9 +22,15 @@ export class JsonRpcStdioClient implements JsonRpcClient {
 
   #child: ChildProcessByStdio<Writable, Readable, null> | null = null;
   #pending: Map<string, { resolve: (value: any) => void, reject: (err: Error) => void }>;
+  #notification_handlers: ((notification: JsonRpcNotification) => void)[];
 
   constructor() {
     this.#pending = new Map();
+    this.#notification_handlers = [];
+  }
+
+  onNotification(handler: (notification: JsonRpcNotification) => void): void {
+    this.#notification_handlers.push(handler);
   }
 
   /** Spawn the server process. Must be called before call(). */
@@ -58,8 +66,17 @@ export class JsonRpcStdioClient implements JsonRpcClient {
         } else {
           pending.reject(new Error(message.error.message));
         }
+      } else if (isJsonRpcNotification(message)) {
+        // Server-to-client notification: no id, has method — dispatch to
+        // registered handlers; a broken handler cannot break the flow.
+        for (const handler of this.#notification_handlers) {
+          try {
+            handler(message);
+          } catch (err) {
+            // swallow
+          }
+        }
       }
-      // Server-to-client notifications are not handled here yet.
     });
   }
 

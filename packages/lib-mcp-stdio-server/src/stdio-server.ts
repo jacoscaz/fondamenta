@@ -26,6 +26,11 @@ export class StdioServer<C extends { [key: string]: any } = {}> {
   constructor(local: McpLocalServer<C>, write: (line: string) => void = (line) => process.stdout.write(line + '\n')) {
     this.#local = local;
     this.#write = write;
+    // Server-emitted notifications are forwarded to the client on the
+    // wire as JSON-RPC notifications (no id, no response expected).
+    local.onServerNotification((notification) => {
+      this.#write(JSON.stringify(notification));
+    });
   }
 
   handleMessage = async (message: any): Promise<void> => {

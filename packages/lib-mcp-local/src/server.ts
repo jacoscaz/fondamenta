@@ -4,6 +4,7 @@ import { cast, ReceiveType, resolveReceiveType, ValidationError } from '@runtype
 import { ToolRegistry, wrapTool } from "./tools.js";
 import assert from "node:assert";
 import { McpServer } from "@fondamenta/mcp-core";
+import { type JsonRpcNotification } from "@fondamenta/mcp-core";
 import { validationErrsToString } from "@fondamenta/utils";
 import {
   type McpInitializeParams,
@@ -13,15 +14,46 @@ import {
   type McpToolsCallParams,
   type JsonRpcParams,
 } from "@fondamenta/mcp-core";
+
 import { McpToolCallContext } from "@fondamenta/mcp-core/src/types-mcp.js";
 
 
 export class McpLocalServer<C extends McpToolCallContext = {}> implements McpServer<C> {
 
   #tools: ToolRegistry;
+  #notification_listeners: ((notification: JsonRpcNotification) => void)[];
 
   constructor() {
     this.#tools = new Map();
+    this.#notification_listeners = [];
+  }
+
+  /**
+   * Register a listener for notifications emitted by this server
+   * (server-to-client direction). The transport layer bridges these to
+   * the connected client.
+   */
+  onServerNotification(listener: (notification: JsonRpcNotification) => void): void {
+    this.#notification_listeners.push(listener);
+  }
+
+  /**
+   * Emit a notification to the connected client (server-to-client).
+   * Transport layers hook this via onServerNotification.
+   */
+  notify(method: string, params?: JsonRpcParams): void {
+    const notification: JsonRpcNotification = {
+      jsonrpc: '2.0',
+      method,
+      ...(params !== undefined ? { params } : {}),
+    };
+    for (const listener of this.#notification_listeners) {
+      try {
+        listener(notification);
+      } catch (err) {
+        // A broken listener must not break the emitter.
+      }
+    }
   }
 
   addTool<I = {}>(name: string, title: string, description: string, fn: (params: I, ctx: C) => McpToolCallResult | Promise<McpToolCallResult>, __type_I?: ReceiveType<I>) {

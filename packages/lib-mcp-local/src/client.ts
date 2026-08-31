@@ -10,14 +10,31 @@ import {
   type McpToolCallResult,
   type McpToolListResult,
   type McpClient,
+  type JsonRpcNotification,
 } from "@fondamenta/mcp-core";
 
 export class McpLocalClient<C extends McpToolCallContext = {}> implements McpClient<C> {
 
   #server: McpLocalServer<C>;
+  #notification_handlers: ((notification: JsonRpcNotification) => void)[];
 
   constructor(server: McpLocalServer<C>) {
     this.#server = server;
+    this.#notification_handlers = [];
+    // Local transport: the server emits notifications directly to us.
+    server.onServerNotification((notification) => {
+      for (const handler of this.#notification_handlers) {
+        try {
+          handler(notification);
+        } catch (err) {
+          // A broken handler must not break the notification flow.
+        }
+      }
+    });
+  }
+
+  onNotification(handler: (notification: JsonRpcNotification) => void): void {
+    this.#notification_handlers.push(handler);
   }
 
   async initialize(params: McpInitializeParams): Promise<McpInitializeResult> {

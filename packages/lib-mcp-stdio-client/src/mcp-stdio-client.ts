@@ -1,5 +1,6 @@
-import { McpInitializeParams, McpInitializeResult, McpToolCallResult, McpToolListResult } from "@fondamenta/mcp-core";
+import { McpInitializeParams, McpInitializeResult, McpToolCallResult, McpToolListResult, McpToolDescriptor } from "@fondamenta/mcp-core";
 import { JsonRpcStdioClient } from "./jsonrpc-stdio-client.js";
+import { type JsonRpcNotification } from "@fondamenta/mcp-core";
 
 export class McpStdioClient {
 
@@ -23,6 +24,10 @@ export class McpStdioClient {
       'tools/call',
       { name: tool, arguments: args },
     );
+  }
+
+  onNotification(handler: (notification: JsonRpcNotification) => void): void {
+    this.#client.onNotification(handler);
   }
 
   async stop(): Promise<void> {
