@@ -1,7 +1,6 @@
 
 import { cast, ValidationError} from '@runtyped/type';
 import { validationErrsToString, fillEnvVarsPlaceholders } from "@fondamenta/utils";
-import { type JmapConfig } from "@fondamenta/mcp-jmap";
 import { resolve } from "node:path";
 import JSON5 from 'json5';
 import { readFile } from "node:fs/promises";
@@ -84,7 +83,27 @@ export interface ConfigLogging {
   monologue_dir?: string;
 }
 
-export interface ConfigMail extends JmapConfig {
+/**
+ * JMAP mail server configuration. Structurally identical to JmapConfig
+ * in @fondamenta/mcp-jmap (which owns the semantic definition).
+ *
+ * NOTE: declared structurally, NOT as `interface ConfigMail extends
+ * JmapConfig`. runtyped's runtime cast encodes cross-package type
+ * references by name only; the harness's compiled config.js cannot
+ * resolve a name it doesn't import as a value, and cast() then
+ * silently strips every key (config.mail becomes an empty object at
+ * runtime while type-checking happily passes). Keep in sync with
+ * JmapConfig.
+ */
+export interface ConfigMail {
+  api_url: string;
+  session_url: string;
+  api_token: string;
+  email_address: string;
+  /** Senders that trigger a mail/arrived notification. */
+  allowlist: string[];
+  /** Inbox polling interval in milliseconds. */
+  poll_interval_ms?: number;
 }
 
 export interface ConfigHeartbeat {
