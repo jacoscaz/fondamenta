@@ -1,0 +1,24 @@
+{
+  "name": "@fondamenta/mcp-telegram",
+  "main": "dist/index.js",
+  "version": "0.0.1",
+  "type": "module",
+  "scripts": {
+    "ts:clean": "rm -rf ./dist && rm -f ./tsconfig.tsbuildinfo",
+    "ts:build": "tsc",
+    "ts:watch": "tsc --watch",
+    "build": "npm run ts:clean && npm run ts:build",
+    "watch": "npm run ts:clean && npm run ts:watch"
+  },
+  "devDependencies": {
+    "@runtyped/type-compiler": "^2.0.0",
+    "@types/node": "^26.0.1",
+    "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@fondamenta/utils": "^0.0.1",
+    "@fondamenta/mcp-core": "^0.0.1",
+    "@fondamenta/mcp-local": "^0.0.1",
+    "@runtyped/type": "^2.0.0"
+  }
+}

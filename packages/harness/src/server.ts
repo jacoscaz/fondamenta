@@ -13,6 +13,7 @@ import { SessionManager } from "./sessions/manager.js";
 import { TodoNotifier } from "./sessions/todo-scheduler.js";
 import { NotificationBus } from "./sessions/notification-bus.js";
 import { startMailServer } from "@fondamenta/mcp-jmap";
+import { startTelegramServer } from "@fondamenta/mcp-telegram";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -58,6 +59,16 @@ const mail_server = startMailServer(
   (msg: string, ...args: any[]) => logger.child('[mail]').info(msg, ...args),
 );
 
+// Telegram: same pattern (telegram/message on incoming allowlisted
+// updates). started only if a token is configured.
+let telegram_server: ReturnType<typeof startTelegramServer> | null = null;
+if (init_context.config.telegram?.api_token) {
+  telegram_server = startTelegramServer(
+    init_context.config.telegram,
+    (msg: string, ...args: any[]) => logger.child('[telegram]').info(msg, ...args),
+  );
+}
+
 const complete_context: CompleteContext = {
   db,
   init: init_context,
@@ -73,6 +84,8 @@ const complete_context: CompleteContext = {
     bus: new NotificationBus(init_context),
     mail_server: mail_server.server,
     mail: { stop: () => mail_server.stop() },
+    telegram_server: telegram_server!.server,
+    telegram: { stop: () => telegram_server?.stop() },
   },
   managers: {
     io: new IOManager(init_context),
@@ -108,6 +121,7 @@ const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
   logger.warn('Received signal %s, shutting down...', signal);
   webui_server.close();
   complete_context.notifiers.mail.stop();
+  complete_context.notifiers.telegram.stop();
   complete_context.notifiers.todo.stop();
   db.destroy();
   setTimeout(() => process.exit(0), 1000);

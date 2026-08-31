@@ -68,6 +68,9 @@ export interface CompleteContext {
      */
     mail_server: McpLocalServer;
     mail: { stop(): void };
+    /** Telegram MCP server instance + teardown handle (step 5). */
+    telegram_server: McpLocalServer;
+    telegram: { stop(): void };
     /** Generic MCP notification bus (Phase II step 3). */
     bus: NotificationBus;
   };
