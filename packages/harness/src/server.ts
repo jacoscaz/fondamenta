@@ -7,7 +7,7 @@ import { ProcessWriter } from 'pinetto';
 
 import { getDB } from "./database/client.js";
 import { getConfigFromProcessArgv } from "./config/config.js";
-import { WebUIServer } from "./webui/server.js";
+
 import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
 import { TodoNotifier } from "./sessions/todo-scheduler.js";
@@ -20,7 +20,7 @@ import { Emygdala } from './emygdala/emygdala.js';
 import { Distiller } from './sessions/distiller.js';
 import { Embedder } from './sessions/embedder.js';
 import { InitContext, type CompleteContext } from './context.js';
-import { IOManager } from './io/manager.js';
+
 import { RootMcpManager } from './mcp-manager/manager.js';
 import { ModelManager } from './models/manager.js';
 import { MonologueLogger } from './sessions/monologue-logger.js';
@@ -88,7 +88,6 @@ const complete_context: CompleteContext = {
     telegram: { stop: () => telegram_server?.stop() },
   },
   managers: {
-    io: new IOManager(init_context),
     mcp: new RootMcpManager(init_context),
     models: new ModelManager(init_context),
     prompts: new PromptManager(init_context),
@@ -112,14 +111,11 @@ logger.info('main session %d is live', main_session_id);
 logger.info('PID %s', process.pid);
 process.title = 'fondamenta';
 
-const webui_server = new WebUIServer(init_context);
-
 const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
   process.removeListener('beforeExit', onProcessExit);
   process.removeListener('SIGTERM', onProcessExit);
   process.removeListener('SIGINT', onProcessExit);
   logger.warn('Received signal %s, shutting down...', signal);
-  webui_server.close();
   complete_context.notifiers.mail.stop();
   complete_context.notifiers.telegram.stop();
   complete_context.notifiers.todo.stop();

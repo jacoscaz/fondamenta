@@ -14,17 +14,6 @@ export interface ConfigPostgres {
   database: string;
 }
 
-export interface ConfigIO {
-  addr: string;
-  port: number;
-  path: string;
-}
-
-export interface ConfigWebUI {
-  addr: string;
-  port: number;
-}
-
 /**
  * Content modalities a model can consume/produce. Defaults to text-only when
  * absent. The session runner filters content blocks unsupported by the active
@@ -142,8 +131,6 @@ export interface ConfigHeartbeat {
 
 export interface Config {
   tz: string;
-  io: ConfigIO;
-  webui: ConfigWebUI;
   models: {
     session: ConfigSessionModel;
     embedding: ConfigEmbeddingModel;
