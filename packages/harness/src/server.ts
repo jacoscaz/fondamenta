@@ -12,6 +12,7 @@ import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
 import { MailNotifier } from "./mcp-servers/mail/notifier.js";
 import { TodoNotifier } from "./sessions/todo-scheduler.js";
+import { NotificationBus } from "./sessions/notification-bus.js";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -63,6 +64,7 @@ const complete_context: CompleteContext = {
   notifiers: {
     mail: new MailNotifier(init_context),
     todo: new TodoNotifier(init_context),
+    bus: new NotificationBus(init_context),
   },
   managers: {
     io: new IOManager(init_context),

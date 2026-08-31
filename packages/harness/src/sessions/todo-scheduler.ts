@@ -45,8 +45,6 @@ export class TodoNotifier extends WithContext {
     if (this.#injecting) return;
     this.#injecting = true;
     try {
-      const { sessions } = this._ctx.managers;
-      const session_id = sessions.main_session_id;
       const now = new Date();
       let due: SelectableContinuityRecord[];
       try {
@@ -69,8 +67,13 @@ export class TodoNotifier extends WithContext {
         `This reminder was scheduled by your past self (notify_at has now arrived; it has been consumed).`,
         todo.content ? `\n${ellipsis(todo.content, 400, '...')}` : '',
       ].filter(s => s !== '').join('\n')).join('\n\n');
-      await sessions.injectAutomatedTextMessage(session_id, text, true);
-      this.#logger.info('injected %d todo reminder(s)', due.length);
+      // Emit onto the MCP notification bus instead of injecting
+      // directly (Phase II step 3 dogfood).
+      this._ctx.notifiers.bus.handleNotification('todos', {
+        method: 'todo/due',
+        params: { text },
+      });
+      this.#logger.info('emitted %d todo reminder(s) to notification bus', due.length);
     } catch (err) {
       this.#logger.error('todo reminder error: %s', errToString(err));
     } finally {

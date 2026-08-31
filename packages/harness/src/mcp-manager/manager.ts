@@ -1,5 +1,6 @@
 
 import { spawn } from "node:child_process";
+import { errToString } from "@fondamenta/utils";
 import { Logger } from "pinetto";
 import { IAgentMcpHttpServer, IAgentMcpLocalServer, McpServer, IAgentMcpStdioServer } from "./types.js";
 import assert from "node:assert";
@@ -82,6 +83,16 @@ export class RootMcpManager extends McpManager {
       clientInfo: { name: 'agency', version: '0.1.0' },
     });
     await server.client!.initialized();
+    // Subscribe to server-emitted notifications and route them to the
+    // notification bus (Phase II step 3). Same interface for every
+    // transport — the manager does not need to know which one speaks.
+    server.client!.onNotification((notification) => {
+      try {
+        this._ctx.notifiers.bus.handleNotification(server.name, notification);
+      } catch (err) {
+        this.#logger.error('notification routing error (%s): %s', server.name, errToString(err));
+      }
+    });
     const { tools } = await server.client!.list();
     tools.forEach((desc) => {
       const name = `mcp_${server.name}_${desc.name}`;
