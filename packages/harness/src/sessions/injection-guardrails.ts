@@ -206,7 +206,7 @@ const TAG_AND_ROLE_SPOOFING: InjectionPattern[] = [
   {
     name: 'harness_message_spoofing',
     description: 'Content impersonating Fondamenta harness messages.',
-    pattern: /\[\s*automated\s+harness\s+message\s*\]/i,
+    pattern: /\[\s*(?:automated\s+harness\s+message|event\s*:)\s*[^\]]*\]/i,
   },
   {
     name: 'compaction_summary_spoofing',

@@ -12,7 +12,7 @@ import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
 import { detectInjections } from "./injection-guardrails.js";
 import { makeActivationPrompt } from "../prompts/activation.js";
-import { AUTOMATED_MESSAGE_PREFIX } from "../constants.js";
+import { EVENT_PREFIX } from "../constants.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
@@ -113,7 +113,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         const elapsed = last ? Math.round((now.valueOf() - last.valueOf()) / 60_000) : null;
         this.#last_heartbeat_activation_at = now;
         this.#logger.info('heartbeat activation triggered (last activation %s)', elapsed !== null ? `${elapsed}m ago` : 'at boot');
-        this.injectAutomatedTextMessage(makeActivationPrompt(), false).catch(err => {
+        this.injectEventMessage('heartbeat', makeActivationPrompt(), false).catch(err => {
           this.#logger.error('heartbeat activation injection error: %s', errToString(err));
         });
       }
@@ -173,10 +173,16 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     }
   }
 
-  async injectAutomatedTextMessage(text: string, run: boolean): Promise<void> {
+  /**
+   * Inject an event message into the session. `event` names the
+   * event's origin (e.g. `heartbeat`, `mail/arrived`); the message
+   * lands as `[event: <origin>] <text>`. See the <registers> section
+   * of the system prompt for interpretation.
+   */
+  async injectEventMessage(event: string, text: string, run: boolean): Promise<void> {
     const message: UserMessage<TextBlock> = {
       role: 'user',
-      blocks: [{ type: 'text', text: `${AUTOMATED_MESSAGE_PREFIX} ${text}` }],
+      blocks: [{ type: 'text', text: `${EVENT_PREFIX}${event}] ${text}` }],
     };
     await this.injectMessage(message, run);
   }

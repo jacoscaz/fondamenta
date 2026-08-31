@@ -84,7 +84,7 @@ export class Emygdala extends WithContext {
     this.#evaluatePassingOfTime(injected_messages);
     this.#evaluateContextPressure(prompt_size, injected_messages);
     for (const text of injected_messages) {
-      await this._ctx.managers.sessions.injectAutomatedTextMessage(main_session_id, text, false);
+      await this._ctx.managers.sessions.injectEventMessage(main_session_id, 'context', text, false);
     }
   };
 
