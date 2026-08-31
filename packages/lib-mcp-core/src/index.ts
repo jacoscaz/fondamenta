@@ -16,6 +16,7 @@ export {
 
 export {
   McpServer,
+  McpToolFnResult,
 } from './types-mcp-servers.js';
 
 export {

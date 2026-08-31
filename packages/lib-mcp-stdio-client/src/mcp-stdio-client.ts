@@ -15,6 +15,10 @@ export class McpStdioClient {
     return await this.#client.call<McpInitializeResult>('initialize', params);
   }
 
+  async initialized(): Promise<void> {
+    await this.#client.notify('notifications/initialized');
+  }
+
   async list(): Promise<McpToolListResult> {
     return await this.#client.call<McpToolListResult>('tools/list');
   }

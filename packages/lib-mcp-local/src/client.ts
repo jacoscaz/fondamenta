@@ -37,6 +37,11 @@ export class McpLocalClient<C extends McpToolCallContext = {}> implements McpCli
     this.#notification_handlers.push(handler);
   }
 
+  async initialized(): Promise<void> {
+    // Local transport: delivered directly to the server.
+    await this.#server.onNotification('notifications/initialized', undefined, {} as C);
+  }
+
   async initialize(params: McpInitializeParams): Promise<McpInitializeResult> {
     return await this.#server.onRequest('initialize', params);
   }

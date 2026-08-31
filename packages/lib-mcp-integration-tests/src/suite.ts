@@ -44,12 +44,14 @@ export const runSuite = (factory: TransportFactory) => {
 
     it('initialize returns protocol version and server info', async () => {
       const result = await handle.client.initialize({
-        protocolVersion: '2026-03-26',
+        protocolVersion: '2025-06-18',
         capabilities: {},
         clientInfo: { name: 'integration-tests', version: '0.0.1' },
       });
       assert.ok(result.serverInfo && typeof result.serverInfo.name === 'string');
       assert.ok(result.capabilities && 'tools' in result.capabilities);
+      // Spec: the lifecycle closes with the initialized notification.
+      await handle.client.initialized();
     });
 
     it('lists tools with descriptors', async () => {
@@ -60,38 +62,41 @@ export const runSuite = (factory: TransportFactory) => {
       const echo = tools.find((t) => t.name === 'echo')!;
       assert.equal(echo.title, 'Echo');
       assert.equal(typeof echo.description, 'string');
-      assert.ok(echo.input_schema, 'descriptor carries an input schema');
+      assert.ok(echo.inputSchema, 'descriptor carries an input schema (spec camelCase)');
     });
 
-    it('calls a tool and gets the result', async () => {
+    it('calls a tool and gets the spec-shaped result', async () => {
       const result = await handle.client.call('echo', { message: 'hello' }, {});
-      assert.deepEqual(result, [{ type: 'text', text: 'hello' }]);
+      assert.equal(result.isError, false);
+      assert.deepEqual(result.content, [{ type: 'text', text: 'hello' }]);
     });
 
     it('tool result round-trips non-ASCII payloads', async () => {
       const result = await handle.client.call('echo', { message: 'ħéłłø wörld ✓' }, {});
-      assert.deepEqual(result, [{ type: 'text', text: 'ħéłłø wörld ✓' }]);
+      assert.deepEqual(result.content, [{ type: 'text', text: 'ħéłłø wörld ✓' }]);
     });
 
-    it('rejects unknown tool with an error', async () => {
+    it('rejects unknown tool with a protocol error', async () => {
       await assert.rejects(
         () => handle.client.call('no-such-tool', {}, {}),
         /unknown tool/i,
       );
     });
 
-    it('rejects invalid tool parameters with an error', async () => {
+    it('rejects invalid tool parameters with a protocol error', async () => {
       await assert.rejects(
         () => handle.client.call('echo', { wrong: 'shape' }, {}),
         /invalid parameters/i,
       );
     });
 
-    it('propagates tool errors (fail tool)', async () => {
-      await assert.rejects(
-        () => handle.client.call('fail', {}, {}),
-        /deliberate/i,
-      );
+    it('tool execution error is an isError result, not a protocol error', async () => {
+      // Per spec: execution errors belong in the result body with
+      // isError: true; JSON-RPC errors are reserved for protocol errors.
+      const result = await handle.client.call('fail', {}, {});
+      assert.equal(result.isError, true);
+      assert.ok(result.content.length > 0);
+      assert.match(result.content[0].type === 'text' ? result.content[0].text : '', /deliberate/i);
     });
 
     it('delivers a notification emitted by a tool call', async () => {
@@ -99,7 +104,7 @@ export const runSuite = (factory: TransportFactory) => {
       handle.client.onNotification((n) => received.push(n));
       // The ping tool emits `test/ping` server-side as a side effect.
       const result = await handle.client.call('ping', {}, {});
-      assert.deepEqual(result, [{ type: 'text', text: 'pinged' }]);
+      assert.deepEqual(result.content, [{ type: 'text', text: 'pinged' }]);
       // Local transport: synchronous. Wire transports: delivered by the
       // next drain/readline flush. Either way, well within 5 seconds.
       const deadline = Date.now() + 5_000;

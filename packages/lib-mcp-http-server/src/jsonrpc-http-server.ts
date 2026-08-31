@@ -12,7 +12,20 @@ import { errToString } from '@fondamenta/utils';
 
 /**
  * HTTP-based JSON-RPC server for MCP.
- * Extends JsonRpcActor with HTTP/SSE transport instead of stdio.
+ *
+ * DEVIATION FROM THE MCP SPEC (documented, deliberate): this transport is
+ * a private dialect, not the spec's Streamable HTTP. Differences:
+ *  - POST accepts a single message OR an array, and responds with an
+ *    array of responses (spec removed batching; expects single messages
+ *    and 202 Accepted for notifications).
+ *  - GET /mcp is a JSON long-poll drain ({ notifications: [...] } with an
+ *    optional x-mcp-wait-ms header) instead of an SSE stream.
+ *  - No Mcp-Session-Id management, no Origin validation.
+ * Our own client/server pairs interoperate through it (pinned by the
+ * integration suite); off-the-shelf MCP clients do not. Do not point a
+ * spec client at this server. Revisit when a remote-server requirement
+ * materializes — see note "MCP spec compliance audit" in the continuity
+ * store for the full picture.
  */
 export class JsonRpcHttpServer {
 

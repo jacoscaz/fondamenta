@@ -9,6 +9,13 @@ import { type JsonRpcNotification } from "./types-jsonrpc.js";
 
 export interface McpClient<C extends McpToolCallContext = {}> {
   initialize(params: McpInitializeParams): Promise<McpInitializeResult>;
+  /**
+   * Send the `notifications/initialized` message. Per the MCP spec the
+   * client MUST send it after receiving the initialize response, before
+   * normal operation. Transports without a client→server notification
+   * channel (http drain) may no-op, but must be callable.
+   */
+  initialized(): Promise<void>;
   list(): Promise<McpToolListResult>;
   call(tool: string, args: any, ctx: C): Promise<McpToolCallResult>;
   /**
