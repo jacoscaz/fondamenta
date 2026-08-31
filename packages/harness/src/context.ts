@@ -7,6 +7,7 @@ import { type SessionManager } from "./sessions/manager.js";
 import { type Compactor } from "./sessions/compactor.js";
 import { type MailNotifier } from "./mcp-servers/mail/notifier.js";
 import { type TodoNotifier } from "./sessions/todo-scheduler.js";
+import { type NotificationBus } from "./sessions/notification-bus.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
@@ -60,6 +61,8 @@ export interface CompleteContext {
   notifiers: {
     todo: TodoNotifier;
     mail: MailNotifier;
+    /** Generic MCP notification bus (Phase II step 3). */
+    bus: NotificationBus;
   };
   managers: {
     io: IOManager;

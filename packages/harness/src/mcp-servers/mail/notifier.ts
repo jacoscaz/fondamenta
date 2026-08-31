@@ -103,10 +103,14 @@ export class MailNotifier extends WithContext {
         e.from.some(addr => allowlist.includes(addr.email))
       );
       if (filtered.length > 0) {
+        // Emit onto the MCP notification bus instead of injecting
+        // directly: one generic event path for all sources (Phase II
+        // step 3 dogfood).
         const text = filtered.map(e => (this.#formatNotification(e))).join('\n\n');
-        await this._ctx.managers.sessions.injectAutomatedTextMessage(
-          this._ctx.managers.sessions.main_session_id, text, true,
-        );
+        this._ctx.notifiers.bus.handleNotification('mail', {
+          method: 'mail/arrived',
+          params: { text },
+        });
       }
       // this.#logger.info('%d new email(s) queued for activation gate', newEmails.length);
     } catch (err) {
