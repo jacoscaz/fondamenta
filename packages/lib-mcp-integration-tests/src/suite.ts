@@ -14,7 +14,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
-import { type McpClient } from "@fondamenta/mcp-core";
+import { type McpClient, type JsonRpcNotification } from "@fondamenta/mcp-core";
 import { makeTestServer } from "./server.js";
 
 export interface TransportHandle {
@@ -56,7 +56,7 @@ export const runSuite = (factory: TransportFactory) => {
       const { tools } = await handle.client.list();
       assert.ok(Array.isArray(tools));
       const names = tools.map((t) => t.name).sort();
-      assert.deepEqual(names, ['echo', 'fail']);
+      assert.deepEqual(names, ['echo', 'fail', 'ping']);
       const echo = tools.find((t) => t.name === 'echo')!;
       assert.equal(echo.title, 'Echo');
       assert.equal(typeof echo.description, 'string');
@@ -92,6 +92,37 @@ export const runSuite = (factory: TransportFactory) => {
         () => handle.client.call('fail', {}, {}),
         /deliberate/i,
       );
+    });
+
+    it('delivers a notification emitted by a tool call', async () => {
+      const received: JsonRpcNotification[] = [];
+      handle.client.onNotification((n) => received.push(n));
+      // The ping tool emits `test/ping` server-side as a side effect.
+      const result = await handle.client.call('ping', {}, {});
+      assert.deepEqual(result, [{ type: 'text', text: 'pinged' }]);
+      // Local transport: synchronous. Wire transports: delivered by the
+      // next drain/readline flush. Either way, well within 5 seconds.
+      const deadline = Date.now() + 5_000;
+      while (received.length === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      assert.equal(received.length, 1);
+      assert.equal(received[0].method, 'test/ping');
+      assert.deepEqual(received[0].params, { source: 'ping-tool' });
+    });
+
+    it('notification handlers that throw do not break delivery', async () => {
+      const received: JsonRpcNotification[] = [];
+      handle.client.onNotification(() => {
+        throw new Error('broken handler');
+      });
+      handle.client.onNotification((n) => received.push(n));
+      await handle.client.call('ping', {}, {});
+      const deadline = Date.now() + 5_000;
+      while (received.length === 0 && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      assert.ok(received.some((n) => n.method === 'test/ping'));
     });
 
   });

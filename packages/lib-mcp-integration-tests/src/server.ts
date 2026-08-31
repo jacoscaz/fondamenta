@@ -25,6 +25,15 @@ export const registerTestTools = (server: McpLocalServer) => {
       throw new Error('deliberate failure');
     },
   );
+  server.addTool<{}>(
+    'ping',
+    'Ping',
+    'Emits a test notification and returns a text block.',
+    async () => {
+      server.notify('test/ping', { source: 'ping-tool' });
+      return [{ type: 'text', text: 'pinged' }];
+    },
+  );
 };
 
 export const makeTestServer = (): McpLocalServer => {

@@ -4,7 +4,7 @@ import { serve } from '@hono/node-server';
 import { BlankEnv, BlankInput, H } from 'hono/types';
 import { cast } from '@runtyped/type';
 
-import { isJsonRpcNotification, isJsonRpcRequest, JsonRpcErrorResponse, JsonRpcMessage, JsonRpcResponse, JsonRpcResultResponse, JsonRpcStandardErrorCodes } from '@fondamenta/mcp-core';
+import { isJsonRpcNotification, isJsonRpcRequest, JsonRpcErrorResponse, JsonRpcMessage, JsonRpcNotification, JsonRpcResponse, JsonRpcResultResponse, JsonRpcStandardErrorCodes } from '@fondamenta/mcp-core';
 import { McpLocalServer } from '@fondamenta/mcp-local';
 import { errToString } from '@fondamenta/utils';
 
@@ -27,6 +27,17 @@ export class JsonRpcHttpServer {
     this.#app = new Hono();
     this.#local = local;
     this.#setupRoutes();
+    // Server-emitted notifications are queued for delivery on the next
+    // GET /mcp drain (long-poll or immediate).
+    local.onServerNotification((notification) => {
+      this.#notification_queue.push(notification);
+    });
+  }
+
+  #notification_queue: JsonRpcNotification[] = [];
+
+  #drainNotifications(): JsonRpcNotification[] {
+    return this.#notification_queue.splice(0, this.#notification_queue.length);
   }
 
   #setupRoutes() {
@@ -81,9 +92,15 @@ export class JsonRpcHttpServer {
   };
 
   #handleMcpGet: H<BlankEnv, "/mcp", BlankInput, any> = async (ctx) => {
-    // GET endpoint for server-initiated messages
-    // For now, return 405 Method Not Allowed
-    return ctx.text('Method Not Allowed', 405);
+    // GET endpoint: server-to-client notification drain. The client
+    // long-polls; we respond as soon as at least one notification is
+    // queued, or with an empty batch after the wait deadline.
+    const wait_ms = parseInt(ctx.req.header('x-mcp-wait-ms') ?? '', 10);
+    const deadline = Date.now() + (Number.isFinite(wait_ms) && wait_ms > 0 ? wait_ms : 0);
+    while (this.#notification_queue.length === 0 && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, Math.min(50, deadline - Date.now())));
+    }
+    return ctx.json({ notifications: this.#drainNotifications() }, 200);
   };
 
   #handleMcpDelete: H<BlankEnv, "/mcp", BlankInput, any> = async (ctx) => {
