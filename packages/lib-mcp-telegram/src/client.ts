@@ -1,8 +1,10 @@
 /**
  * Telegram Bot API client — thin, typed wrapper over the HTTP API.
  * Long-polling getUpdates with offset bookkeeping; sendMessage for
- * outbound. No state beyond the update offset.
+ * outbound. No state beyond the update offset. Photos are resolved
+ * via getFile and downloaded as raw bytes on demand.
  */
+import { writeFile } from "node:fs/promises";
 
 export interface TelegramUpdate {
   update_id: number;
@@ -18,7 +20,7 @@ export interface TelegramMessage {
   text?: string;
   caption?: string;
   voice?: TelegramVoice;
-  photo?: { file_id: string }[];
+  photo?: TelegramPhotoSize[];
   document?: { file_id: string, file_name?: string };
 }
 
@@ -35,6 +37,12 @@ export interface TelegramChat {
   title?: string;
   username?: string;
   first_name?: string;
+}
+
+export interface TelegramPhotoSize {
+  file_id: string;
+  width: number;
+  height: number;
 }
 
 export interface TelegramVoice {
@@ -96,6 +104,32 @@ export class TelegramClient {
   /** Bootstrap utility: who is this bot? */
   async getMe(): Promise<TelegramUser> {
     return await this.#call<TelegramUser>('getMe', {});
+  }
+
+  /**
+   * Resolve a file_id to a downloadable URL via getFile. Telegram
+   * file paths are valid for ~1 hour after resolution.
+   */
+  async getFileUrl(fileId: string): Promise<string> {
+    const file = await this.#call<{ file_path?: string }>('getFile', { file_id: fileId });
+    if (!file.file_path) {
+      throw new Error(`Telegram getFile returned no file_path for ${fileId}`);
+    }
+    return `${this.#api_base}/file/bot${this.#token}/${file.file_path}`;
+  }
+
+  /**
+   * Download a photo by file_id to destinationPath. Returns the path.
+   */
+  async downloadPhoto(fileId: string, destinationPath: string): Promise<string> {
+    const url = await this.getFileUrl(fileId);
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`Telegram file download failed: HTTP ${res.status}`);
+    }
+    const bytes = Buffer.from(await res.arrayBuffer());
+    await writeFile(destinationPath, bytes);
+    return destinationPath;
   }
 
 }
