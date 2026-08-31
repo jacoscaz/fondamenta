@@ -88,6 +88,12 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
     },
     {
       type: 'local',
+      name: 'telegram',
+      // Same ownership pattern as mail (server.ts's startTelegramServer).
+      server: ctx.notifiers.telegram_server,
+    },
+    {
+      type: 'local',
       name: 'terminal',
       server: initTerminalMcpServer(ctx.config, ctx),
     },

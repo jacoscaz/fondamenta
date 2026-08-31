@@ -9,6 +9,7 @@
     { "path": "packages/lib-mcp-integration-tests" },
     { "path": "packages/lib-mcp-jmap" },
     { "path": "packages/lib-mcp-stdio-client" },
+    { "path": "packages/lib-mcp-telegram" },
     { "path": "packages/lib-mcp-stdio-server" },
     { "path": "packages/lib-utils" },
   ],
@@ -21,6 +22,7 @@
     "packages/lib-mcp-integration-tests/src/**/*.ts",
     "packages/lib-mcp-jmap/src/**/*.ts",
     "packages/lib-mcp-stdio-client/src/**/*.ts",
+    "packages/lib-mcp-telegram/src/**/*.ts",
     "packages/lib-mcp-stdio-server/src/**/*.ts",
     "packages/lib-utils/src/**/*.ts",
   ]

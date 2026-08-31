@@ -106,6 +106,21 @@ export interface ConfigMail {
   poll_interval_ms?: number;
 }
 
+/**
+ * Telegram server configuration. Structurally identical to
+ * TelegramConfig in @fondamenta/mcp-telegram (which owns the semantic
+ * definition). Declared structurally — cross-package type references
+ * do not survive runtyped's compiled cast() and get silently stripped
+ * (see ConfigMail's note; same trap).
+ */
+export interface ConfigTelegram {
+  api_token: string;
+  /** Telegram user ids allowed to interact with the bot (fail closed). */
+  allowed_user_ids: number[];
+  /** Long-poll timeout in seconds. */
+  poll_timeout_seconds?: number;
+}
+
 export interface ConfigHeartbeat {
   /** Heartbeat (check) interval in milliseconds — how often the runner polls for pending work */
   interval: number;
@@ -136,6 +151,8 @@ export interface Config {
   logging: ConfigLogging;
   /** JMAP mail server configuration (owned by @fondamenta/mcp-jmap). */
   mail: ConfigMail;
+  /** Telegram server configuration (owned by @fondamenta/mcp-telegram). */
+  telegram: ConfigTelegram;
   heartbeat: ConfigHeartbeat;
   postgres: ConfigPostgres;
 }

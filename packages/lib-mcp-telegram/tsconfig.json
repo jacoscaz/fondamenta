@@ -5,12 +5,8 @@
     "outDir": "dist",
   },
   "references": [
-    { "path": "../lib-mcp-core" },
-    { "path": "../lib-mcp-http-client" },
-    { "path": "../lib-mcp-http-server" },
-    { "path": "../lib-mcp-jmap" },
-    { "path": "../lib-mcp-local" },
-    { "path": "../lib-mcp-telegram" },
     { "path": "../lib-utils" },
+    { "path": "../lib-mcp-core" },
+    { "path": "../lib-mcp-local" },
   ]
 }
