@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { Logger } from "pinetto";
 import { IAgentMcpHttpServer, IAgentMcpLocalServer, McpServer, IAgentMcpStdioServer } from "./types.js";
 import assert from "node:assert";
-import { McpToolCallResult, McpToolDescriptor, McpToolListResult } from "@fondamenta/mcp-core";
+import { McpContentBlock, McpToolDescriptor, McpToolListResult } from "@fondamenta/mcp-core";
 import { McpHttpClient } from "@fondamenta/mcp-http-client";
 import { McpLocalClient } from "@fondamenta/mcp-local";
 import { InitContext, WithContext } from "../context.js";
@@ -36,10 +36,14 @@ export class McpManager extends WithContext {
     return this.#tools[name]?.server.safe === true;
   }
 
-  async call(name: string, params: any, ctx: HarnessMcpToolCallContext): Promise<McpToolCallResult> {
+  async call(name: string, params: any, ctx: HarnessMcpToolCallContext): Promise<McpContentBlock[]> {
     if (name in this.#tools) {
       const { server, desc } = this.#tools[name];
-      return await server.client!.call(desc.name, params, ctx);
+      const result = await server.client!.call(desc.name, params, ctx);
+      // Unwrap the spec result envelope for the harness, which consumes
+      // bare content blocks. isError results surface as normal content;
+      // the model sees the error text.
+      return result.content;
     }
     throw new Error('unknown tool');
   }
@@ -73,10 +77,11 @@ export class RootMcpManager extends McpManager {
 
   async #initializeAndRegisterTools(server: McpServer) {
     await server.client!.initialize({
-      protocolVersion: 'whatever',
+      protocolVersion: '2025-06-18',
       capabilities: { },
       clientInfo: { name: 'agency', version: '0.1.0' },
     });
+    await server.client!.initialized();
     const { tools } = await server.client!.list();
     tools.forEach((desc) => {
       const name = `mcp_${server.name}_${desc.name}`;

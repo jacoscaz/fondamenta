@@ -2,6 +2,14 @@ import { McpInitializeParams, McpInitializeResult, McpToolCallResult, McpToolLis
 import { type JsonRpcNotification } from "@fondamenta/mcp-core";
 import { JsonRpcHttpClient } from "./jsonrpc-client.js";
 
+/**
+ * DEVIATION FROM THE MCP SPEC (documented, deliberate): this client speaks
+ * the private HTTP dialect of @fondamenta/mcp-http-server, NOT the spec's
+ * Streamable HTTP (no SSE, custom JSON long-poll drain via GET with the
+ * x-mcp-wait-ms header). See the server package for the full deviation
+ * note. Do not use against a spec-compliant remote server.
+ */
+
 export class McpHttpClient {
 
   #client: JsonRpcHttpClient;
@@ -17,6 +25,21 @@ export class McpHttpClient {
 
   async initialize(params: McpInitializeParams): Promise<McpInitializeResult> {
     return await this.#client.call<McpInitializeResult>('initialize', params);
+  }
+
+  async initialized(): Promise<void> {
+    // Per the MCP spec the initialized notification is client→server.
+    // Our HTTP transport's POST accepts notifications; send it as one.
+    await fetch(this.#url, {
+      method: 'POST',
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'notifications/initialized',
+      }),
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
   }
 
   async list(): Promise<McpToolListResult> {

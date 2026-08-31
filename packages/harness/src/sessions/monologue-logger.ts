@@ -120,7 +120,7 @@ export class MonologueLogger {
         body = block.text ?? '';
         break;
       case 'image':
-        body = `[image: ${block.mime_type ?? 'unknown'}, ${block.data?.length ?? 0} bytes base64]`;
+        body = `[image: ${block.mimeType ?? 'unknown'}, ${block.data?.length ?? 0} bytes base64]`;
         break;
       case 'tool_use_req':
         body = `${block.tool}\n${prettyJSON(block.params, PARAMS_LIMIT)}`;
@@ -141,7 +141,7 @@ export class MonologueLogger {
     if (!result || result.length === 0) return '(empty)';
     return result.map((b) => {
       if (b?.type === 'text') return ellipsis(b.text ?? '', RESULT_LIMIT);
-      if (b?.type === 'image') return `[image: ${b.mime_type ?? 'unknown'}]`;
+      if (b?.type === 'image') return `[image: ${b.mimeType ?? 'unknown'}]`;
       return ellipsis(JSON.stringify(b ?? null), 1000);
     }).join('\n\n');
   }

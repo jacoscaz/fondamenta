@@ -58,7 +58,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
           function: {
             name: t.name,
             description: t.description,
-            parameters: t.input_schema,
+            parameters: t.inputSchema,
           },
         })),
       });
@@ -229,7 +229,7 @@ const formatToolUseResultContent = (blocks: ToolUseResultBlock['result']): OpenA
       case 'image':
         parts.push({
           type: 'image_url',
-          image_url: { url: `data:${block.mime_type};base64,${block.data}` },
+          image_url: { url: `data:${block.mimeType};base64,${block.data}` },
         });
         break;
     }
@@ -243,7 +243,7 @@ const formatTextOnly = (blocks: ToolUseResultBlock['result']): OpenAI.ChatComple
       case 'text':
         return { type: 'text', text: block.text };
       case 'image':
-        return { type: 'text', text: `[image withheld: ${block.mime_type}, ${block.data.length} base64 chars]` };
+        return { type: 'text', text: `[image withheld: ${block.mimeType}, ${block.data.length} base64 chars]` };
     }
   });
 };

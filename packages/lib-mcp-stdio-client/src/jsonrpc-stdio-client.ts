@@ -102,6 +102,19 @@ export class JsonRpcStdioClient implements JsonRpcClient {
     throw new Error('Invalid response: malformed result.');
   }
 
+  /** Send a notification (no id, no response expected) to the server. */
+  notify(method: string, params?: JsonRpcParams): void {
+    if (!this.#child) {
+      throw new Error('not started');
+    }
+    const notification = {
+      jsonrpc: '2.0',
+      method,
+      ...(params !== undefined ? { params } : {}),
+    };
+    this.#child.stdin.write(JSON.stringify(notification) + '\n');
+  }
+
   async stop(): Promise<void> {
     const child = this.#child;
     if (!child) {

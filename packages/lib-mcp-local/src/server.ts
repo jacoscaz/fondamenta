@@ -1,7 +1,7 @@
 
 
 import { cast, ReceiveType, resolveReceiveType, ValidationError } from '@runtyped/type';
-import { ToolRegistry, wrapTool } from "./tools.js";
+import { ToolRegistry, ToolFnResult, wrapTool } from "./tools.js";
 import assert from "node:assert";
 import { McpServer } from "@fondamenta/mcp-core";
 import { type JsonRpcNotification } from "@fondamenta/mcp-core";
@@ -56,14 +56,15 @@ export class McpLocalServer<C extends McpToolCallContext = {}> implements McpSer
     }
   }
 
-  addTool<I = {}>(name: string, title: string, description: string, fn: (params: I, ctx: C) => McpToolCallResult | Promise<McpToolCallResult>, __type_I?: ReceiveType<I>) {
+  addTool<I = {}>(name: string, title: string, description: string, fn: (params: I, ctx: C) => ToolFnResult | Promise<ToolFnResult>, __type_I?: ReceiveType<I>) {
     assert(!this.#tools.has(name), `Tool with name ${name} already exists`);
     __type_I = resolveReceiveType(__type_I);
     this.#tools.set(name, wrapTool(name, title, description, fn, __type_I));
   }
 
   async onNotification(method: string, params: JsonRpcParams | undefined, ctx: C): Promise<void> {
-
+    // notifications/initialized closes the initialization phase per the
+    // MCP spec. No state to track yet: accepted and ignored.
   }
 
   onRequest(method: 'initialize', params: JsonRpcParams, ctx?: any): Promise<any>;
@@ -101,7 +102,7 @@ export class McpLocalServer<C extends McpToolCallContext = {}> implements McpSer
         resources: {},
       },
       serverInfo: {
-        name: 'My Server',
+        name: 'fondamenta-local-server',
         version: '1.0.0',
       },
     } satisfies McpInitializeResult;

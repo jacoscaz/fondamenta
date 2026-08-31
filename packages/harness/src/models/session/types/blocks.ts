@@ -42,7 +42,7 @@ export interface TextBlock extends BaseBlock {
  */
 export interface ImageBlock extends BaseBlock {
   type: 'image';
-  mime_type: string;
+  mimeType: string;
   data: string;
 }
 

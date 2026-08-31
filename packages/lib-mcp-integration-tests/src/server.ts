@@ -20,7 +20,7 @@ export const registerTestTools = (server: McpLocalServer) => {
   server.addTool<{}>(
     'fail',
     'Fail',
-    'Always throws — used to verify error propagation.',
+    'Always throws — used to verify error propagation as an isError result.',
     async () => {
       throw new Error('deliberate failure');
     },
@@ -31,7 +31,7 @@ export const registerTestTools = (server: McpLocalServer) => {
     'Emits a test notification and returns a text block.',
     async () => {
       server.notify('test/ping', { source: 'ping-tool' });
-      return [{ type: 'text', text: 'pinged' }];
+      return 'pinged';
     },
   );
 };

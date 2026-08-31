@@ -7,7 +7,9 @@ import {
 
 import {
   type McpToolCallResult,
+  type McpContentBlock,
   type McpToolDescriptor,
+  type McpToolFnResult,
 } from "@fondamenta/mcp-core";
 
 import {
@@ -22,10 +24,21 @@ export interface WrappedTool<C extends McpToolCallContext> {
   call(params: any, ctx: C): McpToolCallResult | Promise<McpToolCallResult>;
 }
 
-export const wrapTool = <I, C extends McpToolCallContext = {}>(name: string, title: string, description: string, fn: (params: I, ctx: C) => McpToolCallResult | Promise<McpToolCallResult>, __type_I: Type): WrappedTool<C> => {
+/** Re-exported for callers that imported it from mcp-local. */
+export type ToolFnResult = McpToolFnResult;
+
+export const normalizeToolFnResult = (result: McpToolFnResult): McpContentBlock[] => {
+  if (typeof result === 'string') {
+    return [{ type: 'text', text: result }];
+  }
+  return result;
+};
+
+export const wrapTool = <I, C extends McpToolCallContext = {}>(name: string, title: string, description: string, fn: (params: I, ctx: C) => McpToolFnResult | Promise<McpToolFnResult>, __type_I: Type): WrappedTool<C> => {
   return {
     name,
-    async call(params: any, ctx: C) {
+    async call(params: any, ctx: C): Promise<McpToolCallResult> {
+      // Invalid params are a PROTOCOL error: reject (JSON-RPC error).
       try {
         params = cast<I>(params, undefined, undefined, undefined, __type_I);
       } catch (err) {
@@ -35,17 +48,25 @@ export const wrapTool = <I, C extends McpToolCallContext = {}>(name: string, tit
           throw new Error(`Invalid parameters for tool ${name}: ${errToString(err, true)}`);
         }
       }
+      // Tool execution failure is NOT a protocol error: return an
+      // isError result per the MCP spec.
       try {
-        return await fn(params, ctx);
+        return {
+          content: normalizeToolFnResult(await fn(params, ctx)),
+          isError: false,
+        };
       } catch (err) {
-        throw new Error(`Error calling tool ${name}: ${errToString(err, true)}`);
+        return {
+          content: [{ type: 'text', text: `Error calling tool ${name}: ${errToString(err, true)}` }],
+          isError: true,
+        };
       }
     },
     descriptor: {
       name,
       title,
       description,
-      input_schema: toJsonSchema<I>(__type_I),
+      inputSchema: toJsonSchema<I>(__type_I),
     },
   };
 };

@@ -100,7 +100,7 @@ export const sanitizeForJsonb = (text: string): string =>
 export const normalizeImage = async (
   input: Buffer,
   max_dimension: number = IMAGE_MAX_DIMENSION,
-): Promise<{ mime_type: string; data: string; note: string }> => {
+): Promise<{ mimeType: string; data: string; note: string }> => {
   const image = sharp(input, { failOn: 'error' });
   const meta = await image.metadata();
   const width = meta.width ?? 0;
@@ -134,7 +134,7 @@ export const normalizeImage = async (
   if (animated) notes.push('animated image flattened to first frame');
   const note = notes.length > 0 ? ` (${notes.join('; ')})` : '';
 
-  return { mime_type: 'image/jpeg', data, note };
+  return { mimeType: 'image/jpeg', data, note };
 };
 
 const registerTools = (mcpLocalServer: McpLocalServer<HarnessMcpToolCallContext>) => {
@@ -179,10 +179,10 @@ Usage:
       const kind = force_text ? 'text' : sniffContentType(head_buffer);
 
       if (kind === 'image') {
-        const { mime_type, data, note } = await normalizeImage(await readFile(path), max_dimension);
+        const { mimeType, data, note } = await normalizeImage(await readFile(path), max_dimension);
         return [
           { type: 'text', text: `Image file ${path}${note}:` },
-          { type: 'image', mime_type, data },
+          { type: 'image', mimeType, data },
         ];
       }
       if (kind === null) {

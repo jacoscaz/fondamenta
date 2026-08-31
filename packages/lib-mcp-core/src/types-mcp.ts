@@ -45,18 +45,27 @@ export type McpContentBlock = {
    */
   type: 'image';
   /** MIME type of the encoded image, e.g. `image/jpeg`, `image/webp`. */
-  mime_type: string;
+  mimeType: string;
   /** Base64-encoded image bytes (without data-URL prefix). */
   data: string;
 };
 
-export type McpToolCallResult = (McpContentBlock)[];
+/**
+ * Result of a tools/call request, per the MCP spec: the content blocks
+ * plus an `isError` flag. Tool EXECUTION errors are reported as normal
+ * results with `isError: true`; JSON-RPC error responses are reserved
+ * for PROTOCOL errors (unknown tool, invalid arguments, ...).
+ */
+export interface McpToolCallResult {
+  content: McpContentBlock[];
+  isError: boolean;
+}
 
 export interface McpToolDescriptor {
   name: string;
   title: string;
   description: string;
-  input_schema: any;
+  inputSchema: any;
 }
 
 export interface McpToolListResult {
