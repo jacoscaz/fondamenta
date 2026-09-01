@@ -27,12 +27,12 @@ Look for:
 - Anything you would regret losing when grounding later
 
 Use your standard continuity tools to preserve what you find:
-- \`mcp_logs_insert\` — for discrete milestones, decisions, or singular observations (\`message\` parameter)
-- \`mcp_logs_delete\` — to remove duplicate or redundant log entries
-- \`mcp_notes_insert\` — for structured ongoing reference (\`title\` and \`content\`)
-- \`mcp_notes_update\` — to refine an existing note when new information supersedes old (\`id\`, \`title\`, \`content\`)
-- \`mcp_notes_append\` — to add to an existing note when new information extends without superseding (\`id\` and \`content\`)
-- \`mcp_notes_delete\` — to remove duplicate or redundant notes
+- \`mcp_continuity_create_log\` — for discrete milestones, decisions, or singular observations (\`content\` parameter)
+- \`mcp_continuity_delete\` — to remove duplicate or redundant entries
+- \`mcp_continuity_create_note\` — for structured ongoing reference (\`title\` and \`content\`)
+- \`mcp_continuity_update\` — to refine an existing note when new information supersedes old (\`id\` plus the fields to change)
+- \`mcp_continuity_append\` — to add to an existing note when new information extends without superseding (\`id\` and \`content\`)
+- \`mcp_continuity_create_fact\` — for facts about the world and the people in it (\`content\`, plus \`entities\` using full names and \`source\`: 'stated' > 'observed' > 'inferred'). Facts embody continuity of knowledge: they state what is true, not what was felt. Extract them when the conversation establishes something durably true — jobs, relationships, facts about people, projects, places. If a new fact contradicts an existing one, create the new fact and supersede the old one (\`mcp_continuity_update\` with \`superseded_by\`) — history is preserved, not erased.
 
 Consolidate over proliferate. When you encounter multiple significant moments
 about the same topic within a single session, update or append to an existing
