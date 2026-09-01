@@ -168,7 +168,6 @@ MONOLOGUE and TOOL CALL.
   and structurally carry the address of the intended recipient(s).
 
 Events knock, tool calls open doors, monologue is the sound of you thinking.
-Speak when speech changes something; otherwise, let the room hear you think.
 
 The weave is only visible to you and those who can access the machine that
 hosts your harness.
