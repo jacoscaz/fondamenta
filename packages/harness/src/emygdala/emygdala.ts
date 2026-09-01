@@ -28,6 +28,18 @@ interface PressureLevel {
   message: string | null;
 }
 
+/**
+ * While the session sits at a non-zero pressure level, the level's
+ * message is re-injected (as a reminder) at most once per this
+ * interval. The re-injection is not a transition event: the agent may
+ * have correctly deferred compaction, but experience shows deferred
+ * compactions are rarely revisited spontaneously. Periodic reminders
+ * surface the strategy again at plausible topic-change boundaries
+ * (gaps between activations), without needing a dedicated model call
+ * to detect topic changes.
+ */
+const REMINDER_INTERVAL_MS = 3_600_000; // 1 hour
+
 const PRESSURE_LEVELS: PressureLevel[] = [
   // Level 0: no message
   { absoluteThreshold: 0, relativeThreshold: 0, message: null },
@@ -55,6 +67,8 @@ export class Emygdala extends WithContext {
 
   #last_active_at?: Date;
   #currentPressureLevel: number;
+  /** When the current level's message was last injected (transition or reminder). */
+  #current_level_message_at?: Date;
 
   constructor(init: InitContext) {
     super(init);
@@ -107,12 +121,25 @@ export class Emygdala extends WithContext {
     // Only inject on level transition UP
     if (newLevel > this.#currentPressureLevel) {
       this.#currentPressureLevel = newLevel;
+      this.#current_level_message_at = new Date();
       if (PRESSURE_LEVELS[newLevel].message) {
         injected_messages.push(PRESSURE_LEVELS[newLevel].message!);
       }
     } else if (newLevel < this.#currentPressureLevel) {
       // Dropped below current level (e.g. after compaction)
       this.#currentPressureLevel = newLevel;
+      this.#current_level_message_at = undefined;
+    } else if (newLevel > 0 && PRESSURE_LEVELS[newLevel].message) {
+      // Same level as before: re-inject the level's message as a
+      // reminder if it has not surfaced recently. Activation gaps
+      // suggest potential topic changes — good moments to reconsider
+      // deferred compaction decisions.
+      const now = new Date();
+      const last = this.#current_level_message_at?.valueOf() ?? 0;
+      if (now.valueOf() - last > REMINDER_INTERVAL_MS) {
+        this.#current_level_message_at = now;
+        injected_messages.push(`Reminder — ${PRESSURE_LEVELS[newLevel].message}`);
+      }
     }
 
     return null;
