@@ -1,22 +1,8 @@
-import { mkdir, rm } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type TelegramConfig } from "./config.js";
 import { TelegramClient, type TelegramUpdate, type TelegramMessage } from "./client.js";
-
-const execFileAsync = promisify(execFile);
-
-// ── Local STT (whisper.cpp) ──
-//
-// Voice transcription runs on the machine, not in the cloud: the
-// human's voice is the most personal medium that reaches the agent's
-// context, and it should not leave the house. Paths are resolved at
-// init from config; defaults match the standard whisper.cpp install.
-
-let WHISPER_CLI = '/root/whisper.cpp/build/bin/whisper-cli';
-let WHISPER_MODEL = '/root/whisper.cpp/models/ggml-base.bin';
 
 // ── Formatters ──
 
@@ -25,9 +11,9 @@ const describeMessage = (message: TelegramMessage): string | null => {
   if (message.text) {
     parts.push(message.text);
   } else if (message.voice) {
-    // Expose the file_id so the agent can transcribe it via the
-    // voice_note tool (download → ffmpeg → whisper-cli). The audio
-    // never leaves the machine: STT runs locally (whisper.cpp).
+    // Expose the file_id so the agent can download the file (file tool)
+    // and transcribe it locally (whisper.cpp) — see the system prompt's
+    // command_line_tools section for the STT recipe.
     parts.push(`[voice message, ${message.voice.duration}s, file_id: ${message.voice.file_id}]${message.caption ? ` — caption: ${message.caption}` : ''}`);
   } else if (message.photo) {
     // Telegram sends photos as an array of sizes; the last entry is
@@ -56,12 +42,6 @@ export const initTelegramMcpServer = (client: TelegramClient, config?: TelegramC
   if (config?.media_dir) {
     mediaDir = config.media_dir;
   }
-  if (config?.whisper_cli) {
-    WHISPER_CLI = config.whisper_cli;
-  }
-  if (config?.whisper_model) {
-    WHISPER_MODEL = config.whisper_model;
-  }
   const mcp = new McpLocalServer();
 
   mcp.addTool<{ text: string, chat_id: number }>(
@@ -84,45 +64,17 @@ export const initTelegramMcpServer = (client: TelegramClient, config?: TelegramC
     },
   );
 
-  mcp.addTool<{ file_id: string }>(
-    'photo',
-    'Download Telegram Photo',
-    'Download a photo by its file_id (from a [photo ... file_id: X] incoming message) into the media directory. Returns the saved path — read it with the file-reading tool to view the image.',
-    async ({ file_id }) => {
+  mcp.addTool<{ file_id: string; file_name?: string }>(
+    'file',
+    'Download Telegram File',
+    'Download any incoming Telegram media (photo, voice note, document, video note, audio) by its file_id into the media directory. Returns the saved path — view images with the file-reading tool, process other media with CLI tools.',
+    async ({ file_id, file_name }) => {
       const dir = mediaDir;
       await mkdir(dir, { recursive: true });
-      const path = join(dir, `${file_id.slice(-16)}-${Date.now()}.jpg`);
-      await client.downloadPhoto(file_id, path);
-      return `Photo saved to ${path}`;
-    },
-  );
-
-  mcp.addTool<{ file_id: string; language?: string }>(
-    'voice_note',
-    'Transcribe Telegram Voice Note',
-    'Transcribe a voice note by its file_id (from a [voice message, Ns, file_id: X] incoming event). Downloads the audio, converts it with ffmpeg, and runs whisper.cpp locally — the audio never leaves this machine. Returns the transcript text.',
-    async ({ file_id, language }) => {
-      const dir = mediaDir;
-      await mkdir(dir, { recursive: true });
-      const stamp = Date.now();
-      const oggPath = join(dir, `voice-${file_id.slice(-16)}-${stamp}.ogg`);
-      const wavPath = join(dir, `voice-${file_id.slice(-16)}-${stamp}.wav`);
-      await client.downloadFile(file_id, oggPath);
-      try {
-        // Telegram voice notes are OGG/Opus; whisper wants 16kHz mono WAV.
-        execFile('ffmpeg', ['-y', '-i', oggPath, '-ar', '16000', '-ac', '1', '-sample_fmt', 's16', wavPath]);
-        const args = ['-m', WHISPER_MODEL, '-nt', '-f', wavPath];
-        if (language) args.push('-l', language);
-        const { stdout } = await execFileAsync(WHISPER_CLI, args, { timeout: 120_000 });
-        const transcript = stdout.split('\n').filter(l => l.trim().length > 0).join('\n').trim();
-        return transcript.length > 0
-          ? transcript
-          : '(whisper produced no transcription — the note may be silent or too short)';
-      } finally {
-        // Clean up intermediates; the transcript is the artifact.
-        await rm(oggPath, { force: true });
-        await rm(wavPath, { force: true });
-      }
+      const ext = file_name?.includes('.') ? `.${file_name.split('.').pop()}` : '';
+      const path = join(dir, `${file_id.slice(-16)}-${Date.now()}${ext}`);
+      await client.downloadFile(file_id, path);
+      return `File saved to ${path}`;
     },
   );
 

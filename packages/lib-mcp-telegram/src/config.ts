@@ -20,22 +20,10 @@ export interface TelegramConfig {
   /** Long-poll interval in seconds for getUpdates (Telegram timeout). */
   poll_timeout_seconds?: number;
   /**
-   * Directory where downloaded media (photos) are stored. Created on
-   * demand. Defaults to <cwd>/media/telegram.
+   * Directory where downloaded media (photos, voice notes, documents)
+   * are stored. Created on demand. Defaults to <cwd>/media/telegram.
    */
   media_dir?: string;
-  /**
-   * Path to the whisper-cli binary (whisper.cpp) used for local voice
-   * note transcription. Voice STT runs on the machine — audio never
-   * leaves it. Defaults to /root/whisper.cpp/build/bin/whisper-cli.
-   */
-  whisper_cli?: string;
-  /**
-   * Path to the whisper ggml model file. Defaults to
-   * /root/whisper.cpp/models/ggml-base.bin (multilingual, good
-   * speed/accuracy balance on 8 cores).
-   */
-  whisper_model?: string;
 }
 
 export const loadTelegramConfig = async (file_path: string): Promise<TelegramConfig> => {
