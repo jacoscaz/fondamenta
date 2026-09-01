@@ -131,7 +131,7 @@ export const initTerminalMcpServer = (
         // that shell_exec already returns for blocking commands, and keeps
         // the notification cheap (no screen content in the message).
         const text = `Terminal session ${id} is idle.`;
-        ctx.managers.sessions.injectAutomatedTextMessage(opts.target_session_id, text, true).catch((err) => {
+        ctx.managers.sessions.injectEventMessage(opts.target_session_id, "terminal/idle", text, true).catch((err) => {
           logger.error('failed to notify idle: %s', errToString(err));
         });
       };
@@ -214,13 +214,13 @@ The session ID is no longer valid after this.`,
         timeout,
         () => {
           const text = `Terminal session ${params.id} matched pattern "${params.match}".`;
-          ctx.managers.sessions.injectAutomatedTextMessage(target_session_id, text, true).catch((err) => {
+          ctx.managers.sessions.injectEventMessage(target_session_id, "terminal/waitFor", text, true).catch((err) => {
             logger.error('failed to notify waitFor match: %s', errToString(err));
           });
         },
         () => {
           const text = `Terminal session ${params.id} timed out waiting for pattern "${params.match}" (${timeout}ms).`;
-          ctx.managers.sessions.injectAutomatedTextMessage(target_session_id, text, true).catch((err) => {
+          ctx.managers.sessions.injectEventMessage(target_session_id, "terminal/waitFor", text, true).catch((err) => {
             logger.error('failed to notify waitFor timeout: %s', errToString(err));
           });
         },

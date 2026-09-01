@@ -5,7 +5,7 @@ import { insertSession, selectSessionById } from "../database/tables/sessions.js
 import { type UserMessage, type Message } from "../models/session/types/messages.js";
 import { type TextBlock } from "../models/session/types/blocks.js";
 import assert from "node:assert";
-import { AUTOMATED_MESSAGE_PREFIX } from "../constants.js";
+
 
 export interface SessionManagerEvents extends Record<string, any[]> {
   [key: `session-${number}-message`]: [message: Message];
@@ -90,9 +90,9 @@ export class SessionManager extends WithContext {
     await runner.injectMessage(message, run);
   }
 
-  async injectAutomatedTextMessage(session_id: number, text: string, run: boolean): Promise<void> {
+  async injectEventMessage(session_id: number, event: string, text: string, run: boolean): Promise<void> {
     const runner = this.#ensureRunner(session_id);
-    await runner.injectAutomatedTextMessage(text, run);
+    await runner.injectEventMessage(event, text, run);
   }
 
   async getHistory(session_id: number): Promise<Message[]> {

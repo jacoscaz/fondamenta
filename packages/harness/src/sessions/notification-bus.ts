@@ -44,33 +44,39 @@ export class NotificationBus extends WithContext {
   }
 
   /**
-   * Inject a domain event into the main session as an automated message.
-   * Formatting keeps the payload bounded; structure is delegated to the
-   * emitting server (its params carry whatever it wants the agent to see).
+   * Inject a domain event into the main session. The message lands as
+   * `[event: <method>] <body>` — the typed event format from the
+   * <registers> vocabulary. Formatting keeps the payload bounded;
+   * structure is delegated to the emitting server.
    */
   #injectDomainEvent(serverName: string, notification: { method: string, params?: any }): void {
     const session_id = this._ctx.managers.sessions.main_session_id;
-    const text = this.#formatDomainEvent(serverName, notification);
+    const body = this.#formatEventBody(notification);
     this.#logger.info('injecting event from %s: %s', serverName, notification.method);
-    this._ctx.managers.sessions.injectAutomatedTextMessage(session_id, text, true).catch((err: unknown) => {
+    this._ctx.managers.sessions.injectEventMessage(session_id, notification.method, body, true).catch((err: unknown) => {
       this.#logger.error('event injection failed (%s): %s', serverName, err instanceof Error ? err.message : String(err));
     });
   }
 
-  #formatDomainEvent(serverName: string, notification: { method: string, params?: any }): string {
+  #formatEventBody(notification: { method: string, params?: any }): string {
     const params = notification.params;
-    let body: string;
     if (params === undefined || params === null) {
-      body = '';
-    } else if (typeof params === 'string') {
-      body = params;
-    } else if (typeof params === 'object' && params !== null && params !== undefined && 'text' in params && typeof (params as any).text === 'string' && Object.keys(params).length === 1) {
-      body = (params as { text: string }).text;
-    } else {
-      body = JSON.stringify(params, null, 2);
+      return '';
     }
-    const header = `🔔 Event [${serverName}] ${notification.method}`;
-    return body ? `${header}\n${ellipsis(body, 4_000, '…')}` : header;
+    if (typeof params === 'string') {
+      return ellipsis(params, 4_000, '…');
+    }
+    if (typeof params === 'object' && 'text' in params && typeof (params as any).text === 'string') {
+      const { text, ...rest } = params as { text: string };
+      // Machine-readable fields (chat_id, from_id, ...) ride along
+      // compactly; the human-readable text is the body.
+      const extras = Object.keys(rest);
+      if (extras.length === 0) {
+        return ellipsis(text, 4_000, '…');
+      }
+      return `${ellipsis(text, 4_000, '…')}\n${JSON.stringify(rest)}`;
+    }
+    return ellipsis(JSON.stringify(params, null, 2), 4_000, '…');
   }
 
 }
