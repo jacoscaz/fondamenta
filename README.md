@@ -178,8 +178,8 @@ what language models are trained to be reliable at — and only applies markers
 to agent-facing input, defaulting unprefixed output to the agent's internal
 monologue.
 
-**Persistence as a first-class feature.** The harness persists all messages,
-tool calls, notes, logs. Agents have genuine continuity across restarts.
+**Persistence as a first-class feature.** The harness persists the thread of
+the conversation across compactions and session restarts.
 
 **Boring technologies for minimal mental overheads.** Node.js, PostgreSQL,
 Docker. See [Choose Boring Technology](https://boringtechnology.club).
