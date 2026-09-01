@@ -9,3 +9,4 @@ dumps
 config.json5
 docker-compose.override.yml
 .playwright-cli/
+media/
