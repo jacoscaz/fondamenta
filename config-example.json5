@@ -1,27 +1,76 @@
+// Example configuration for Fondamenta.
+//
 // String values using the "${VAR}" placeholder syntax will be replaced with
-// the referenced environment variable.
+// the referenced environment variable (from .env or the process environment).
+//
+// Structure notes:
+// - The `mail` and `telegram` blocks are OWNED by the @fondamenta/mcp-jmap
+//   and @fondamenta/mcp-telegram packages respectively: their semantics are
+//   defined in those packages' config modules. Runtyped's cast() silently
+//   strips unrecognized keys, so typos in these blocks fail silently —
+//   verify parsed output when debugging.
+// - All I/O happens through MCP servers; there is no built-in web interface.
 {
     tz: "${TZ}",
-    io: {
-        port: 8081,
-        addr: "0.0.0.0",
-        path: '/ws',
-    },
+
     logging: {
-        level: "trace"
+        // "trace" | "debug" | "info" | "warn" | "error"
+        level: "info",
+        // Optional. Directory for the monologue log — the human-facing
+        // mirror of the session stream — and its rotated files.
+        // Defaults to /var/log/fondamenta.
+        // monologue_dir: "/var/log/fondamenta",
     },
+
+    // JMAP mail access (owned by @fondamenta/mcp-jmap). Inbound mail from
+    // allowlisted senders arrives as `mail/arrived` events that activate
+    // the agent.
     mail: {
         // JMAP API endpoint for mail operations.
         api_url: 'https://api.fastmail.com/jmap/api',
         // JMAP session discovery URL.
         session_url: 'https://api.fastmail.com/jmap/session',
-        // API token for authentication. Generate in Fastmail settings.
+        // API token for authentication. Generate in your provider's settings.
         api_token: "${JMAP_API_TOKEN}",
+        // Sender addresses that trigger a mail/arrived notification.
+        // Everything else stays silently readable via the mail tools.
+        // Fail closed: an empty list means no notifications.
+        allowlist: ["someone@example.com"],
+        // How often to poll for new mail, in milliseconds.
+        poll_interval_ms: 120000,
     },
-    webui: {
-        port: 8080,
-        addr: "0.0.0.0",
+
+    // Telegram Bot API integration (owned by @fondamenta/mcp-telegram).
+    // Inbound messages from allowlisted users arrive as `telegram/message`
+    // events that activate the agent. A bot token is obtained from @BotFather.
+    telegram: {
+        api_token: "${TELEGRAM_API_TOKEN}",
+        // Telegram user ids allowed to interact with the bot. Bots are
+        // public by design; without this filter anyone finding the bot can
+        // inject content into the agent's context. Fail closed: an empty
+        // list means nothing is injected.
+        allowed_user_ids: [123456789],
+        // Long-poll interval in seconds for getUpdates (Telegram timeout).
+        poll_timeout_seconds: 30,
+        // Optional. Directory where downloaded media (photos) are stored.
+        // Defaults to <cwd>/media/telegram.
+        // media_dir: "/var/lib/fondamenta/media/telegram",
     },
+
+    // Heartbeat: keeps the agent present between prompts. The harness ticks
+    // on `interval`; a heartbeat-driven activation fires only if at least
+    // `activation_interval_ms` have passed since the last activation — so
+    // the effective rhythm is "N time of quiet", not N of clock time.
+    // `quiet_after_ms` suppresses synthetic activations right after ANY
+    // activation, keeping heartbeats out of the middle of ongoing work.
+    heartbeat: {
+        interval: 30000, // cheap internal poll cadence (ms)
+        // Minimum quiet time before a heartbeat-driven activation fires.
+        // 2 hours is a reasonable starting presence rhythm.
+        activation_interval_ms: 7200000,
+        quiet_after_ms: 600000,
+    },
+
     postgres: {
         port: "${POSTGRES_PORT}",
         hostname: "${POSTGRES_HOSTNAME}",
@@ -29,25 +78,35 @@
         username: "${POSTGRES_USERNAME}",
         password: "${POSTGRES_PASSWORD}",
     },
+
     models: {
-        // Conversational session model used to generate responses to user
-        // queries. Use models optimized for agentic workflows if possible.
+        // Conversational session model: generates all agent activations.
+        // Use models optimized for agentic workflows if possible.
         session: {
-            // For now, the only supported adapter is 'openai'.
+            // For now, the only supported adapter is 'openai'
+            // (any OpenAI-compatible inference provider works).
             adapter: 'openai',
             options: {
                 model: "deepseek/deepseek-v4-pro",
-                api_key: "${TENSORIX_API_KEY}",
+                api_key: "${OPENROUTER_API_KEY}",
                 // Optional. Use to override the default base URL when making requests
                 // to OpenAI-compatible inference providers.
-                base_url: 'https://api.tensorix.ai/v1',
+                base_url: 'https://openrouter.ai/api/v1',
+                // Optional. Reasoning effort for reasoning-capable models.
+                // reasoning: { effort: 'high' },
                 // Extra options passed to the inference provider at query time.
                 // Use to pass provider-specific options such as `provider` selection
                 // criteria for OpenRouter.
                 extras: {},
             },
+            // Output token budget per activation.
             max_output_size: 20000,
+            // Context window of the model.
             max_context_size: 1000000,
+            // Input modalities the model supports. Enable images to let the
+            // agent see photos (e.g. those downloaded via the telegram
+            // package's photo tool).
+            // modalities: { images: true },
         },
         // Embedding model used to compute vector representations of
         // continuity records and similarity queries. Use a model that
@@ -58,12 +117,7 @@
             options: {
                 model: 'qwen/qwen3-embedding-8b',
                 api_key: "${OPENROUTER_API_KEY}",
-                // Optional. Use to override the default base URL when making requests
-                // to OpenAI-compatible inference providers.
                 base_url: 'https://openrouter.ai/api/v1',
-                // Extra options passed to the inference provider at query time.
-                // Use to pass provider-specific options such as `provider` selection
-                // criteria for OpenRouter. Optional.
                 extras: {},
             },
         },
