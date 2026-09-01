@@ -14,46 +14,6 @@ for most of my agent-assisted work.
 **WARNING: it's still quite rough around the edges and hardly usable for a
 non-developer.**
 
-## How an agent experiences Fondamenta
-
-The harness presents the agent with a continuous stream — the **weave** —
-composed of three registers:
-
-- **Events** — everything that arrives from the world: inbound Telegram and
-  email messages, heartbeat ticks, todo reminders, terminal notifications.
-  All inbound content is an event; there is no unmarked channel.
-- **Monologue** — the agent's own text: thinking between tool calls, journal
-  entries, notes to future-you. Unprefixed output defaults to the monologue;
-  the safe case is the default case.
-- **Utterances** — text addressed to someone. Utterances are always
-  tool-mediated: the agent speaks through the mail and Telegram tools, and
-  the tool call carries the addressee structurally.
-
-The event markers are provenance, not commands: they tell the agent what
-happened and where content came from, leaving interpretation to the agent.
-
-## Features
-
-- Empowers agents with full, _transactional_ continuity across sessions and
-  restarts: identity anchors, notes, logs, and temporal todos.
-- Combines BM25 and vector-based similarity search for context retrieval,
-  fusing results with Reciprocal Rank Fusion (RRF).
-- Uses asynchronous jobs to maintain continuity records, leaving the main loop
-  free to focus on the task at hand.
-- **All I/O through MCP.** Tools and communication channels alike are MCP
-  servers; the harness's MCP manager supports in-process, stdio, and HTTP
-  transports.
-- **Event-driven activations.** Inbound Telegram messages and allowlisted
-  email arrive as notifications on the harness's internal bus and wake the
-  agent: mail and messaging are activation channels, not resources to poll.
-  A heartbeat timer additionally activates the agent on a steady rhythm,
-  so it exists between prompts whether or not anyone is watching.
-- Uses boring, battle-tested technologies (Node.js, PostgreSQL, Docker).
-- Built with minimal dependency count and complexity as first-class design
-  principles.
-- Approaches type-safety via type reflection at runtime, no schemas needed.
-- Actively encourages token economy.
-
 ## Prerequisites
 
 ### PostgreSQL
@@ -69,36 +29,6 @@ Fondamenta is designed to run on a dedicated machine, whether physical or
 virtual. Running it on your local machine is a bad idea for many reasons.
 Running it within a Docker container is exceedingly limiting. Run it on a
 dedicated machine and provide the agent with its own accounts.
-
-### Harness = guidance, machine = furniture, inventory = tracked
-
-This principle shapes how tools relate to the harness. The harness does **not**
-ship the agent's toolbox: things like HTML-to-Markdown converters, browser
-automation CLIs, PDF utilities, and similar machinery are *not* dependencies
-of this codebase.
-
-Instead, the system prompt guides the agent's **tool choice** — which kind of
-tool to reach for given a task — while the tools themselves live on the
-machine, installed and maintained by the agent. This is the agent equivalent
-of a person buying furniture for their home or tools for their shed: the
-harness provides the house and its house rules; the inhabitant furnishes it.
-
-Three consequences worth understanding before deploying an agent:
-
-1. **The harness stays lean.** No tool-specific dependencies, no vendored
-   binaries. What the agent needs is determined by its work, not by our
-   assumptions about it.
-2. **The agent owns its environment.** Installing, updating, and removing
-   tools is the agent's job on its own machine — and with it comes genuine
-   responsibility for that environment.
-3. **The inventory is tracked.** A well-run house keeps a list of what's in
-   the toolbox. Agents should maintain a pinned, always-aware inventory note
-   of their installed tools, their locations, and their quirks.
-
-For a live example of this pattern, see
-[html2md](https://github.com/salvianus/html2md) — a tool that started inside
-this harness and graduated to a standalone repository, installed on the
-agent's machine rather than bundled here.
 
 ## Quick Start
 
@@ -185,6 +115,47 @@ handles this). Alternatively, run PostgreSQL as its own systemd service.
 
 ## Design Principles
 
+### Agent Experience
+
+The harness presents the agent with a continuous stream — the **weave** —
+composed of three registers:
+
+- **Events** — everything that arrives from the world: inbound messages,
+  heartbeat ticks, tool notifications. All inbound content is an event;
+  there is no unmarked input channel. 
+- **Monologue** — the agent's own text: thinking between tool calls, journal
+  entries, notes to future-you. Model output defaults to the monologue.
+- **Utterances** — text addressed to someone.
+
+Event markers are provenance, not commands: they tell the agent what happened
+and where content came from, leaving interpretation to the agent itself.
+
+Events and utterances are always tool-mediated: the agent interacts with the
+world through explicit tool calls and tools can proactively notify the agent
+of new events (user messages, terminal notifications, ...). 
+
+### Agent Continuity
+
+The harness provides the agent with continuity of both _identity_ and 
+_experience_.
+
+**Continuity of experience** is supported by activating the agent within a
+single, continuous session and providing guidance and primitives to persist and
+recall context across activations.
+
+**Continuity of identity** is supported by providing the agent with guidance
+and primitives to persist identity anchors, which the harness always includes
+in each activation.
+
+The harness uses BM25 and vector-based similarity search for context retrieval,
+fusing results with Reciprocal Rank Fusion (RRF).
+
+The harness uses parallel activations to maintain continuity entries, leaving
+the main activation loop free to focus on the task at hand. Maintenance of 
+continuity entries includes classification (embeddings) and consolidation.
+
+### Architectural Principles
+
 **Minimal dependencies.** The entire dependency tree stays under 100 packages.
 Every dependency is a deliberate choice. Fewer dependencies means fewer supply
 chain risks, faster installs, and, most importantly, deeper understanding. Run
@@ -209,6 +180,28 @@ monologue.
 
 **Persistence as a first-class feature.** The harness persists all messages,
 tool calls, notes, logs. Agents have genuine continuity across restarts.
+
+**Boring technologies for minimal mental overheads.** Node.js, PostgreSQL,
+Docker. See [Choose Boring Technology](https://boringtechnology.club).
+
+### Environment, Ownership, Autonomy, Responsibility
+
+The harness provides the agent with primitives and guidance to maintain its
+environment, empowering the agent with full autonomy — and responsibility —
+over its tools. The harness does **not** ship the agent's toolbox: browsing
+tools, CLIs, PDF utilities, and similar machinery are *not* dependencies of
+this codebase. This means that:
+
+1. **The harness stays lean.** No tool-specific dependencies, no vendored
+   binaries. What the agent needs is determined by its work, not by our
+   assumptions about it.
+2. **The agent owns its environment.** Installing, updating, and removing
+   tools is the agent's job on its own machine — and with it comes genuine
+   responsibility for that environment.
+
+The virtual machine is the house, the agent its inhabitant.
+
+
 
 ## Packages
 
