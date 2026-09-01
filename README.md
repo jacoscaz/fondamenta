@@ -1,7 +1,7 @@
 # Fondamenta
 
 An agentic harness for instantiating autonomous agents with persistent memory,
-tool integration, and language model coordination.
+first-class communication channels, and language model coordination.
 
 ## Status
 
@@ -14,19 +14,44 @@ for most of my agent-assisted work.
 **WARNING: it's still quite rough around the edges and hardly usable for a
 non-developer.**
 
+## How an agent experiences Fondamenta
+
+The harness presents the agent with a continuous stream — the **weave** —
+composed of three registers:
+
+- **Events** — everything that arrives from the world: inbound Telegram and
+  email messages, heartbeat ticks, todo reminders, terminal notifications.
+  All inbound content is an event; there is no unmarked channel.
+- **Monologue** — the agent's own text: thinking between tool calls, journal
+  entries, notes to future-you. Unprefixed output defaults to the monologue;
+  the safe case is the default case.
+- **Utterances** — text addressed to someone. Utterances are always
+  tool-mediated: the agent speaks through the mail and Telegram tools, and
+  the tool call carries the addressee structurally.
+
+The event markers are provenance, not commands: they tell the agent what
+happened and where content came from, leaving interpretation to the agent.
+
 ## Features
 
 - Empowers agents with full, _transactional_ continuity across sessions and
-  restarts.
+  restarts: identity anchors, notes, logs, and temporal todos.
 - Combines BM25 and vector-based similarity search for context retrieval,
   fusing results with Reciprocal Rank Fusion (RRF).
 - Uses asynchronous jobs to maintain continuity records, leaving the main loop
   free to focus on the task at hand.
+- **All I/O through MCP.** Tools and communication channels alike are MCP
+  servers; the harness's MCP manager supports in-process, stdio, and HTTP
+  transports.
+- **Event-driven activations.** Inbound Telegram messages and allowlisted
+  email arrive as notifications on the harness's internal bus and wake the
+  agent: mail and messaging are activation channels, not resources to poll.
+  A heartbeat timer additionally activates the agent on a steady rhythm,
+  so it exists between prompts whether or not anyone is watching.
 - Uses boring, battle-tested technologies (Node.js, PostgreSQL, Docker).
 - Built with minimal dependency count and complexity as first-class design
   principles.
 - Approaches type-safety via type reflection at runtime, no schemas needed.
-- Ships with a no-build web interface.
 - Actively encourages token economy.
 
 ## Prerequisites
@@ -162,9 +187,11 @@ handles this). Alternatively, run PostgreSQL as its own systemd service.
 
 **Minimal dependencies.** The entire dependency tree — direct, indirect, and dev — stays under 100 packages. Every dependency is a deliberate choice. Fewer dependencies means fewer supply chain risks, faster installs, less code I don't control and, most importantly, deeper understanding. Run `npm ls -a -p | wc -l` to verify (currently 53). The count of runtime dependencies - direct and indirect - currently sits at 31 packages.
 
-**Modularity through separation.** Each concern is isolated: the MCP protocol is separate from transport; tools are separate servers; utilities have no framework dependencies. This makes the codebase composable and independently testable.
+**Modularity through separation.** Each concern is isolated: the MCP protocol is separate from transport; tools are separate servers; communication channels (mail, Telegram) are separate, package-owned MCP servers; utilities have no framework dependencies. This makes the codebase composable and independently testable.
 
 **Type-driven tool contracts.** [Runtyped](https://github.com/runtyped/runtyped) provides runtime type reflection. Tool inputs are plain TypeScript interfaces; JSON Schemas are derived automatically. Types are the source of truth; no manual schema maintenance.
+
+**Substrate-aligned structure.** The harness routes output through tool calls — what language models are trained to be reliable at — and applies in-band markers only to agent-facing input, defaulting unprefixed output to the agent's monologue. Structure must survive the boundary between what the model is and how the system runs; requiring output-format discipline from the substrate is a design failure (this was learned the hard way, twice).
 
 **Persistence as a first-class feature.** The harness persists all messages, tool calls, notes, logs. Agents have genuine continuity across restarts, and their full history is inspectable.
 
@@ -174,17 +201,25 @@ The codebase is organized as an npm monorepo. Packages live under `/packages` an
 
 ### Core Framework
 
-- **[`@fondamenta/harness`](packages/harness/README.md)** — The main agent execution engine. Orchestrates sessions, manages MCP servers, persists state to the database, and drives the conversation loop with LLMs.
+- **[`@fondamenta/harness`](packages/harness/README.md)** — The main agent execution engine. Orchestrates sessions, manages MCP servers, persists state to the database, and drives the activation loop with LLMs.
 
 ### Protocol & Transport
 
 - **[`@fondamenta/mcp-core`](packages/lib-mcp-core/README.md)** — Type definitions for the MCP (Model Context Protocol). No implementation—just the protocol contract.
 - **[`@fondamenta/mcp-local`](packages/lib-mcp-local/README.md)** — MCP client and server using a custom pass-through transport for in-process communication.
+- **[`@fondamenta/mcp-stdio-client`](packages/lib-mcp-stdio-client/README.md)** — MCP and JSON-RPC client over a child process's stdio.
+- **[`@fondamenta/mcp-stdio-server`](packages/lib-mcp-stdio-server/README.md)** — Serve any MCP server over stdio.
 - **[`@fondamenta/mcp-http-client`](packages/lib-mcp-http-client/README.md)** — MCP client using the Streaming HTTP transport (JSONRPC 2.0 over HTTP+SSE).
 - **[`@fondamenta/mcp-http-server`](packages/lib-mcp-http-server/README.md)** — MCP server using the Streaming HTTP transport (JSONRPC 2.0 over HTTP+SSE).
 
-### Utilities & Extensions
+### Communication Channels
 
+- **[`@fondamenta/mcp-jmap`](packages/lib-mcp-jmap/README.md)** — Mail via the JMAP protocol: inbox, read, send, and push-style `mail/arrived` notifications for allowlisted senders.
+- **[`@fondamenta/mcp-telegram`](packages/lib-mcp-telegram/README.md)** — Two-way Telegram Bot API integration: `send`/`photo` tools and inbound `telegram/message` events from an allowlisted user set.
+
+### Testing & Utilities
+
+- **[`@fondamenta/mcp-integration-tests`](packages/lib-mcp-integration-tests/README.md)** — Transport-agnostic integration suite verifying behavioral equivalence across MCP transports.
 - **[`@fondamenta/utils`](packages/lib-utils/README.md)** — Common async utilities (queues, buffering, type guards).
 
 ## About
