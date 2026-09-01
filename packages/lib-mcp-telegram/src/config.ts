@@ -19,6 +19,11 @@ export interface TelegramConfig {
   allowed_user_ids: number[];
   /** Long-poll interval in seconds for getUpdates (Telegram timeout). */
   poll_timeout_seconds?: number;
+  /**
+   * Directory where downloaded media (photos) are stored. Created on
+   * demand. Defaults to <cwd>/media/telegram.
+   */
+  media_dir?: string;
 }
 
 export const loadTelegramConfig = async (file_path: string): Promise<TelegramConfig> => {
