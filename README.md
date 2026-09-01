@@ -159,9 +159,7 @@ continuity entries includes classification (embeddings) and consolidation.
 **Minimal dependencies.** The entire dependency tree stays under 100 packages.
 Every dependency is a deliberate choice. Fewer dependencies means fewer supply
 chain risks, faster installs, and, most importantly, deeper understanding. Run
-`npm ls -a -p | wc -l` to verify. Currently, total dependency count (including
-indirect dependencies) sits at 46 runtime dependencies and 67 dependencies in
-total.
+`npm ls -a -p | wc -l` to verify.
 
 **Modularity through separation.** Each concern is isolated: the MCP protocol
 is separate from MCP transports; tools are separate servers; communication
