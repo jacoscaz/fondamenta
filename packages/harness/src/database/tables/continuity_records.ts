@@ -14,7 +14,7 @@ import { rrfFuseResults } from "@fondamenta/utils";
 
 // ── Schema types ──
 
-export type ContinuityRecordType = 'log' | 'memory' | 'note' | 'document' | 'segment';
+export type ContinuityRecordType = 'log' | 'memory' | 'note' | 'document' | 'segment' | 'fact';
 
 export interface ContinuityRecord {
   id: GeneratedAlways<number>;
@@ -25,6 +25,14 @@ export interface ContinuityRecord {
   title: string | null;
   content: string;
   embedding: number[] | null;
+  // Fact semantics (nullable: a record is a fact only when entities is set).
+  // Facts embody continuity of knowledge: authored/resolved by the distiller,
+  // queried by the agent. Superseded facts stay in the store — history is
+  // a convention, not a schema rule.
+  entities: string[] | null;
+  superseded_by: number | null;
+  superseded_at: Date | null;
+  source: string | null;
   created_at: Date;
   updated_at: Date | null;
   deleted_at: Date | null;
@@ -168,6 +176,11 @@ export interface InsertRecordOpts {
   title?: string;
   content: string;
   embedding?: number[];
+  // Fact semantics
+  entities?: string[];
+  superseded_by?: number;
+  superseded_at?: Date;
+  source?: string;
 }
 
 export const insertRecord = async (
@@ -184,6 +197,10 @@ export const insertRecord = async (
       title: opts.title,
       content: opts.content,
       embedding: Array.isArray(opts.embedding) ? sqlEmbeddingArray(opts.embedding) : opts.embedding,
+      entities: opts.entities,
+      superseded_by: opts.superseded_by,
+      superseded_at: opts.superseded_at,
+      source: opts.source,
       created_at: now,
       updated_at: now,
     })
@@ -202,6 +219,11 @@ export interface UpdateRecordOpts {
   done_at?: Date | null;
   pinned_at?: Date | null;
   pinned_by?: 'agent' | 'distiller' | null;
+  // Fact semantics
+  entities?: string[] | null;
+  superseded_by?: number | null;
+  superseded_at?: Date | null;
+  source?: string | null;
 }
 
 /** Options for querying todo-like records (records with due_at set, not done). */
