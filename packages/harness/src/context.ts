@@ -12,7 +12,7 @@ import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
-import { type IOManager } from "./io/manager.js";
+
 import { type RootMcpManager } from "./mcp-manager/manager.js";
 import { type ModelManager } from "./models/manager.js";
 
@@ -75,7 +75,6 @@ export interface CompleteContext {
     bus: NotificationBus;
   };
   managers: {
-    io: IOManager;
     mcp: RootMcpManager;
     models: ModelManager;
     prompts: PromptManager;
