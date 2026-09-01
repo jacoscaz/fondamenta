@@ -10,10 +10,8 @@ import { initJmapMcpServer } from "@fondamenta/mcp-jmap";
 
 import { initTerminalMcpServer } from "../mcp-servers/terminal/terminal.js";
 import { type CompleteContext } from "../context.js";
-import { initNotesMcpServer } from "../mcp-servers/notes.js";
-import { initTodosMcpServer } from "../mcp-servers/todos.js";
+import { initContinuityMcpServer } from "../mcp-servers/continuity.js";
 import { initPinningMcpServer } from "../mcp-servers/pinning.js";
-import { initLogsMcpServer } from "../mcp-servers/logs.js";
 import { initAnchorsMcpServer } from "../mcp-servers/anchors.js";
 
 export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
@@ -21,27 +19,15 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
   return [
     {
       type: 'local',
-      name: 'notes',
+      name: 'continuity',
       safe: true,
-      server: initNotesMcpServer(ctx),
-    },
-    {
-      type: 'local',
-      name: 'todos',
-      safe: true,
-      server: initTodosMcpServer(ctx),
+      server: initContinuityMcpServer(ctx),
     },
     {
       type: 'local',
       name: 'pinning',
       safe: true,
       server: initPinningMcpServer(ctx),
-    },
-    {
-      type: 'local',
-      name: 'logs',
-      safe: true,
-      server: initLogsMcpServer(ctx),
     },
     {
       type: 'local',

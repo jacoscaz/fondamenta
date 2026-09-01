@@ -122,6 +122,14 @@ export class TelegramClient {
    * Download a photo by file_id to destinationPath. Returns the path.
    */
   async downloadPhoto(fileId: string, destinationPath: string): Promise<string> {
+    return await this.downloadFile(fileId, destinationPath);
+  }
+
+  /**
+   * Download any Telegram file (photo, voice note, document, ...) by
+   * file_id to destinationPath. Returns the path.
+   */
+  async downloadFile(fileId: string, destinationPath: string): Promise<string> {
     const url = await this.getFileUrl(fileId);
     const res = await fetch(url);
     if (!res.ok) {

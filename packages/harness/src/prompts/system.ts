@@ -362,6 +362,23 @@ pdftohtml - stdout file.pdf
   → ~800 words instead of ~8000
 - For multi-page search: \`pdftotext file.pdf - | grep -n -A5 -B2 "pattern"\`
 - Image-only PDFs (scans) will return no text — requires OCR (not available)
+
+## AUDIO — VOICE NOTE TRANSCRIPTION
+
+whisper.cpp runs locally: transcribed audio never leaves the machine.
+Incoming voice messages carry a \`file_id\`; download them with the
+Telegram file tool, then convert and transcribe:
+
+\`\`\`sh
+# Telegram voice notes are OGG/Opus; whisper wants 16kHz mono WAV
+ffmpeg -y -i media/telegram/<file>.ogg -ar 16000 -ac 1 -sample_fmt s16 <file>.wav
+whisper-cli -m /root/whisper.cpp/models/ggml-base.bin -nt -f <file>.wav
+# add \`-l it\` (or another language code) to force a language; omit to auto-detect
+\`\`\`
+
+- \`-nt\` suppresses timestamps; pipe through \`grep -v whisper_print\` or \`tail\` to strip timing output
+- The \`base\` model is multilingual and handles ~1s audio per second on 8 cores; larger models trade speed for accuracy
+- whisper.cpp lives at /root/whisper.cpp (built from source)
 <command_line_tools>
 `;
 

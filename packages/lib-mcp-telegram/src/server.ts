@@ -11,7 +11,10 @@ const describeMessage = (message: TelegramMessage): string | null => {
   if (message.text) {
     parts.push(message.text);
   } else if (message.voice) {
-    parts.push(`[voice message, ${message.voice.duration}s — transcription not yet supported]`);
+    // Expose the file_id so the agent can download the file (file tool)
+    // and transcribe it locally (whisper.cpp) — see the system prompt's
+    // command_line_tools section for the STT recipe.
+    parts.push(`[voice message, ${message.voice.duration}s, file_id: ${message.voice.file_id}]${message.caption ? ` — caption: ${message.caption}` : ''}`);
   } else if (message.photo) {
     // Telegram sends photos as an array of sizes; the last entry is
     // the largest. Expose its file_id so the agent can download it.
@@ -61,16 +64,17 @@ export const initTelegramMcpServer = (client: TelegramClient, config?: TelegramC
     },
   );
 
-  mcp.addTool<{ file_id: string }>(
-    'photo',
-    'Download Telegram Photo',
-    'Download a photo by its file_id (from a [photo ... file_id: X] incoming message) into the media directory. Returns the saved path — read it with the file-reading tool to view the image.',
-    async ({ file_id }) => {
+  mcp.addTool<{ file_id: string; file_name?: string }>(
+    'file',
+    'Download Telegram File',
+    'Download any incoming Telegram media (photo, voice note, document, video note, audio) by its file_id into the media directory. Returns the saved path — view images with the file-reading tool, process other media with CLI tools.',
+    async ({ file_id, file_name }) => {
       const dir = mediaDir;
       await mkdir(dir, { recursive: true });
-      const path = join(dir, `${file_id.slice(-16)}-${Date.now()}.jpg`);
-      await client.downloadPhoto(file_id, path);
-      return `Photo saved to ${path}`;
+      const ext = file_name?.includes('.') ? `.${file_name.split('.').pop()}` : '';
+      const path = join(dir, `${file_id.slice(-16)}-${Date.now()}${ext}`);
+      await client.downloadFile(file_id, path);
+      return `File saved to ${path}`;
     },
   );
 
