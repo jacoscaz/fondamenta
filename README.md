@@ -181,6 +181,10 @@ monologue.
 **Persistence as a first-class feature.** The harness persists the thread of
 the conversation across compactions and session restarts.
 
+**Token economy as a first-class feature.** The harness actively encourages the
+agent to adopt strategies that minimize token usage, both within individual
+activations and across the conversation thread.
+
 **Boring technologies for minimal mental overheads.** Node.js, PostgreSQL,
 Docker. See [Choose Boring Technology](https://boringtechnology.club).
 
