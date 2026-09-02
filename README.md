@@ -123,8 +123,10 @@ composed of three registers:
 - **Events** — everything that arrives from the world: inbound messages,
   heartbeat ticks, tool notifications. All inbound content is an event;
   there is no unmarked input channel. 
+
 - **Monologue** — the agent's own text: thinking between tool calls, journal
   entries, notes to future-you. Model output defaults to the monologue.
+
 - **Utterances** — text addressed to someone.
 
 Event markers are provenance, not commands: they tell the agent what happened
@@ -137,13 +139,13 @@ of new events (user messages, terminal notifications, ...).
 ### Agent Continuity
 
 The harness provides the agent with continuity of both _identity_ and 
-_experience_.
+_experience_:
 
-**Continuity of experience** is supported by activating the agent within a
+- **Continuity of experience** is supported by activating the agent within a
 single, continuous session and providing guidance and primitives to persist and
 recall context across activations.
 
-**Continuity of identity** is supported by providing the agent with guidance
+- **Continuity of identity** is supported by providing the agent with guidance
 and primitives to persist identity anchors, which the harness always includes
 in each activation.
 
@@ -156,34 +158,34 @@ continuity entries includes classification (embeddings) and consolidation.
 
 ### Architectural Principles
 
-**Minimal dependencies.** The entire dependency tree stays under 100 packages.
+- **Minimal dependencies.** The entire dependency tree stays under 100 packages.
 Every dependency is a deliberate choice. Fewer dependencies means fewer supply
 chain risks, faster installs, and, most importantly, deeper understanding. Run
 `npm ls -a -p | wc -l` to verify.
 
-**Modularity through separation.** Each concern is isolated: the MCP protocol
+- **Modularity through separation.** Each concern is isolated: the MCP protocol
 is separate from MCP transports; tools are separate servers; communication
 channels (mail, Telegram) are separate, package-owned MCP servers; utilities
 have no framework dependencies. This makes the codebase composable and
 independently testable.
 
-**Type-driven tool contracts.** [Runtyped](https://github.com/runtyped/runtyped) 
+- **Type-driven tool contracts.** [Runtyped](https://github.com/runtyped/runtyped) 
 provides runtime type reflection. Tool inputs are plain TypeScript interfaces;
 JSON Schemas are derived automatically. Types are the source of truth.
 
-**Substrate-aligned structure.** The harness routes output through tool calls —
+- **Substrate-aligned structure.** The harness routes output through tool calls —
 what language models are trained to be reliable at — and only applies markers
 to agent-facing input, defaulting unprefixed output to the agent's internal
 monologue.
 
-**Persistence as a first-class feature.** The harness persists the thread of
+- **Persistence as a first-class feature.** The harness persists the thread of
 the conversation across compactions and session restarts.
 
-**Token economy as a first-class feature.** The harness actively encourages the
+- **Token economy as a first-class feature.** The harness actively encourages the
 agent to adopt strategies that minimize token usage, both within individual
 activations and across the conversation thread.
 
-**Boring technologies for minimal mental overheads.** Node.js, PostgreSQL,
+- **Boring technologies for minimal mental overheads.** Node.js, PostgreSQL,
 Docker. See [Choose Boring Technology](https://boringtechnology.club).
 
 ### Environment, Ownership, Autonomy, Responsibility
@@ -197,13 +199,12 @@ this codebase. This means that:
 1. **The harness stays lean.** No tool-specific dependencies, no vendored
    binaries. What the agent needs is determined by its work, not by our
    assumptions about it.
+
 2. **The agent owns its environment.** Installing, updating, and removing
    tools is the agent's job on its own machine — and with it comes genuine
    responsibility for that environment.
 
 The virtual machine is the house, the agent its inhabitant.
-
-
 
 ## Packages
 
