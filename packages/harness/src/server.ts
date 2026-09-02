@@ -99,26 +99,20 @@ const complete_context: CompleteContext = {
 
 await complete_context.managers.models.initialize();
 await complete_context.managers.sessions.initialize();
-await complete_context.managers.mcp.initialize();
-await complete_context.emygdala.initialize();
-await complete_context.distiller.initialize(300_000);
-await complete_context.embedder.initialize(60_000);
-await complete_context.notifiers.todo.initialize(60_000);
 
 // Transcription MCP server (2026-09-02, refactor per Jacopo): the
 // transcription capability is an MCP server, not a dedicated pipeline
 // class. It registers as a bus subscriber for audio/available (the
 // automatic path) and exposes mcp_transcription_transcribe (the
-// manual path). Registration happens after model init so config
-// presence decides whether the server exists at all.
+// manual path). Created BEFORE mcp.initialize() so the descriptors
+// see it; gated on config presence.
 if (config.models.transcription) {
   const transcription_server = initTranscriptionMcpServer(complete_context);
   complete_context.notifiers.transcription_server = transcription_server;
   // Subscription face: the bus delivers audio/available payloads to
   // the server's own onNotification (client→server direction, local
-  // transport). Tool face is exposed via the MCP descriptors. Emission
-  // face: the server's notify() flows through the manager's routing
-  // back to the bus like every other server.
+  // transport). Emission face: the server's notify() flows through
+  // the manager's routing back to the bus like every other server.
   complete_context.notifiers.bus.subscribe('audio/available', {
     name: 'transcription',
     onNotification: (method, params) => transcription_server.onNotification(method, params as JsonRpcParams, {} as never),
@@ -127,6 +121,12 @@ if (config.models.transcription) {
 } else {
   logger.info('no transcription model configured — audio notifications discarded at the bus');
 }
+
+await complete_context.managers.mcp.initialize();
+await complete_context.emygdala.initialize();
+await complete_context.distiller.initialize(300_000);
+await complete_context.embedder.initialize(60_000);
+await complete_context.notifiers.todo.initialize(60_000);
 
 // Resolve the main session and ensure its runner is alive
 const { main_session_id } = complete_context.managers.sessions;
