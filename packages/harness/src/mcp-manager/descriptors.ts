@@ -13,6 +13,7 @@ import { type CompleteContext } from "../context.js";
 import { initContinuityMcpServer } from "../mcp-servers/continuity.js";
 import { initPinningMcpServer } from "../mcp-servers/pinning.js";
 import { initAnchorsMcpServer } from "../mcp-servers/anchors.js";
+import { initTranscriptionMcpServer } from "../mcp-servers/transcription.js";
 
 export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
 
@@ -78,6 +79,18 @@ export const getMcpServers = (ctx: CompleteContext): McpServer[] => {
       // Same ownership pattern as mail (server.ts's startTelegramServer).
       server: ctx.notifiers.telegram_server,
     },
+    ...(ctx.notifiers.transcription_server ? [{
+      type: 'local' as const,
+      name: 'transcription',
+      safe: true,
+      // Transcription MCP server (2026-09-02): one server, two faces —
+      // mcp_transcription_transcribe (manual) + audio/available
+      // subscription (automatic). Created in server.ts after model
+      // init; this descriptor only exposes the tools. Config-gated:
+      // absent without a transcription model. safe: results are
+      // produced by the harness itself.
+      server: ctx.notifiers.transcription_server,
+    }] : []),
     {
       type: 'local',
       name: 'terminal',

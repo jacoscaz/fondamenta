@@ -12,9 +12,10 @@ import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
 import { TodoNotifier } from "./sessions/todo-scheduler.js";
 import { NotificationBus } from "./sessions/notification-bus.js";
-import { TranscriptionPipeline } from "./sessions/transcription-pipeline.js";
+import { initTranscriptionMcpServer } from "./mcp-servers/transcription.js";
 import { startMailServer } from "@fondamenta/mcp-jmap";
 import { startTelegramServer } from "@fondamenta/mcp-telegram";
+import { type JsonRpcParams } from "@fondamenta/mcp-core";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -104,14 +105,25 @@ await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
 await complete_context.notifiers.todo.initialize(60_000);
 
-// Transcription pipeline (2026-09-02): preprocesses audio/available
-// notifications into transcript/ready (or processing/error) events.
-// Registered on the bus after model init so config presence decides
-// whether the pipeline exists at all.
+// Transcription MCP server (2026-09-02, refactor per Jacopo): the
+// transcription capability is an MCP server, not a dedicated pipeline
+// class. It registers as a bus subscriber for audio/available (the
+// automatic path) and exposes mcp_transcription_transcribe (the
+// manual path). Registration happens after model init so config
+// presence decides whether the server exists at all.
 if (config.models.transcription) {
-  const pipeline = new TranscriptionPipeline(init_context);
-  complete_context.notifiers.bus.setTranscriptionPipeline(pipeline);
-  logger.info('transcription pipeline active (%s @ %s)', config.models.transcription.options.model, config.models.transcription.options.base_url ?? 'openai-default');
+  const transcription_server = initTranscriptionMcpServer(complete_context);
+  complete_context.notifiers.transcription_server = transcription_server;
+  // Subscription face: the bus delivers audio/available payloads to
+  // the server's own onNotification (client→server direction, local
+  // transport). Tool face is exposed via the MCP descriptors. Emission
+  // face: the server's notify() flows through the manager's routing
+  // back to the bus like every other server.
+  complete_context.notifiers.bus.subscribe('audio/available', {
+    name: 'transcription',
+    onNotification: (method, params) => transcription_server.onNotification(method, params as JsonRpcParams, {} as never),
+  });
+  logger.info('transcription server active (%s @ %s) — auto + manual paths', config.models.transcription.options.model, config.models.transcription.options.base_url ?? 'openai-default');
 } else {
   logger.info('no transcription model configured — audio notifications discarded at the bus');
 }

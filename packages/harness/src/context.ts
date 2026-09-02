@@ -71,6 +71,13 @@ export interface CompleteContext {
     /** Telegram MCP server instance + teardown handle (step 5). */
     telegram_server: McpLocalServer;
     telegram: { stop(): void };
+    /**
+     * Transcription MCP server instance (2026-09-02). Created in
+     * server.ts after model init, when config.models.transcription
+     * exists; the descriptors gate on it being set. Notifier-free:
+     * it subscribes to the bus rather than polling anything.
+     */
+    transcription_server?: McpLocalServer;
     /** Generic MCP notification bus (Phase II step 3). */
     bus: NotificationBus;
   };
