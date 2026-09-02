@@ -15,7 +15,6 @@ import { NotificationBus } from "./sessions/notification-bus.js";
 import { initTranscriptionMcpServer } from "./mcp-servers/transcription.js";
 import { startMailServer } from "@fondamenta/mcp-jmap";
 import { startTelegramServer } from "@fondamenta/mcp-telegram";
-import { type JsonRpcParams } from "@fondamenta/mcp-core";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -115,7 +114,7 @@ if (config.models.transcription) {
   // the manager's routing back to the bus like every other server.
   complete_context.notifiers.bus.subscribe('audio/available', {
     name: 'transcription',
-    onNotification: (method, params) => transcription_server.onNotification(method, params as JsonRpcParams, {} as never),
+    onNotification: (notification) => transcription_server.handleDomainNotification(notification),
   });
   logger.info('transcription server active (%s @ %s) — auto + manual paths', config.models.transcription.options.model, config.models.transcription.options.base_url ?? 'openai-default');
 } else {

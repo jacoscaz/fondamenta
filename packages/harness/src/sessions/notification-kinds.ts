@@ -1,23 +1,30 @@
 /**
- * Notification kind registry — the bus's type system.
+ * Notification model — the bus's type system.
+ *
+ * Modeled as a DISCRIMINATED UNION (Jacopo, 2026-09-02): method and
+ * params live in one object, the method is the discriminator, and
+ * TypeScript infers the params shape from it. `parseDomainNotification`
+ * turns raw JSON-RPC input into a fully validated `DomainNotification`;
+ * everything downstream switches on `.method` and never casts.
  *
  * HARD-CODED by design (Jacopo's ruling, 2026-09-02): supported kinds
  * are baked in and strictly validated. Non-conforming notifications
  * are DISCARDED — no quarantine, no pass-through, no config to loosen.
  * Adding a new kind is a code change and therefore a review moment.
  *
- * Kinds follow `<server>/<artifact>` naming. Each kind declares:
+ * Kinds follow `<artifact>/<state>` naming. Each kind declares:
  * - `ingestible`: whether the notification may be injected into the
  *   agent's context as-is. Non-ingestible kinds target subsystems
- *   (e.g. the transcription pipeline) and NEVER reach the weave —
- *   the bus routes them to registered handlers instead.
- * - `validate`: strict structural check. Return the validated
- *   payload (possibly enriched) or throw to discard.
+ *   (e.g. the transcription server) and NEVER reach the weave —
+ *   the bus routes them to registered subscribers instead.
  *
  * Monotonic-information principle: each processing step may only ADD
- * information, never remove it. Handlers receiving a payload can rely
- * on every field added by prior steps being present.
+ * information, never remove it. Later kinds in a pipeline extend
+ * earlier payloads (TranscriptReadyPayload extends AudioAvailable-
+ * Payload; ProcessingErrorPayload preserves the original).
  */
+
+// ── Payloads ──
 
 export interface AudioAvailablePayload {
   /** Absolute path of the downloaded audio file on disk. */
@@ -52,15 +59,23 @@ export interface ProcessingErrorPayload {
   original: Record<string, unknown>;
 }
 
-export type NotificationKind =
-  | 'audio/available'          // non-ingestible → transcription pipeline
-  | 'transcript/ready'         // ingestible → the weave
-  | 'processing/error';        // ingestible → the weave
+// ── The discriminated union ──
 
-interface KindSpec {
-  ingestible: boolean;
-  validate: (params: unknown) => unknown;
-}
+export type DomainNotification =
+  | { method: 'audio/available'; params: AudioAvailablePayload }
+  | { method: 'transcript/ready'; params: TranscriptReadyPayload }
+  | { method: 'processing/error'; params: ProcessingErrorPayload };
+
+export type DomainMethod = DomainNotification['method'];
+
+/** Which kinds may reach the weave as-is; the rest route to subscribers. */
+export const INGESTIBLE_METHODS: { [K in DomainMethod]: boolean } = {
+  'audio/available': false,
+  'transcript/ready': true,
+  'processing/error': true,
+};
+
+// ── Runtime validation ──
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -78,31 +93,34 @@ const optionalNumber = (o: Record<string, unknown>, key: string): number | undef
   return typeof v === 'number' ? v : undefined;
 };
 
-const asAudioAvailable = (params: unknown): AudioAvailablePayload => {
+const parseAudioAvailable = (params: unknown): AudioAvailablePayload => {
   if (!isRecord(params)) throw new Error('audio/available payload must be an object');
+  const chat_id = optionalNumber(params, 'chat_id');
+  if (chat_id === undefined) throw new Error("audio/available payload missing 'chat_id'");
+  const from_id = optionalNumber(params, 'from_id');
+  if (from_id === undefined) throw new Error("audio/available payload missing 'from_id'");
   return {
     path: requireString(params, 'path'),
-    chat_id: optionalNumber(params, 'chat_id') ?? (() => { throw new Error("audio/available payload missing 'chat_id'"); })(),
-    from_id: optionalNumber(params, 'from_id') ?? (() => { throw new Error("audio/available payload missing 'from_id'"); })(),
+    chat_id,
+    from_id,
     sender: requireString(params, 'sender'),
     duration_seconds: optionalNumber(params, 'duration_seconds'),
   };
 };
 
-const asTranscriptReady = (params: unknown): TranscriptReadyPayload => {
-  const base = asAudioAvailable(params);
+const parseTranscriptReady = (params: unknown): TranscriptReadyPayload => {
+  const base = parseAudioAvailable(params);
   if (!isRecord(params)) throw new Error('unreachable');
-  const text = requireString(params, 'text');
   return {
     ...base,
-    text,
+    text: requireString(params, 'text'),
     language: typeof params.language === 'string' ? params.language : undefined,
     transcription_ms: optionalNumber(params, 'transcription_ms') ?? 0,
     transcribed_by: requireString(params, 'transcribed_by'),
   };
 };
 
-const asProcessingError = (params: unknown): ProcessingErrorPayload => {
+const parseProcessingError = (params: unknown): ProcessingErrorPayload => {
   if (!isRecord(params)) throw new Error('processing/error payload must be an object');
   return {
     step: requireString(params, 'step'),
@@ -111,17 +129,30 @@ const asProcessingError = (params: unknown): ProcessingErrorPayload => {
   };
 };
 
-export const NOTIFICATION_KINDS: Record<NotificationKind, KindSpec> = {
-  'audio/available': {
-    ingestible: false,
-    validate: asAudioAvailable,
-  },
-  'transcript/ready': {
-    ingestible: true,
-    validate: asTranscriptReady,
-  },
-  'processing/error': {
-    ingestible: true,
-    validate: asProcessingError,
-  },
+/**
+ * Validate raw input ({method, params} — e.g. a JSON-RPC notification)
+ * into a fully-typed DomainNotification. Throws on unknown methods and
+ * non-conforming payloads; the caller decides whether to discard.
+ */
+export const parseDomainNotification = (input: { method: string, params?: unknown }): DomainNotification => {
+  switch (input.method) {
+    case 'audio/available':
+      return { method: 'audio/available', params: parseAudioAvailable(input.params) };
+    case 'transcript/ready':
+      return { method: 'transcript/ready', params: parseTranscriptReady(input.params) };
+    case 'processing/error':
+      return { method: 'processing/error', params: parseProcessingError(input.params) };
+    default:
+      throw new Error(`unknown notification method: ${input.method}`);
+  }
+};
+
+/**
+ * Convenience for emitting servers: build a validated notification of
+ * a known kind. Type-checks the payload against the union at compile
+ * time AND validates at runtime (defense in depth — an emitter bug
+ * fails loudly here instead of corrupting the weave).
+ */
+export const makeDomainNotification = <K extends DomainMethod>(method: K, params: Extract<DomainNotification, { method: K }>['params']): DomainNotification => {
+  return parseDomainNotification({ method, params });
 };

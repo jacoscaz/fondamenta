@@ -7,6 +7,7 @@ import { type SessionManager } from "./sessions/manager.js";
 import { type Compactor } from "./sessions/compactor.js";
 import { type TodoNotifier } from "./sessions/todo-scheduler.js";
 import { type NotificationBus } from "./sessions/notification-bus.js";
+import { type HarnessMcpToolCallContext } from "./types.js";
 import { type McpLocalServer } from "@fondamenta/mcp-local";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
@@ -77,7 +78,7 @@ export interface CompleteContext {
      * exists; the descriptors gate on it being set. Notifier-free:
      * it subscribes to the bus rather than polling anything.
      */
-    transcription_server?: McpLocalServer;
+    transcription_server?: McpLocalServer<HarnessMcpToolCallContext>;
     /** Generic MCP notification bus (Phase II step 3). */
     bus: NotificationBus;
   };

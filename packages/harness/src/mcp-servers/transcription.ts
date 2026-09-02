@@ -31,7 +31,7 @@ import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type CompleteContext } from "../context.js";
 import { type HarnessMcpToolCallContext } from "../types.js";
 import { type JsonRpcParams } from "@fondamenta/mcp-core";
-import { NOTIFICATION_KINDS, type AudioAvailablePayload, type TranscriptReadyPayload, type ProcessingErrorPayload } from "../sessions/notification-kinds.js";
+import { parseDomainNotification, type DomainNotification, type AudioAvailablePayload, type TranscriptReadyPayload, type ProcessingErrorPayload } from "../sessions/notification-kinds.js";
 
 interface TranscribeParams {
   /** Absolute path to the audio file on disk. */
@@ -39,11 +39,6 @@ interface TranscribeParams {
   /** ISO-639-1 language hint; omit to auto-detect. */
   language?: string;
 }
-
-const asAudioAvailable = (params: JsonRpcParams | undefined): AudioAvailablePayload => {
-  const spec = NOTIFICATION_KINDS['audio/available'];
-  return spec.validate(params) as AudioAvailablePayload;
-};
 
 class TranscriptionMcpServer extends McpLocalServer<HarnessMcpToolCallContext> {
 
@@ -59,26 +54,40 @@ class TranscriptionMcpServer extends McpLocalServer<HarnessMcpToolCallContext> {
   }
 
   /**
-   * Client→server notification channel: the bus delivers
-   * audio/available notifications here. This is the subscription face
-   * of the server — the automatic path.
+   * Client→server notification channel (base-class signature: method
+   * + params, because the MCP transport speaks JSON-RPC). Internally
+   * parsed ONCE into the discriminated union; the bus's subscriber
+   * path delivers fully-validated notifications via the SEPARATE
+   * `handleDomainNotification` below. Switch on .method there and
+   * TypeScript infers the params shape — no casting.
    */
   override async onNotification(method: string, params: JsonRpcParams | undefined, _ctx: HarnessMcpToolCallContext): Promise<void> {
-    if (method === 'audio/available') {
-      let payload: AudioAvailablePayload;
-      try {
-        payload = asAudioAvailable(params);
-      } catch (err) {
-        // Malformed: discarded at the bus already (the bus validates
-        // before routing); reaching here means a direct delivery.
-        this.#logger.warn('discarding malformed audio/available: %s', err instanceof Error ? err.message : String(err));
-        return;
-      }
-      await this.#transcribeAndEmit(payload);
+    let notification: DomainNotification;
+    try {
+      notification = parseDomainNotification({ method, params });
+    } catch (err) {
+      // Unknown methods (protocol notifications like
+      // notifications/initialized) and malformed payloads: accepted
+      // and ignored, per base-class behavior.
       return;
     }
-    // Protocol notifications (notifications/initialized etc.):
-    // accepted and ignored, per base-class behavior.
+    await this.handleDomainNotification(notification);
+  }
+
+  /**
+   * The subscription face — what the bus calls. Receives a fully
+   * validated notification; the discriminated union does the rest.
+   */
+  async handleDomainNotification(notification: DomainNotification): Promise<void> {
+    switch (notification.method) {
+      case 'audio/available':
+        await this.#transcribeAndEmit(notification.params);
+        return;
+      default:
+        // Not routed here by the bus (ingestible kinds never reach
+        // subscribers); accepted and ignored.
+        return;
+    }
   }
 
   async #transcribeAndEmit(payload: AudioAvailablePayload): Promise<void> {
@@ -106,7 +115,7 @@ class TranscriptionMcpServer extends McpLocalServer<HarnessMcpToolCallContext> {
       // Emission through the normal server→client notification path:
       // the manager routes it to the bus, the bus validates and
       // injects. Same road every other server travels.
-      this.notify('transcript/ready', ready as unknown as Record<string, unknown>);
+      this.notify('transcript/ready', ready as unknown as Record<string, unknown>); // (emission stays JSON-RPC-shaped; validation happens at the bus)
       this.#logger.info('transcript ready for %s (%d ms): %d chars', payload.path, result.duration_ms, result.text.length);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -128,7 +137,7 @@ class TranscriptionMcpServer extends McpLocalServer<HarnessMcpToolCallContext> {
   }
 }
 
-export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer<HarnessMcpToolCallContext> => {
+export const initTranscriptionMcpServer = (ctx: CompleteContext): TranscriptionMcpServer => {
 
   const mcp = new TranscriptionMcpServer(ctx);
 
