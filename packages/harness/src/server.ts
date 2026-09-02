@@ -12,6 +12,7 @@ import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
 import { TodoNotifier } from "./sessions/todo-scheduler.js";
 import { NotificationBus } from "./sessions/notification-bus.js";
+import { TranscriptionPipeline } from "./sessions/transcription-pipeline.js";
 import { startMailServer } from "@fondamenta/mcp-jmap";
 import { startTelegramServer } from "@fondamenta/mcp-telegram";
 import { Compactor } from "./sessions/compactor.js";
@@ -102,6 +103,18 @@ await complete_context.emygdala.initialize();
 await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
 await complete_context.notifiers.todo.initialize(60_000);
+
+// Transcription pipeline (2026-09-02): preprocesses audio/available
+// notifications into transcript/ready (or processing/error) events.
+// Registered on the bus after model init so config presence decides
+// whether the pipeline exists at all.
+if (config.models.transcription) {
+  const pipeline = new TranscriptionPipeline(init_context);
+  complete_context.notifiers.bus.setTranscriptionPipeline(pipeline);
+  logger.info('transcription pipeline active (%s @ %s)', config.models.transcription.options.model, config.models.transcription.options.base_url ?? 'openai-default');
+} else {
+  logger.info('no transcription model configured — audio notifications discarded at the bus');
+}
 
 // Resolve the main session and ensure its runner is alive
 const { main_session_id } = complete_context.managers.sessions;

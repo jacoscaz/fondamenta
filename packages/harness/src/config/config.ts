@@ -62,6 +62,28 @@ export interface ConfigEmbeddingsModelOpenAI extends ConfigEmbeddingsModelBase {
 
 export type ConfigEmbeddingModel = ConfigEmbeddingsModelOpenAI;
 
+/**
+ * Transcription (speech-to-text) model configuration. Optional in the
+ * Config root: when absent, the harness performs no automatic
+ * transcription and audio-artifact notifications pass through
+ * untouched.
+ */
+export interface ConfigTranscriptionModelOpenAI {
+  adapter: 'openai';
+  options: {
+    model: string;
+    /** Optional; some local endpoints (whisper-server) need no key. */
+    api_key?: string;
+    base_url?: string;
+    /** ISO-639-1 hint; omit to let the model auto-detect. */
+    language?: string;
+    /** Initial prompt biasing transcription (names, vocabulary). */
+    prompt?: string;
+  };
+}
+
+export type ConfigTranscriptionModel = ConfigTranscriptionModelOpenAI;
+
 export interface ConfigLogging {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   /**
@@ -134,6 +156,7 @@ export interface Config {
   models: {
     session: ConfigSessionModel;
     embedding: ConfigEmbeddingModel;
+    transcription?: ConfigTranscriptionModel;
   };
   logging: ConfigLogging;
   /** JMAP mail server configuration (owned by @fondamenta/mcp-jmap). */

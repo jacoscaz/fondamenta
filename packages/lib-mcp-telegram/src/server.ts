@@ -11,10 +11,15 @@ const describeMessage = (message: TelegramMessage): string | null => {
   if (message.text) {
     parts.push(message.text);
   } else if (message.voice) {
-    // Expose the file_id so the agent can download the file (file tool)
-    // and transcribe it locally (whisper.cpp) — see the system prompt's
-    // command_line_tools section for the STT recipe.
-    parts.push(`[voice message, ${message.voice.duration}s, file_id: ${message.voice.file_id}]${message.caption ? ` — caption: ${message.caption}` : ''}`);
+    // Voice notes are handled by the notifier loop (download + emit
+    // audio/available for the transcription pipeline) and never reach
+    // describeMessage — except when a caption is present, in which
+    // case the caption alone is surfaced as a message. Kept here for
+    // that path and for defensive completeness.
+    if (message.caption) {
+      parts.push(`[voice message caption] ${message.caption}`);
+    }
+    return parts.length > 0 ? parts.join(' ') : null;
   } else if (message.photo) {
     // Telegram sends photos as an array of sizes; the last entry is
     // the largest. Expose its file_id so the agent can download it.
@@ -119,10 +124,38 @@ export const startTelegramNotifier = (
           log('telegram update dropped: sender %s not allowlisted', from?.id ?? 'unknown');
           continue;
         }
-        const body = describeMessage(message);
-        if (body === null) continue;
         const sender = from.username ? `@${from.username}` : from.first_name;
         const edited = update.edited_message ? ' (edited)' : '';
+
+        // Voice notes take the preprocessing path (2026-09-02 design):
+        // download to disk NOW, then emit audio/available — a
+        // non-ingestible notification consumed by the harness's
+        // transcription pipeline. The agent's context receives the
+        // finished transcript (transcript/ready) or a processing/error
+        // carrying the original payload. The telegram server's job
+        // ends at download-and-emit; it does not transcribe.
+        if (message.voice) {
+          try {
+            const dir = mediaDir;
+            await mkdir(dir, { recursive: true });
+            const path = join(dir, `${message.voice.file_id.slice(-16)}-${Date.now()}.ogg`);
+            await client.downloadFile(message.voice.file_id, path);
+            server.notify('audio/available', {
+              path,
+              chat_id: message.chat.id,
+              from_id: from.id,
+              sender,
+              duration_seconds: message.voice.duration,
+            });
+            log('voice note downloaded: %s (%ss)', path, message.voice.duration);
+          } catch (err) {
+            log('voice note download failed: %s', err instanceof Error ? err.message : String(err));
+          }
+          continue;
+        }
+
+        const body = describeMessage(message);
+        if (body === null) continue;
         server.notify('telegram/message', {
           text: `💬 Telegram message from ${sender}${edited} (chat_id ${message.chat.id}):\n${body}`,
           chat_id: message.chat.id,
