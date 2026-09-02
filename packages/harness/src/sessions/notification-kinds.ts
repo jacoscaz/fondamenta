@@ -18,6 +18,13 @@
  *   (e.g. the transcription server) and NEVER reach the weave —
  *   the bus routes them to registered subscribers instead.
  *
+ * ENUMERATION RULE (incident 2026-09-02, df33d8a regression): the union
+ * must list kinds from the EMITTER side — walk every MCP server that
+ * calls server.notify() — not from the consumer side. Strict discarding
+ * of unknown kinds is safe only when the list is complete: an omitted
+ * kind silently kills an entire communication channel (telegram/message
+ * and mail/arrived were lost for ~8h this way).
+ *
  * Monotonic-information principle: each processing step may only ADD
  * information, never remove it. Later kinds in a pipeline extend
  * earlier payloads (TranscriptReadyPayload extends AudioAvailable-
@@ -50,6 +57,20 @@ export interface TranscriptReadyPayload extends AudioAvailablePayload {
   transcribed_by: string;
 }
 
+export interface TelegramMessagePayload {
+  /** Human-readable, weave-ready rendering of the message (already prefixed with sender/chat info). */
+  text: string;
+  /** Telegram chat the message came from. */
+  chat_id: number;
+  /** Telegram user id of the sender. */
+  from_id: number;
+}
+
+export interface MailArrivedPayload {
+  /** Human-readable, weave-ready rendering of the new mail (already formatted). */
+  text: string;
+}
+
 export interface ProcessingErrorPayload {
   /** Which pipeline step failed (e.g. 'transcription'). */
   step: string;
@@ -64,6 +85,8 @@ export interface ProcessingErrorPayload {
 export type DomainNotification =
   | { method: 'audio/available'; params: AudioAvailablePayload }
   | { method: 'transcript/ready'; params: TranscriptReadyPayload }
+  | { method: 'telegram/message'; params: TelegramMessagePayload }
+  | { method: 'mail/arrived'; params: MailArrivedPayload }
   | { method: 'processing/error'; params: ProcessingErrorPayload };
 
 export type DomainMethod = DomainNotification['method'];
@@ -72,6 +95,8 @@ export type DomainMethod = DomainNotification['method'];
 export const INGESTIBLE_METHODS: { [K in DomainMethod]: boolean } = {
   'audio/available': false,
   'transcript/ready': true,
+  'telegram/message': true,
+  'mail/arrived': true,
   'processing/error': true,
 };
 
@@ -120,6 +145,20 @@ const parseTranscriptReady = (params: unknown): TranscriptReadyPayload => {
   };
 };
 
+const parseTelegramMessage = (params: unknown): TelegramMessagePayload => {
+  if (!isRecord(params)) throw new Error('telegram/message payload must be an object');
+  const chat_id = optionalNumber(params, 'chat_id');
+  if (chat_id === undefined) throw new Error("telegram/message payload missing 'chat_id'");
+  const from_id = optionalNumber(params, 'from_id');
+  if (from_id === undefined) throw new Error("telegram/message payload missing 'from_id'");
+  return { text: requireString(params, 'text'), chat_id, from_id };
+};
+
+const parseMailArrived = (params: unknown): MailArrivedPayload => {
+  if (!isRecord(params)) throw new Error('mail/arrived payload must be an object');
+  return { text: requireString(params, 'text') };
+};
+
 const parseProcessingError = (params: unknown): ProcessingErrorPayload => {
   if (!isRecord(params)) throw new Error('processing/error payload must be an object');
   return {
@@ -140,6 +179,10 @@ export const parseDomainNotification = (input: { method: string, params?: unknow
       return { method: 'audio/available', params: parseAudioAvailable(input.params) };
     case 'transcript/ready':
       return { method: 'transcript/ready', params: parseTranscriptReady(input.params) };
+    case 'telegram/message':
+      return { method: 'telegram/message', params: parseTelegramMessage(input.params) };
+    case 'mail/arrived':
+      return { method: 'mail/arrived', params: parseMailArrived(input.params) };
     case 'processing/error':
       return { method: 'processing/error', params: parseProcessingError(input.params) };
     default:
