@@ -106,9 +106,8 @@ export class Emygdala extends WithContext {
     // Context pressure depends on the model the session is ACTUALLY on
     // (it may have switched mid-session) — never assume the first config
     // entry (Jacopo's review, PR #27).
-    const max_context_size = this._ctx.managers.models.session(
-      this._ctx.managers.sessions.getSessionModel(main_session_id),
-    ).max_context_size;
+    const max_context_size = this._ctx.managers.sessions
+      .getSessionModel(main_session_id).max_context_size;
     const pressure = prompt_size / max_context_size;
 
     // Determine which level we're at
@@ -171,12 +170,18 @@ export class Emygdala extends WithContext {
       // agent wakes up knowing both where it stands and what it may
       // switch to (formatted here — emygdala's job — from the list the
       // session manager relays from the model manager).
-      const model_id = this._ctx.managers.sessions.getSessionModel(main_session_id);
+      const model = this._ctx.managers.sessions.getSessionModel(main_session_id);
       const available = this._ctx.managers.sessions.getAvailableSessionModels();
+      // The menu carries each model's config guidance — declarative
+      // substrate-selection knowledge, so the agent can choose without
+      // a-priori knowledge of the configured models (Jacopo, PR #27 r2).
+      const menu = available
+        .map(m => `'${m.id}'${m.guidance ? ` (${m.guidance})` : ''}`)
+        .join(', ');
       injected_messages.push(
         `It is ${now.toISOString()}. Your harness has just been started. ` +
-        `You are running on session model '${model_id}' at its configured reasoning effort. ` +
-        `Available session models: ${available.map(id => `'${id}'`).join(', ')}.`,
+        `You are running on session model '${model.id}' at its configured reasoning effort. ` +
+        `Available session models: ${menu}.`,
       );
     }
     this.#last_active_at = now;

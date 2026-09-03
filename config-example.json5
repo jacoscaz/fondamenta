@@ -90,6 +90,10 @@
             // Harness-internal unique model id. Reference models by THIS
             // (e.g. in the switch_substrate tool) — never by array position.
             id: 'z-ai/glm-5.3-flash',
+            // Declarative selection guidance, surfaced in the boot event's
+            // available-models menu — helps the agent choose substrates
+            // without a-priori knowledge of their strengths/weaknesses.
+            guidance: 'example: fast and cheap, multimodal — default for presence and visual work',
             // For now, the only supported adapter is 'openai'
             // (any OpenAI-compatible inference provider works).
             adapter: 'openai',

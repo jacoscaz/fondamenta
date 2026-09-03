@@ -32,7 +32,7 @@ export const registerSessionTools = (ctx: CompleteContext, mcp_server: McpLocalS
     'Switch this session\'s substrate at runtime: select a different session model (by its config id, e.g. \'z-ai/glm-5.3-flash\' — the first configured model is the one sessions start on) and/or request a different reasoning effort (none/minimal/low/medium/high/xhigh). Both parameters are optional; provide at least one. Reasoning-effort requests are no-ops (never errors) on models that do not support them. Model switches are session-scoped and reset to the first configured model on harness restart.',
     (async ({ model, reasoning_effort }, { db, origin_session_id: session_id }) => {
       if (model === undefined && reasoning_effort === undefined) {
-        return [{ type: 'text', text: `Error: provide model (id — one of: ${ctx.managers.models.sessionModelIds.join(', ')}), reasoning_effort, or both.` }];
+        return [{ type: 'text', text: `Error: provide model (id — one of: ${ctx.managers.models.sessionModels.map(m => m.id).join(', ')}), reasoning_effort, or both.` }];
       }
       const results: string[] = [];
       if (model !== undefined) {
@@ -68,9 +68,8 @@ export const registerSessionTools = (ctx: CompleteContext, mcp_server: McpLocalS
         .executeTakeFirstOrThrow();
 
       // The session's ACTUAL active model (may have switched mid-session).
-      const max_context_size = ctx.managers.models.session(
-        ctx.managers.sessions.getSessionModel(session_id),
-      ).max_context_size;
+      const max_context_size = ctx.managers.sessions
+        .getSessionModel(session_id).max_context_size;
       const pressure = session.prompt_size / max_context_size;
 
       const message_count = await db

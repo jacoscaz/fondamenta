@@ -3,6 +3,7 @@ import { type InitContext, WithContext } from "../context.js";
 import { SessionRunner } from "./runner.js";
 import { insertSession, selectSessionById } from "../database/tables/sessions.js";
 import { type UserMessage, type Message } from "../models/session/types/messages.js";
+import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { type TextBlock } from "../models/session/types/blocks.js";
 import assert from "node:assert";
 
@@ -70,7 +71,7 @@ export class SessionManager extends WithContext {
       // PR #27): the first config entry is what sessions start on. After
       // creation, identity is always by id.
       const first_model_id = this._ctx.config.models.session[0].id;
-      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session(first_model_id), first_model_id);
+      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session(first_model_id));
       this.#runners[session_id] = runner;
       // The main session runner owns its own heartbeat cadence and is
       // the only session whose stream is mirrored to the monologue log.
@@ -100,17 +101,18 @@ export class SessionManager extends WithContext {
     return this.#ensureRunner(session_id).switchModel(model_id);
   }
 
-  /** The id of the model currently active for the given session. */
-  getSessionModel(session_id: number): string {
+  /** The model currently active for the given session (instance — `.id`, `.guidance`, `.max_context_size` available). */
+  getSessionModel(session_id: number): AbstractSessionModel {
     return this.#ensureRunner(session_id).getModel();
   }
 
   /**
-   * Ids of all configured session models (relay to the model manager —
+   * All configured session model INSTANCES (relay to the model manager —
    * the session layer is where consumers like emygdala already look).
+   * Callers format id + guidance into agent-facing menus.
    */
-  getAvailableSessionModels(): string[] {
-    return this._ctx.managers.models.sessionModelIds;
+  getAvailableSessionModels(): AbstractSessionModel[] {
+    return this._ctx.managers.models.sessionModels;
   }
 
   /**

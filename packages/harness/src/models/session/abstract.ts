@@ -21,14 +21,28 @@ export interface ModelQueryResults {
 
 export abstract class AbstractSessionModel {
 
+  readonly #id: string;
+  readonly #guidance?: string;
   readonly #max_output_size: number;
   readonly #max_context_size: number;
   readonly #modalities: ConfigModalities;
 
   constructor(opts: ConfigModelBase) {
+    this.#id = opts.id;
+    this.#guidance = opts.guidance;
     this.#max_output_size = opts.max_output_size;
     this.#max_context_size = opts.max_context_size;
     this.#modalities = opts.modalities ?? {};
+  }
+
+  /** Harness-internal unique model identifier (e.g. 'z-ai/glm-5.3-flash'). */
+  get id(): string {
+    return this.#id;
+  }
+
+  /** Declarative selection guidance for the agent (may be undefined). */
+  get guidance(): string | undefined {
+    return this.#guidance;
   }
 
   get max_ouput_size(): number {

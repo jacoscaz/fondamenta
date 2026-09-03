@@ -23,8 +23,6 @@ export interface SessionRunnerEvents extends Record<string, any[]> {
 export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
   #model: AbstractSessionModel;
-  /** Config id of the active model (identity by name, not position). */
-  #model_id: string;
   #logger: Logger;
   #running: boolean;
   #injected: AInsertableDBMessage[] = [];
@@ -39,10 +37,9 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #last_heartbeat_activation_at?: Date;
   #last_activation_at?: Date;
 
-  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel, model_id: string) {
+  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel) {
     super(ctx);
     this.#model = model;
-    this.#model_id = model_id;
     this.#logger = ctx.logger.child(`[session:${origin_session_id}]`);
     this.#running = false;
     this.#injected = [];
@@ -64,23 +61,24 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   // entry (the one place ordering matters — Jacopo's review, PR #27:
   // identity is by id everywhere else; 'default' is not a concept).
 
-  /** The id of the currently active model (e.g. 'z-ai/glm-5.3-flash'). */
-  getModel(): string {
-    return this.#model_id;
+  /** The currently active model instance (`.id` for its identifier). */
+  getModel(): AbstractSessionModel {
+    return this.#model;
   }
 
   /**
    * Switch this session's model to the adapter with the given config id.
+   * The adapter instance implicitly determines the id — no separate
+   * model-id state (Jacopo's review round 2: one source of truth).
    * Returns the id of the now-active model.
    */
   switchModel(id: string): string {
     const model = this._ctx.managers.models.session(id);
-    if (model === this.#model) return this.#model_id;
-    const previous = this.#model_id;
+    if (model === this.#model) return this.#model.id;
+    const previous = this.#model.id;
     this.#model = model;
-    this.#model_id = id;
-    this.#logger.info('model switched: %s -> %s', previous, id);
-    return id;
+    this.#logger.info('model switched: %s -> %s', previous, model.id);
+    return model.id;
   }
 
   /**

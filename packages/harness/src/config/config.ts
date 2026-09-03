@@ -27,6 +27,13 @@ export interface ConfigModalities {
 export interface ConfigModelBase {
   /** Unique model identifier internal to the harness (e.g. 'z-ai/glm-5.3-flash'). */
   id: string;
+  /**
+   * Declarative guidance for the agent's model selection — surfaced in the
+   * boot event's available-models menu so the agent can choose substrates
+   * without a-priori knowledge of each one's strengths and weaknesses
+   * (Jacopo, PR #27 review round 2).
+   */
+  guidance?: string;
   adapter: string;
   options?: Record<string, any>;
   max_output_size: number;

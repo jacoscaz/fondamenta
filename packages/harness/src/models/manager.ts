@@ -58,9 +58,9 @@ export class ModelManager extends WithContext {
     return model;
   }
 
-  /** Ids of all configured session models, in config order. */
-  get sessionModelIds(): string[] {
-    return [...this.#sessions.keys()];
+  /** All configured session model instances, in config order. */
+  get sessionModels(): AbstractSessionModel[] {
+    return [...this.#sessions.values()];
   }
 
   get embedding(): AbstractEmbeddingModel {
