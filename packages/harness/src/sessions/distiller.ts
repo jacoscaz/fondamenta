@@ -98,7 +98,7 @@ export class Distiller extends WithContext {
       });
       return origin_session_id;
     });
-    const runner = new SessionRunner(this._ctx.init, origin_session_id, target_session_id, this._ctx.managers.models.session);
+    const runner = new SessionRunner(this._ctx.init, origin_session_id, target_session_id, this._ctx.managers.models.distillation);
     await runner.run(db, this._ctx.managers.mcp.whitelist([
       'mcp_continuity_query',
       'mcp_continuity_read',

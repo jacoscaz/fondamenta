@@ -19,13 +19,14 @@ import {
 import OpenAI from 'openai';
 
 import { ConfigModelOpenAI } from "../../../config/config.js";
-import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort } from "openai/resources/index.mjs";
+import { type ReasoningEffort } from "../../../constants.js";
+import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
 
 export class OpenAISessionModel extends AbstractSessionModel {
   #model: string;
   #client: OpenAI;
   #extras: Record<string, any>;
-  #reasoning: ReasoningEffort;
+  #reasoning: OpenAIReasoningEffort;
 
   constructor(opts: ConfigModelOpenAI) {
     super(opts);
@@ -36,6 +37,26 @@ export class OpenAISessionModel extends AbstractSessionModel {
       baseURL: opts.options.base_url,
     });
     this.#reasoning = opts.options.reasoning?.effort ?? 'none';
+  }
+
+  /**
+   * Runtime reasoning-effort update. The harness's common vocabulary maps
+   * 1:1 onto the OpenAI-native values; unsupported requests are ignored
+   * (log + false) rather than erroring — the switch itself must never fail
+   * because an optional knob is missing (Jacopo's ruling, 2026-09-03).
+   */
+  override setReasoningEffort(effort: ReasoningEffort): boolean {
+    if (this.#reasoning === 'none') {
+      console.warn(`[openai-model ${this.#model}] reasoning effort requested but model was configured without reasoning — ignoring`);
+      return false;
+    }
+    this.#reasoning = effort;
+    return true;
+  }
+
+  get reasoningEffort(): ReasoningEffort {
+    // OpenAI's type includes null (meaning "unset"); our vocabulary does not.
+    return (this.#reasoning ?? 'none') as ReasoningEffort;
   }
 
   async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
@@ -51,7 +72,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
         max_tokens: opts.max_output_size ?? this.max_ouput_size,
         session_id: opts.session_id,
         model: this.#model,
-        reasoning_effort: this.#reasoning,
+        reasoning_effort: this.#reasoning as OpenAIReasoningEffort,
         stream_options: { include_usage: true },
         tools: opts.tools.map(t => ({
           type: 'function',

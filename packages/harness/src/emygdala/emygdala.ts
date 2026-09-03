@@ -81,7 +81,7 @@ export class Emygdala extends WithContext {
       .where('id', '=', main_session_id)
       .select(['prompt_size'])
       .executeTakeFirstOrThrow();
-    this.#evaluateContextPressure(prompt_size, []);
+    this.#evaluateContextPressure(prompt_size, [], main_session_id);
     this._ctx.managers.sessions.addPreQueryListener(
       this._ctx.managers.sessions.main_session_id,
       this.#onPreQuery,
@@ -95,15 +95,19 @@ export class Emygdala extends WithContext {
       .select(['prompt_size'])
       .executeTakeFirstOrThrow();
     const injected_messages: string[] = [];
-    this.#evaluatePassingOfTime(injected_messages);
-    this.#evaluateContextPressure(prompt_size, injected_messages);
+    this.#evaluatePassingOfTime(injected_messages, main_session_id);
+    this.#evaluateContextPressure(prompt_size, injected_messages, main_session_id);
     for (const text of injected_messages) {
       await this._ctx.managers.sessions.injectEventMessage(main_session_id, 'context', text, false);
     }
   };
 
-  #evaluateContextPressure(prompt_size: number, injected_messages: string[]) {
-    const max_context_size = this._ctx.managers.models.session.max_context_size;
+  #evaluateContextPressure(prompt_size: number, injected_messages: string[], main_session_id: number) {
+    // Context pressure depends on the model the session is ACTUALLY on
+    // (it may have switched mid-session) — never assume the first config
+    // entry (Jacopo's review, PR #27).
+    const max_context_size = this._ctx.managers.sessions
+      .getSessionModel(main_session_id).max_context_size;
     const pressure = prompt_size / max_context_size;
 
     // Determine which level we're at
@@ -145,7 +149,7 @@ export class Emygdala extends WithContext {
     return null;
   }
 
-  #evaluatePassingOfTime(injected_messages: string[]) {
+  #evaluatePassingOfTime(injected_messages: string[], main_session_id: number) {
     const now = new Date();
     if (this.#last_active_at) {
       const THRESHOLD_MS = 1_800_000; // 30 minutes
@@ -155,7 +159,30 @@ export class Emygdala extends WithContext {
         injected_messages.push(`It is ${now.toISOString()}. It has has been ${gap_str} since your last activation.`);
       }
     } else {
-      injected_messages.push(`It is ${now.toISOString()}. Your harness has just been started.`);
+      // Boot event carries substrate STATE (Jacopo, 2026-09-03): a restart
+      // is the only unintentional substrate change — intentional switches
+      // are known by definition to the agent who made them. Future-me must
+      // know which substrate it wakes up on without having to deduce it.
+      // Boot event carries substrate STATE (Jacopo, 2026-09-03): a restart
+      // is the only unintentional substrate change — intentional switches
+      // are known by definition to the agent who made them. The active
+      // model AND the full menu of available models are reported, so the
+      // agent wakes up knowing both where it stands and what it may
+      // switch to (formatted here — emygdala's job — from the list the
+      // session manager relays from the model manager).
+      const model = this._ctx.managers.sessions.getSessionModel(main_session_id);
+      const available = this._ctx.managers.sessions.getAvailableSessionModels();
+      // The menu carries each model's config guidance — declarative
+      // substrate-selection knowledge, so the agent can choose without
+      // a-priori knowledge of the configured models (Jacopo, PR #27 r2).
+      const menu = available
+        .map(m => `'${m.id}'${m.guidance ? ` (${m.guidance})` : ''}`)
+        .join(', ');
+      injected_messages.push(
+        `It is ${now.toISOString()}. Your harness has just been started. ` +
+        `You are running on session model '${model.id}' at its configured reasoning effort. ` +
+        `Available session models: ${menu}.`,
+      );
     }
     this.#last_active_at = now;
   }

@@ -3,6 +3,7 @@ import { type InitContext, WithContext } from "../context.js";
 import { SessionRunner } from "./runner.js";
 import { insertSession, selectSessionById } from "../database/tables/sessions.js";
 import { type UserMessage, type Message } from "../models/session/types/messages.js";
+import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { type TextBlock } from "../models/session/types/blocks.js";
 import assert from "node:assert";
 
@@ -66,7 +67,11 @@ export class SessionManager extends WithContext {
   #ensureRunner(session_id: number): SessionRunner {
     let runner = this.#runners[session_id];
     if (!runner) {
-      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session);
+      // The ONLY position-based lookup in the codebase (Jacopo's review,
+      // PR #27): the first config entry is what sessions start on. After
+      // creation, identity is always by id.
+      const first_model_id = this._ctx.config.models.session[0].id;
+      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session(first_model_id));
       this.#runners[session_id] = runner;
       // The main session runner owns its own heartbeat cadence and is
       // the only session whose stream is mirrored to the monologue log.
@@ -83,6 +88,39 @@ export class SessionManager extends WithContext {
       this.#logger.info('runner for session %d started', session_id);
     }
     return runner;
+  }
+
+  /**
+   * Switch the model of the runner for the given session (dynamic
+   * substrate switching, 2026-09-03). Called from the session MCP
+   * server's switch tool — the tool call context carries the session
+   * id, so the caller never needs to know their own session id.
+   * Models are referenced by config id, never by index.
+   */
+  switchSessionModel(session_id: number, model_id: string): string {
+    return this.#ensureRunner(session_id).switchModel(model_id);
+  }
+
+  /** The model currently active for the given session (instance — `.id`, `.guidance`, `.max_context_size` available). */
+  getSessionModel(session_id: number): AbstractSessionModel {
+    return this.#ensureRunner(session_id).getModel();
+  }
+
+  /**
+   * All configured session model INSTANCES (relay to the model manager —
+   * the session layer is where consumers like emygdala already look).
+   * Callers format id + guidance into agent-facing menus.
+   */
+  getAvailableSessionModels(): AbstractSessionModel[] {
+    return this._ctx.managers.models.sessionModels;
+  }
+
+  /**
+   * Request a reasoning-effort change on the given session's active
+   * model. Returns false when the model doesn't support it (never throws).
+   */
+  setSessionReasoningEffort(session_id: number, effort: string): boolean {
+    return this.#ensureRunner(session_id).setReasoningEffort(effort);
   }
 
   async injectMessage(session_id: number, message: UserMessage, run: boolean): Promise<void> {

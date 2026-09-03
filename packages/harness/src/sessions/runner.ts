@@ -55,6 +55,43 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#post_query_listeners = [];
   }
 
+  // ── Dynamic substrate switching (2026-09-03) ──
+  // The runner owns its session's active model: switching is per-session
+  // state with the runner's lifecycle. Restarts reset to the FIRST config
+  // entry (the one place ordering matters — Jacopo's review, PR #27:
+  // identity is by id everywhere else; 'default' is not a concept).
+
+  /** The currently active model instance (`.id` for its identifier). */
+  getModel(): AbstractSessionModel {
+    return this.#model;
+  }
+
+  /**
+   * Switch this session's model to the adapter with the given config id.
+   * The adapter instance implicitly determines the id — no separate
+   * model-id state (Jacopo's review round 2: one source of truth).
+   * Returns the id of the now-active model.
+   */
+  switchModel(id: string): string {
+    const model = this._ctx.managers.models.session(id);
+    if (model === this.#model) return this.#model.id;
+    const previous = this.#model.id;
+    this.#model = model;
+    this.#logger.info('model switched: %s -> %s', previous, model.id);
+    return model.id;
+  }
+
+  /**
+   * Request a reasoning-effort change on the active model. Adapters that
+   * don't support effort (or have it disabled) no-op with `false` — this
+   * never errors (Jacopo's ruling, 2026-09-03).
+   */
+  setReasoningEffort(effort: string): boolean {
+    const applied = this.#model.setReasoningEffort(effort);
+    this.#logger.info('reasoning effort request \'%s\': %s', effort, applied ? 'applied' : 'not supported by active model, ignored');
+    return applied;
+  }
+
   /**
    * Start the internal heartbeat. Only called for the main session
    * runner; transient runners (distiller) have no heartbeat.
