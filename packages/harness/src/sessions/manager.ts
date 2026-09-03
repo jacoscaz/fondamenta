@@ -66,7 +66,11 @@ export class SessionManager extends WithContext {
   #ensureRunner(session_id: number): SessionRunner {
     let runner = this.#runners[session_id];
     if (!runner) {
-      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.defaultSession);
+      // The ONLY position-based lookup in the codebase (Jacopo's review,
+      // PR #27): the first config entry is what sessions start on. After
+      // creation, identity is always by id.
+      const first_model_id = this._ctx.config.models.session[0].id;
+      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session(first_model_id), first_model_id);
       this.#runners[session_id] = runner;
       // The main session runner owns its own heartbeat cadence and is
       // the only session whose stream is mirrored to the monologue log.
@@ -90,9 +94,23 @@ export class SessionManager extends WithContext {
    * substrate switching, 2026-09-03). Called from the session MCP
    * server's switch tool — the tool call context carries the session
    * id, so the caller never needs to know their own session id.
+   * Models are referenced by config id, never by index.
    */
-  switchSessionModel(session_id: number, index: number): string {
-    return this.#ensureRunner(session_id).switchModel(index);
+  switchSessionModel(session_id: number, model_id: string): string {
+    return this.#ensureRunner(session_id).switchModel(model_id);
+  }
+
+  /** The id of the model currently active for the given session. */
+  getSessionModel(session_id: number): string {
+    return this.#ensureRunner(session_id).getModel();
+  }
+
+  /**
+   * Ids of all configured session models (relay to the model manager —
+   * the session layer is where consumers like emygdala already look).
+   */
+  getAvailableSessionModels(): string[] {
+    return this._ctx.managers.models.sessionModelIds;
   }
 
   /**

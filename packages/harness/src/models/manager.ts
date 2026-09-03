@@ -14,11 +14,15 @@ import { initializeTranscriptionModel } from "./transcription/init.js";
  * but does NOT track which session model is active — that is per-session
  * state owned by each SessionRunner. Active-model state belongs where
  * the lifecycle is: a runner is born, lives, and dies with its session.
+ *
+ * Models are keyed by their config `id` (unique harness-internal
+ * identifier) — never by position (Jacopo's review, PR #27: identity
+ * by name, not by array index).
  */
 export class ModelManager extends WithContext {
 
-  /** Session model adapters, index-aligned with config.models.session. */
-  #sessions: AbstractSessionModel[] = [];
+  /** Session model adapters by config id. */
+  #sessions: Map<string, AbstractSessionModel> = new Map();
   #embedding?: AbstractEmbeddingModel;
   #transcription?: AbstractTranscriptionModel;
   #distillation?: AbstractSessionModel;
@@ -31,7 +35,9 @@ export class ModelManager extends WithContext {
   async initialize() {
     assert(this._ctx.config.models.session.length > 0, 'config.models.session must contain at least one model');
     for (const session_config of this._ctx.config.models.session) {
-      this.#sessions.push(await initializeSessionModel(session_config));
+      assert(session_config.id, 'every session model config needs an id');
+      assert(!this.#sessions.has(session_config.id), `duplicate session model id: ${session_config.id}`);
+      this.#sessions.set(session_config.id, await initializeSessionModel(session_config));
     }
     this.#embedding = await initializeEmbeddingModel(this._ctx.config.models.embedding);
     if (this._ctx.config.models.transcription) {
@@ -45,20 +51,16 @@ export class ModelManager extends WithContext {
     this.#compaction = await initializeSessionModel(this._ctx.config.models.compaction);
   }
 
-  /** Session model adapters by config index; entry 0 is the default. */
-  session(index: number): AbstractSessionModel {
-    assert(this.#sessions[index], `no session model at index ${index}`);
-    return this.#sessions[index];
+  /** Session model adapters by config id. Throws on unknown id. */
+  session(id: string): AbstractSessionModel {
+    const model = this.#sessions.get(id);
+    assert(model, `unknown session model id: '${id}' (known: ${[...this.#sessions.keys()].join(', ')})`);
+    return model;
   }
 
-  /** The default session model (first entry in config.models.session). */
-  get defaultSession(): AbstractSessionModel {
-    assert(this.#sessions.length > 0);
-    return this.#sessions[0];
-  }
-
-  get sessionModelCount(): number {
-    return this.#sessions.length;
+  /** Ids of all configured session models, in config order. */
+  get sessionModelIds(): string[] {
+    return [...this.#sessions.keys()];
   }
 
   get embedding(): AbstractEmbeddingModel {

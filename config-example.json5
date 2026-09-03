@@ -87,6 +87,9 @@
         // entry (switch state is not persisted — documented V1 limitation).
         // Use models optimized for agentic workflows if possible.
         session: [{
+            // Harness-internal unique model id. Reference models by THIS
+            // (e.g. in the switch_substrate tool) — never by array position.
+            id: 'z-ai/glm-5.3-flash',
             // For now, the only supported adapter is 'openai'
             // (any OpenAI-compatible inference provider works).
             adapter: 'openai',
@@ -117,6 +120,7 @@
         // distillation quality compounds, so it deserves a strong model
         // regardless of what substrate a session has switched to.
         distillation: {
+            id: 'distillation',
             adapter: 'openai',
             options: {
                 model: "deepseek/deepseek-v4-pro",
@@ -128,6 +132,7 @@
         },
         // Dedicated compaction model. Static — same reasoning as above.
         compaction: {
+            id: 'compaction',
             adapter: 'openai',
             options: {
                 model: "deepseek/deepseek-v4-pro",

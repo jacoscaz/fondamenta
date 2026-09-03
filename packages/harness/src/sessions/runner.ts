@@ -23,6 +23,8 @@ export interface SessionRunnerEvents extends Record<string, any[]> {
 export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
   #model: AbstractSessionModel;
+  /** Config id of the active model (identity by name, not position). */
+  #model_id: string;
   #logger: Logger;
   #running: boolean;
   #injected: AInsertableDBMessage[] = [];
@@ -37,9 +39,10 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #last_heartbeat_activation_at?: Date;
   #last_activation_at?: Date;
 
-  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel) {
+  constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel, model_id: string) {
     super(ctx);
     this.#model = model;
+    this.#model_id = model_id;
     this.#logger = ctx.logger.child(`[session:${origin_session_id}]`);
     this.#running = false;
     this.#injected = [];
@@ -57,20 +60,27 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
   // ── Dynamic substrate switching (2026-09-03) ──
   // The runner owns its session's active model: switching is per-session
-  // state with the runner's lifecycle. Restarts reset to the default
-  // (first) model — documented V1 limitation.
+  // state with the runner's lifecycle. Restarts reset to the FIRST config
+  // entry (the one place ordering matters — Jacopo's review, PR #27:
+  // identity is by id everywhere else; 'default' is not a concept).
+
+  /** The id of the currently active model (e.g. 'z-ai/glm-5.3-flash'). */
+  getModel(): string {
+    return this.#model_id;
+  }
 
   /**
-   * Switch this session's model to the adapter at config index `index`.
-   * Returns the human-readable name of the now-active model.
+   * Switch this session's model to the adapter with the given config id.
+   * Returns the id of the now-active model.
    */
-  switchModel(index: number): string {
-    const model = this._ctx.managers.models.session(index);
-    if (model === this.#model) return this.#describeModel();
-    const previous = this.#describeModel();
+  switchModel(id: string): string {
+    const model = this._ctx.managers.models.session(id);
+    if (model === this.#model) return this.#model_id;
+    const previous = this.#model_id;
     this.#model = model;
-    this.#logger.info('model switched: %s -> %s (index %d)', previous, this.#describeModel(), index);
-    return this.#describeModel();
+    this.#model_id = id;
+    this.#logger.info('model switched: %s -> %s', previous, id);
+    return id;
   }
 
   /**
@@ -82,11 +92,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     const applied = this.#model.setReasoningEffort(effort);
     this.#logger.info('reasoning effort request \'%s\': %s', effort, applied ? 'applied' : 'not supported by active model, ignored');
     return applied;
-  }
-
-  /** Human-readable description of the active model for weave events. */
-  #describeModel(): string {
-    return this.#model.constructor.name;
   }
 
   /**

@@ -25,6 +25,8 @@ export interface ConfigModalities {
 }
 
 export interface ConfigModelBase {
+  /** Unique model identifier internal to the harness (e.g. 'z-ai/glm-5.3-flash'). */
+  id: string;
   adapter: string;
   options?: Record<string, any>;
   max_output_size: number;
@@ -56,9 +58,7 @@ export type ConfigSessionModel = ConfigModelOpenAI;
  * equivalents (the OpenAI adapter passes them through unchanged); adapters
  * with no notion of reasoning effort no-op the request (log + false).
  */
-export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
 
-export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 
 export interface ConfigEmbeddingsModelOpenAI extends ConfigEmbeddingsModelBase {
   adapter: 'openai';

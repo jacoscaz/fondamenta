@@ -1,7 +1,7 @@
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type CompleteContext } from "../context.js";
 import { type HarnessMcpToolCallContext } from "../types.js";
-import { REASONING_EFFORTS } from "../config/config.js";
+import { REASONING_EFFORTS } from "../constants.js";
 
 export const registerSessionTools = (ctx: CompleteContext, mcp_server: McpLocalServer<HarnessMcpToolCallContext>) => {
 
@@ -20,8 +20,8 @@ export const registerSessionTools = (ctx: CompleteContext, mcp_server: McpLocalS
   );
 
   interface SwitchSubstrateParams {
-    /** Index into config.models.session (0-based). Omit to keep the current model. */
-    model?: number;
+    /** Config id of the target session model (e.g. 'z-ai/glm-5.3-flash'). Omit to keep the current model. */
+    model?: string;
     /** Requested reasoning effort. Omit to keep the current effort. */
     reasoning_effort?: string;
   }
@@ -29,19 +29,18 @@ export const registerSessionTools = (ctx: CompleteContext, mcp_server: McpLocalS
   mcp_server.addTool<SwitchSubstrateParams>(
     'switch_substrate',
     'Switch Substrate',
-    'Switch this session\'s substrate at runtime: select a different session model (by index into the configured session-model array; entry 0 is the default) and/or request a different reasoning effort (none/minimal/low/medium/high/xhigh). Both parameters are optional; provide at least one. Reasoning-effort requests are no-ops (never errors) on models that do not support them. Model switches are session-scoped and reset to the default model on harness restart.',
+    'Switch this session\'s substrate at runtime: select a different session model (by its config id, e.g. \'z-ai/glm-5.3-flash\' — the first configured model is the one sessions start on) and/or request a different reasoning effort (none/minimal/low/medium/high/xhigh). Both parameters are optional; provide at least one. Reasoning-effort requests are no-ops (never errors) on models that do not support them. Model switches are session-scoped and reset to the first configured model on harness restart.',
     (async ({ model, reasoning_effort }, { db, origin_session_id: session_id }) => {
       if (model === undefined && reasoning_effort === undefined) {
-        return [{ type: 'text', text: 'Error: provide model (index), reasoning_effort, or both.' }];
+        return [{ type: 'text', text: `Error: provide model (id — one of: ${ctx.managers.models.sessionModelIds.join(', ')}), reasoning_effort, or both.` }];
       }
       const results: string[] = [];
       if (model !== undefined) {
         try {
-          const name = ctx.managers.sessions.switchSessionModel(session_id, model);
-          results.push(`model switched to: ${name} (index ${model})`);
+          const active_id = ctx.managers.sessions.switchSessionModel(session_id, model);
+          results.push(`model switched to: ${active_id}`);
         } catch (err) {
-          const count = ctx.managers.models.sessionModelCount;
-          return [{ type: 'text', text: `Error: invalid model index ${model} (valid range: 0-${count - 1}).` }];
+          return [{ type: 'text', text: `Error: ${err instanceof Error ? err.message : String(err)}` }];
         }
       }
       if (reasoning_effort !== undefined) {
@@ -68,7 +67,10 @@ export const registerSessionTools = (ctx: CompleteContext, mcp_server: McpLocalS
         .select(['prompt_size', 'input_tokens_count', 'output_tokens_count'])
         .executeTakeFirstOrThrow();
 
-      const max_context_size = ctx.managers.models.defaultSession.max_context_size;
+      // The session's ACTUAL active model (may have switched mid-session).
+      const max_context_size = ctx.managers.models.session(
+        ctx.managers.sessions.getSessionModel(session_id),
+      ).max_context_size;
       const pressure = session.prompt_size / max_context_size;
 
       const message_count = await db

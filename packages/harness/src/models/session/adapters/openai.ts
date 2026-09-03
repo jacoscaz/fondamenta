@@ -18,7 +18,8 @@ import {
 
 import OpenAI from 'openai';
 
-import { ConfigModelOpenAI, type ReasoningEffort } from "../../../config/config.js";
+import { ConfigModelOpenAI } from "../../../config/config.js";
+import { type ReasoningEffort } from "../../../constants.js";
 import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
 
 export class OpenAISessionModel extends AbstractSessionModel {
