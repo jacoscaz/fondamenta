@@ -50,6 +50,16 @@ export interface ConfigModelOpenAI extends ConfigModelBase {
 
 export type ConfigSessionModel = ConfigModelOpenAI;
 
+/**
+ * Reasoning-effort vocabulary: the harness's common language for how hard
+ * a session model should think. Adapters translate these to their native
+ * equivalents (the OpenAI adapter passes them through unchanged); adapters
+ * with no notion of reasoning effort no-op the request (log + false).
+ */
+export const REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh'] as const;
+
+export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+
 export interface ConfigEmbeddingsModelOpenAI extends ConfigEmbeddingsModelBase {
   adapter: 'openai';
   options: {
@@ -154,9 +164,19 @@ export interface ConfigHeartbeat {
 export interface Config {
   tz: string;
   models: {
-    session: ConfigSessionModel;
+    /**
+     * Session models, in priority order. The FIRST entry is the default
+     * every session starts on; sessions may switch to any other entry at
+     * runtime via the session MCP server's switch tool. Restarts reset to
+     * the first entry (V1: switch state is not persisted).
+     */
+    session: ConfigSessionModel[];
     embedding: ConfigEmbeddingModel;
     transcription?: ConfigTranscriptionModel;
+    /** Dedicated model for distillation (continuity maintenance). Static — not switchable. */
+    distillation: ConfigSessionModel;
+    /** Dedicated model for compaction. Static — not switchable. */
+    compaction: ConfigSessionModel;
   };
   logging: ConfigLogging;
   /** JMAP mail server configuration (owned by @fondamenta/mcp-jmap). */

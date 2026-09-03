@@ -80,9 +80,13 @@
     },
 
     models: {
-        // Conversational session model: generates all agent activations.
+        // Session models: generate all agent activations. An ARRAY — the
+        // first entry is the default every session starts on; the agent
+        // can switch to any other entry at runtime via the session MCP
+        // server's switch_substrate tool. Restarts reset to the first
+        // entry (switch state is not persisted — documented V1 limitation).
         // Use models optimized for agentic workflows if possible.
-        session: {
+        session: [{
             // For now, the only supported adapter is 'openai'
             // (any OpenAI-compatible inference provider works).
             adapter: 'openai',
@@ -107,6 +111,31 @@
             // agent see photos (e.g. those downloaded via the telegram
             // package's photo tool).
             // modalities: { images: true },
+        }],
+        // Dedicated distillation model (continuity-record maintenance).
+        // Static — deliberately NOT part of the switchable session array:
+        // distillation quality compounds, so it deserves a strong model
+        // regardless of what substrate a session has switched to.
+        distillation: {
+            adapter: 'openai',
+            options: {
+                model: "deepseek/deepseek-v4-pro",
+                api_key: "${OPENROUTER_API_KEY}",
+                base_url: 'https://openrouter.ai/api/v1',
+            },
+            max_output_size: 20000,
+            max_context_size: 1000000,
+        },
+        // Dedicated compaction model. Static — same reasoning as above.
+        compaction: {
+            adapter: 'openai',
+            options: {
+                model: "deepseek/deepseek-v4-pro",
+                api_key: "${OPENROUTER_API_KEY}",
+                base_url: 'https://openrouter.ai/api/v1',
+            },
+            max_output_size: 20000,
+            max_context_size: 1000000,
         },
         // Embedding model used to compute vector representations of
         // continuity records and similarity queries. Use a model that

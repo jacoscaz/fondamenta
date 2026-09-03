@@ -66,7 +66,7 @@ export class SessionManager extends WithContext {
   #ensureRunner(session_id: number): SessionRunner {
     let runner = this.#runners[session_id];
     if (!runner) {
-      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.session);
+      runner = new SessionRunner(this._ctx.init, session_id, session_id, this._ctx.managers.models.defaultSession);
       this.#runners[session_id] = runner;
       // The main session runner owns its own heartbeat cadence and is
       // the only session whose stream is mirrored to the monologue log.
@@ -83,6 +83,24 @@ export class SessionManager extends WithContext {
       this.#logger.info('runner for session %d started', session_id);
     }
     return runner;
+  }
+
+  /**
+   * Switch the model of the runner for the given session (dynamic
+   * substrate switching, 2026-09-03). Called from the session MCP
+   * server's switch tool — the tool call context carries the session
+   * id, so the caller never needs to know their own session id.
+   */
+  switchSessionModel(session_id: number, index: number): string {
+    return this.#ensureRunner(session_id).switchModel(index);
+  }
+
+  /**
+   * Request a reasoning-effort change on the given session's active
+   * model. Returns false when the model doesn't support it (never throws).
+   */
+  setSessionReasoningEffort(session_id: number, effort: string): boolean {
+    return this.#ensureRunner(session_id).setReasoningEffort(effort);
   }
 
   async injectMessage(session_id: number, message: UserMessage, run: boolean): Promise<void> {

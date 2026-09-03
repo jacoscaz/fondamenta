@@ -55,6 +55,40 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#post_query_listeners = [];
   }
 
+  // ── Dynamic substrate switching (2026-09-03) ──
+  // The runner owns its session's active model: switching is per-session
+  // state with the runner's lifecycle. Restarts reset to the default
+  // (first) model — documented V1 limitation.
+
+  /**
+   * Switch this session's model to the adapter at config index `index`.
+   * Returns the human-readable name of the now-active model.
+   */
+  switchModel(index: number): string {
+    const model = this._ctx.managers.models.session(index);
+    if (model === this.#model) return this.#describeModel();
+    const previous = this.#describeModel();
+    this.#model = model;
+    this.#logger.info('model switched: %s -> %s (index %d)', previous, this.#describeModel(), index);
+    return this.#describeModel();
+  }
+
+  /**
+   * Request a reasoning-effort change on the active model. Adapters that
+   * don't support effort (or have it disabled) no-op with `false` — this
+   * never errors (Jacopo's ruling, 2026-09-03).
+   */
+  setReasoningEffort(effort: string): boolean {
+    const applied = this.#model.setReasoningEffort(effort);
+    this.#logger.info('reasoning effort request \'%s\': %s', effort, applied ? 'applied' : 'not supported by active model, ignored');
+    return applied;
+  }
+
+  /** Human-readable description of the active model for weave events. */
+  #describeModel(): string {
+    return this.#model.constructor.name;
+  }
+
   /**
    * Start the internal heartbeat. Only called for the main session
    * runner; transient runners (distiller) have no heartbeat.

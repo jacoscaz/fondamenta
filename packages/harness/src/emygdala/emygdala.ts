@@ -103,7 +103,7 @@ export class Emygdala extends WithContext {
   };
 
   #evaluateContextPressure(prompt_size: number, injected_messages: string[]) {
-    const max_context_size = this._ctx.managers.models.session.max_context_size;
+    const max_context_size = this._ctx.managers.models.defaultSession.max_context_size;
     const pressure = prompt_size / max_context_size;
 
     // Determine which level we're at
@@ -155,7 +155,15 @@ export class Emygdala extends WithContext {
         injected_messages.push(`It is ${now.toISOString()}. It has has been ${gap_str} since your last activation.`);
       }
     } else {
-      injected_messages.push(`It is ${now.toISOString()}. Your harness has just been started.`);
+      // Boot event carries substrate STATE (Jacopo, 2026-09-03): a restart
+      // is the only unintentional substrate change — intentional switches
+      // are known by definition to the agent who made them. Future-me must
+      // know which substrate it wakes up on without having to deduce it.
+      const model_desc = this._ctx.managers.models.defaultSession.constructor.name;
+      injected_messages.push(
+        `It is ${now.toISOString()}. Your harness has just been started. ` +
+        `You are running on the default session model (${model_desc}) at its configured reasoning effort.`,
+      );
     }
     this.#last_active_at = now;
   }
