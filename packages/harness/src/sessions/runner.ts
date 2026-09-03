@@ -147,9 +147,15 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       const quiet_after_ms = this._ctx.config.heartbeat?.quiet_after_ms ?? 0;
       const last_any = this.#last_activation_at;
       if (quiet_after_ms > 0 && last_any && (now.valueOf() - last_any.valueOf()) < quiet_after_ms) {
-        const elapsed = Math.round((now.valueOf() - last_any.valueOf()) / 60_000);
-        this.#logger.debug('heartbeat tick skipped: quiet period (last activation %dm ago)', elapsed);
-        this.run(undefined, undefined, SessionRunner.DEFAULT_MAX_QUERIES_PER_RUN);
+        const elapsed = Math.round((now.valueOf() - last_any.valueOf()) / 1000);
+        this.#logger.debug('heartbeat tick skipped: quiet period (last activation %ds ago)', elapsed);
+        // Pending messages still need draining even when the activation
+        // prompt is deferred — but only if there is anything to drain.
+        // An unconditional run() here produced a spurious running+idle
+        // pass at every tick.
+        if (await this.#hasPendingMessages()) {
+          this.run(undefined, undefined, SessionRunner.DEFAULT_MAX_QUERIES_PER_RUN);
+        }
         return;
       }
 
@@ -176,6 +182,22 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
 
   get lastIdleAt(): Date | undefined {
     return this.#last_idle_at;
+  }
+
+  /**
+   * Whether the session has any unprocessed message pending. Used to
+   * gate drain-only runs (e.g. the heartbeat quiet-period branch) so
+   * that ticks with nothing to process do not spawn empty activation
+   * passes.
+   */
+  async #hasPendingMessages(): Promise<boolean> {
+    const not_proc = await this._ctx.db.selectFrom('messages')
+      .where('session_id', '=', this.#origin_session_id)
+      .where('processed_at', 'is', null)
+      .select('id')
+      .limit(1)
+      .executeTakeFirst();
+    return not_proc !== undefined;
   }
 
   addPreQueryListener(listener: () => Promise<void>) {
