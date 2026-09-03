@@ -49,7 +49,17 @@ export class SessionManager extends WithContext {
   }
 
   run(session_id: number): Promise<void> {
-    return this.#ensureRunner(session_id).run();
+    const runner = this.#ensureRunner(session_id);
+    // Activation-limit configuration: the main session gets a generous
+    // cap (a runaway there costs minutes of tokens, not hours — and the
+    // limit-reached notification in the weave lets the next heartbeat
+    // resume informed). Ephemeral runners (distiller, compactor) call
+    // runner.run() directly with their own tighter limits.
+    const main_limit = this._ctx.config.session?.max_activations_per_run ?? SessionRunner.DEFAULT_MAX_QUERIES_PER_RUN;
+    if (session_id === this.main_session_id) {
+      return runner.run(undefined, undefined, main_limit);
+    }
+    return runner.run(undefined, undefined, 30);
   }
 
   /**

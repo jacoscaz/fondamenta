@@ -36,6 +36,14 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   #monologue_enabled: boolean;
   #last_heartbeat_activation_at?: Date;
   #last_activation_at?: Date;
+  /** Maximum activations (query loop iterations) per run() invocation.
+   *  Set per-run by the caller; every caller must pass a limit. */
+  #max_queries_per_run!: number;
+  #query_count = 0;
+  /** Default activation limit, used by internal run() re-invocations
+   *  (heartbeat ticks, deferred runs). The main session's generous cap;
+   *  ephemeral runners pass their own tighter limit explicitly. */
+  static DEFAULT_MAX_QUERIES_PER_RUN = 200;
 
   constructor(ctx: InitContext, origin_session_id: number, target_session_id: number, model: AbstractSessionModel) {
     super(ctx);
@@ -141,7 +149,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       if (quiet_after_ms > 0 && last_any && (now.valueOf() - last_any.valueOf()) < quiet_after_ms) {
         const elapsed = Math.round((now.valueOf() - last_any.valueOf()) / 60_000);
         this.#logger.debug('heartbeat tick skipped: quiet period (last activation %dm ago)', elapsed);
-        this.run();
+        this.run(undefined, undefined, SessionRunner.DEFAULT_MAX_QUERIES_PER_RUN);
         return;
       }
 
@@ -155,7 +163,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         });
       }
     }
-    this.run();
+    this.run(undefined, undefined, SessionRunner.DEFAULT_MAX_QUERIES_PER_RUN);
   }
 
   /** Whether the runner is currently processing an activation loop. */
@@ -206,7 +214,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       created_at: getMonotonicDate(),
     });
     if (run) {
-      this.run();
+      this.run(undefined, undefined, SessionRunner.DEFAULT_MAX_QUERIES_PER_RUN);
     }
   }
 
@@ -237,14 +245,16 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     return messages.map(m => m.data);
   }
 
-  async run(db?: DB, mcp_manager?: McpManager): Promise<void> {
+  async run(db: DB | undefined, mcp_manager: McpManager | undefined, max_queries_per_run: number): Promise<void> {
     if (this.#running) {
       return;
     }
     this.#running = true;
+    this.#max_queries_per_run = max_queries_per_run;
+    this.#query_count = 0;
     db = db ?? this._ctx.db;
     mcp_manager = mcp_manager ?? this._ctx.managers.mcp;
-    this.#logger.debug('running');
+    this.#logger.debug('running (max_queries_per_run: %d)', max_queries_per_run);
     try {
       let has_more = true;
       while (has_more) {
@@ -253,9 +263,13 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         // included in this iteration's context, mirrored by the read
         // gate, and marked processed only after actually being read.
         await this.#runPreQueryListeners(db);
-        has_more = await selectMessagesForActivation(db, this.#origin_session_id, async (messages) => {
+        this.#query_count += 1;
+        has_more = this.#query_count < this.#max_queries_per_run && await selectMessagesForActivation(db, this.#origin_session_id, async (messages) => {
           return await this.#query(messages, db, mcp_manager);
         });
+        if (!has_more && this.#query_count >= this.#max_queries_per_run) {
+          this.#logger.warn('activation limit reached (%d/%d): stopping the query loop', this.#query_count, this.#max_queries_per_run);
+        }
         // Post-query listeners run after the activation's messages
         // have been persisted.
         await this.#runPostQueryListeners(db);

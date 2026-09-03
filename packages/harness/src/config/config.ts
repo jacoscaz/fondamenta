@@ -168,6 +168,15 @@ export interface ConfigHeartbeat {
   quiet_after_ms: number;
 }
 
+export interface ConfigSession {
+  /** Maximum activation-loop iterations per run() for the main session
+   *  runner. A runaway loop costs bounded tokens; the limit-reached
+   *  condition is visible in the journal and the next heartbeat resumes
+   *  work with fresh context. Ephemeral runners (distiller, compactor)
+   *  pass their own tighter limits explicitly. */
+  max_activations_per_run: number;
+}
+
 export interface Config {
   tz: string;
   models: {
@@ -191,6 +200,8 @@ export interface Config {
   /** Telegram server configuration (owned by @fondamenta/mcp-telegram). */
   telegram: ConfigTelegram;
   heartbeat: ConfigHeartbeat;
+  /** Session runner limits. Optional — defaults apply when absent. */
+  session?: Partial<ConfigSession>;
   postgres: ConfigPostgres;
 }
 

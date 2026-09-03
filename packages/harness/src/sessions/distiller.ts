@@ -99,6 +99,10 @@ export class Distiller extends WithContext {
       return origin_session_id;
     });
     const runner = new SessionRunner(this._ctx.init, origin_session_id, target_session_id, this._ctx.managers.models.distillation);
+    // 30 activations max per distillation run: a legitimate run grounds a
+    // handful of times; today's runaway hit 160+ turns searching for a
+    // record that didn't exist. The limit is the mechanical backstop for
+    // the prompt's cognitive stop-rule.
     await runner.run(db, this._ctx.managers.mcp.whitelist([
       'mcp_continuity_query',
       'mcp_continuity_read',
@@ -112,6 +116,6 @@ export class Distiller extends WithContext {
       'mcp_anchors_select',
       'mcp_anchors_update',
       'mcp_anchors_delete',
-    ]));
+    ]), 30);
   }
 }
