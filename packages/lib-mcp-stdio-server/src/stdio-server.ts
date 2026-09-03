@@ -28,7 +28,7 @@ export class StdioServer<C extends { [key: string]: any } = {}> {
     this.#write = write;
     // Server-emitted notifications are forwarded to the client on the
     // wire as JSON-RPC notifications (no id, no response expected).
-    local.onServerNotification((notification) => {
+    local.__onServerNotification((notification) => {
       this.#write(JSON.stringify(notification));
     });
   }

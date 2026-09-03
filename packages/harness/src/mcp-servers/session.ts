@@ -1,7 +1,7 @@
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type CompleteContext } from "../context.js";
-import { type HarnessMcpToolCallContext } from "../types.js";
 import { REASONING_EFFORTS } from "../constants.js";
+import { type HarnessMcpToolCallContext } from "../types/tools.js";
 
 export const registerSessionTools = (ctx: CompleteContext, mcp_server: McpLocalServer<HarnessMcpToolCallContext>) => {
 

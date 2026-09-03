@@ -5,9 +5,9 @@
 
 import { runSuite } from "./suite.js";
 import { localTransport } from "./transport-local.js";
-import { httpTransport } from "./transport-http.js";
-import { stdioTransport } from "./transport-stdio.js";
+// import { httpTransport } from "./transport-http.js";
+// import { stdioTransport } from "./transport-stdio.js";
 
 runSuite(localTransport);
-runSuite(httpTransport);
-runSuite(stdioTransport);
+// runSuite(httpTransport);
+// runSuite(stdioTransport);

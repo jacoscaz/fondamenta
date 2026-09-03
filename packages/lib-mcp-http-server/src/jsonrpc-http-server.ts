@@ -42,8 +42,8 @@ export class JsonRpcHttpServer {
     this.#setupRoutes();
     // Server-emitted notifications are queued for delivery on the next
     // GET /mcp drain (long-poll or immediate).
-    local.onServerNotification((notification) => {
-      this.#notification_queue.push(notification);
+    local.__onServerNotification((notification) => {
+      this.#notification_queue.push({ ...notification, jsonrpc: '2.0' });
     });
   }
 

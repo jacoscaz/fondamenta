@@ -22,9 +22,11 @@ import {
   updateRecord,
   type SelectableContinuityRecord,
 } from "../database/tables/continuity_records.js";
-import { type HarnessMcpToolCallContext } from "../types.js";
+import { type HarnessMcpToolCallContext } from "../types/tools.js";
 import { type CompleteContext } from "../context.js";
 import { McpLocalServer } from "@fondamenta/mcp-local";
+
+// TODO: this should be merged into the continuity server.
 
 // ── Budget ──
 

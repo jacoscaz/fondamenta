@@ -4,7 +4,6 @@ import { cast, ReceiveType, resolveReceiveType, ValidationError } from '@runtype
 import { ToolRegistry, ToolFnResult, wrapTool } from "./tools.js";
 import assert from "node:assert";
 import { McpServer } from "@fondamenta/mcp-core";
-import { type JsonRpcNotification } from "@fondamenta/mcp-core";
 import { validationErrsToString } from "@fondamenta/utils";
 import {
   type McpInitializeParams,
@@ -12,42 +11,40 @@ import {
   type McpToolCallResult,
   type McpToolListResult,
   type McpToolsCallParams,
+  type McpNotification,
+  type McpToolCallContext,
   type JsonRpcParams,
 } from "@fondamenta/mcp-core";
 
-import { McpToolCallContext } from "@fondamenta/mcp-core/src/types-mcp.js";
+import {  } from "@fondamenta/mcp-core/src/types-mcp.js";
 
 
 export class McpLocalServer<C extends McpToolCallContext = {}> implements McpServer<C> {
 
   #tools: ToolRegistry;
-  #notification_listeners: ((notification: JsonRpcNotification) => void)[];
+  #server_notification_listeners: ((notification: McpNotification) => void)[];
 
   constructor() {
     this.#tools = new Map();
-    this.#notification_listeners = [];
+    /** Notification listeners registered by McpLocalClient */
+    this.#server_notification_listeners = [];
   }
 
   /**
-   * Register a listener for notifications emitted by this server
-   * (server-to-client direction). The transport layer bridges these to
-   * the connected client.
+   * User by McpLocalClient to register handlers for notifications produced by
+   * this server. This method is an internal method, not to be used by consumer
+   * of this class.
    */
-  onServerNotification(listener: (notification: JsonRpcNotification) => void): void {
-    this.#notification_listeners.push(listener);
+  __onServerNotification(listener: (notification: McpNotification) => void): void {
+    this.#server_notification_listeners.push(listener);
   }
 
   /**
    * Emit a notification to the connected client (server-to-client).
-   * Transport layers hook this via onServerNotification.
+   * Transport layers hook this via __onServerNotification.
    */
-  notify(method: string, params?: JsonRpcParams): void {
-    const notification: JsonRpcNotification = {
-      jsonrpc: '2.0',
-      method,
-      ...(params !== undefined ? { params } : {}),
-    };
-    for (const listener of this.#notification_listeners) {
+  notify(notification: McpNotification): void {
+    for (const listener of this.#server_notification_listeners) {
       try {
         listener(notification);
       } catch (err) {
@@ -89,6 +86,10 @@ export class McpLocalServer<C extends McpToolCallContext = {}> implements McpSer
       }
       throw err;
     }
+  }
+
+  destroy(): void {
+
   }
 
   #onInitializeRequest = async (params?: any) => {

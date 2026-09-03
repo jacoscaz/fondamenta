@@ -1,11 +1,13 @@
+
 import { type Logger } from "pinetto";
 import { type InitContext, WithContext } from "../context.js";
 import { SessionRunner } from "./runner.js";
 import { insertSession, selectSessionById } from "../database/tables/sessions.js";
 import { type UserMessage, type Message } from "../models/session/types/messages.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
-import { type TextBlock } from "../models/session/types/blocks.js";
 import assert from "node:assert";
+import { type HarnessNotification } from "../notifications/types.js";
+import { formatNotification } from "../notifications/formatters.js";
 
 
 export interface SessionManagerEvents extends Record<string, any[]> {
@@ -165,6 +167,7 @@ export class SessionManager extends WithContext {
       .select('id')
       .executeTakeFirst();
     this.#main_session_id = session?.id ?? await this.create();
+    this._ctx.buses.notifications.subscribe('session-manager', this.#onNotification);
   }
 
   async getById(id: number) {
@@ -178,6 +181,34 @@ export class SessionManager extends WithContext {
       system_prompt: await this._ctx.managers.prompts.getSystemPrompt(),
     });
     return id;
+  }
+
+  #injectNotification = async (notification: HarnessNotification): Promise<void> => {
+    const { main_session_id } = this._ctx.managers.sessions;
+    const body = formatNotification(notification);
+    this.#logger.info('injecting event %s', notification.method);
+    this.injectEventMessage(main_session_id, notification.method, body, true).catch((err: unknown) => {
+      this.#logger.error('event injection failed (%s): %s', notification.method, err instanceof Error ? err.message : String(err));
+    });
+  };
+
+  #onNotification = async (notification: HarnessNotification): Promise<boolean> => {
+    switch (notification.method) {
+      case 'telegram/text_message':
+        await this.#injectNotification(notification);
+        return true;
+      case 'transcription/ready':
+        await this.#injectNotification(notification);
+        return true;
+      case 'jmap/new_email':
+        await this.#injectNotification(notification);
+        return true;
+      case 'todo/due':
+        await this.#injectNotification(notification);
+        return true;
+      default:
+        return false;
+    }
   }
 
 

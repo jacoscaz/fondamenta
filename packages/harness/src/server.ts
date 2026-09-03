@@ -10,11 +10,8 @@ import { getConfigFromProcessArgv } from "./config/config.js";
 
 import { PromptManager } from "./prompts/manager.js";
 import { SessionManager } from "./sessions/manager.js";
-import { TodoNotifier } from "./sessions/todo-scheduler.js";
-import { NotificationBus } from "./sessions/notification-bus.js";
-import { initTranscriptionMcpServer } from "./mcp-servers/transcription.js";
-import { startMailServer } from "@fondamenta/mcp-jmap";
-import { startTelegramServer } from "@fondamenta/mcp-telegram";
+import { NotificationBus } from "./notifications/bus.js";
+
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
@@ -26,12 +23,31 @@ import { RootMcpManager } from './mcp-manager/manager.js';
 import { ModelManager } from './models/manager.js';
 import { MonologueLogger } from './sessions/monologue-logger.js';
 
+import { initJmapMcpServer } from "@fondamenta/mcp-jmap";
+import { initTelegramMcpServer } from '@fondamenta/mcp-telegram';
+import { initShellMcpServer } from "./mcp-servers/shell.js";
+import { initFilesMcpServer } from "./mcp-servers/files.js";
+import { initProcessMcpServer } from "./mcp-servers/process.js";
+import { initTimeMcpServer } from "./mcp-servers/time.js";
+import { initSessionMcpServer } from "./mcp-servers/session.js";
+import { initTerminalMcpServer } from "./mcp-servers/terminal/terminal.js";
+import { initContinuityMcpServer } from "./mcp-servers/continuity/server.js";
+import { initPinningMcpServer } from "./mcp-servers/pinning.js";
+import { initAnchorsMcpServer } from "./mcp-servers/anchors.js";
+import { initTranscriptionMcpServer } from "./mcp-servers/transcription/server.js";
+import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
+import { HarnessMcpToolCallContext } from './types/tools.js';
+
 const config = await getConfigFromProcessArgv();
 
 // Main (ops) logger. Everything that is not a formatted block
 // representation of the session stream goes to stderr: stdout is
 // reserved for the monologue mirror (see MonologueLogger).
 const logger = pinetto({ level: config.logging.level, writer: new ProcessWriter('stderr') });
+
+
+logger.info('PID %s', process.pid);
+process.title = 'fondamenta';
 
 // Human-facing mirror of the session stream, one entry per block,
 // written to its own rotating file. Stdout/stderr stay ops-only.
@@ -53,23 +69,6 @@ const init_context: InitContext = {
   getCompleteContext: () => complete_context,
 };
 
-// Mail: the JMAP MCP server owns its tools AND its notifications now
-// (mail/arrived, emitted via server.notify → transport → manager → bus).
-const mail_server = startMailServer(
-  init_context.config.mail,
-  (msg: string, ...args: any[]) => logger.child('[mail]').info(msg, ...args),
-);
-
-// Telegram: same pattern (telegram/message on incoming allowlisted
-// updates). started only if a token is configured.
-let telegram_server: ReturnType<typeof startTelegramServer> | null = null;
-if (init_context.config.telegram?.api_token) {
-  telegram_server = startTelegramServer(
-    init_context.config.telegram,
-    (msg: string, ...args: any[]) => logger.child('[telegram]').info(msg, ...args),
-  );
-}
-
 const complete_context: CompleteContext = {
   db,
   init: init_context,
@@ -80,13 +79,8 @@ const complete_context: CompleteContext = {
   compactor: new Compactor(init_context),
   distiller: new Distiller(init_context),
   embedder: new Embedder(init_context),
-  notifiers: {
-    todo: new TodoNotifier(init_context),
-    bus: new NotificationBus(init_context),
-    mail_server: mail_server.server,
-    mail: { stop: () => mail_server.stop() },
-    telegram_server: telegram_server!.server,
-    telegram: { stop: () => telegram_server?.stop() },
+  buses: {
+    notifications: new NotificationBus(init_context),
   },
   managers: {
     mcp: new RootMcpManager(init_context),
@@ -98,51 +92,140 @@ const complete_context: CompleteContext = {
 
 await complete_context.managers.models.initialize();
 await complete_context.managers.sessions.initialize();
-
-// Transcription MCP server (2026-09-02, refactor per Jacopo): the
-// transcription capability is an MCP server, not a dedicated pipeline
-// class. It registers as a bus subscriber for audio/available (the
-// automatic path) and exposes mcp_transcription_transcribe (the
-// manual path). Created BEFORE mcp.initialize() so the descriptors
-// see it; gated on config presence.
-if (config.models.transcription) {
-  const transcription_server = initTranscriptionMcpServer(complete_context);
-  complete_context.notifiers.transcription_server = transcription_server;
-  // Subscription face: the bus delivers audio/available payloads to
-  // the server's own onNotification (client→server direction, local
-  // transport). Emission face: the server's notify() flows through
-  // the manager's routing back to the bus like every other server.
-  complete_context.notifiers.bus.subscribe('audio/available', {
-    name: 'transcription',
-    onNotification: (notification) => transcription_server.handleDomainNotification(notification),
-  });
-  logger.info('transcription server active (%s @ %s) — auto + manual paths', config.models.transcription.options.model, config.models.transcription.options.base_url ?? 'openai-default');
-} else {
-  logger.info('no transcription model configured — audio notifications discarded at the bus');
-}
-
-await complete_context.managers.mcp.initialize();
 await complete_context.emygdala.initialize();
 await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
-await complete_context.notifiers.todo.initialize(60_000);
+
+// ============================================================================
+//                          MCP SERVER REGISTRATION
+// ============================================================================
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'continuity',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initContinuityMcpServer(complete_context),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'pinning',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initPinningMcpServer(complete_context),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'anchors',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initAnchorsMcpServer(complete_context),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'process',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initProcessMcpServer(config),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'time',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initTimeMcpServer(config),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'session',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initSessionMcpServer(complete_context),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'shell',
+  safe: false,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initShellMcpServer(config),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'files',
+  safe: false,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initFilesMcpServer(config),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'mail',
+  safe: false,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initJmapMcpServer(config.mail),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'telegram',
+  safe: false,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initTelegramMcpServer(config.telegram),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'terminal',
+  safe: false,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initTerminalMcpServer(config, complete_context),
+  ),
+});
+
+complete_context.managers.mcp.register({
+  type: 'local' as const,
+  name: 'transcription',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initTranscriptionMcpServer(complete_context),
+  ),
+});
+
+// ============================================================================
+//                        MAIN SESSION INITIALIZATION
+// ============================================================================
 
 // Resolve the main session and ensure its runner is alive
 const { main_session_id } = complete_context.managers.sessions;
 complete_context.managers.sessions.run(main_session_id);
 logger.info('main session %d is live', main_session_id);
 
-logger.info('PID %s', process.pid);
-process.title = 'fondamenta';
+// ============================================================================
+//                          PROCESS EXIT HANDLING
+// ============================================================================
 
 const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
   process.removeListener('beforeExit', onProcessExit);
   process.removeListener('SIGTERM', onProcessExit);
   process.removeListener('SIGINT', onProcessExit);
   logger.warn('Received signal %s, shutting down...', signal);
-  complete_context.notifiers.mail.stop();
-  complete_context.notifiers.telegram.stop();
-  complete_context.notifiers.todo.stop();
   db.destroy();
   setTimeout(() => process.exit(0), 1000);
 };

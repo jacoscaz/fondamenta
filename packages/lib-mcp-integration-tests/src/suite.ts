@@ -14,7 +14,7 @@
 
 import assert from "node:assert/strict";
 import { describe, it, before, after } from "node:test";
-import { type McpClient, type JsonRpcNotification } from "@fondamenta/mcp-core";
+import { type McpClient, type JsonRpcNotification, McpNotification } from "@fondamenta/mcp-core";
 import { makeTestServer } from "./server.js";
 
 export interface TransportHandle {
@@ -100,7 +100,7 @@ export const runSuite = (factory: TransportFactory) => {
     });
 
     it('delivers a notification emitted by a tool call', async () => {
-      const received: JsonRpcNotification[] = [];
+      const received: McpNotification[] = [];
       handle.client.onNotification((n) => received.push(n));
       // The ping tool emits `test/ping` server-side as a side effect.
       const result = await handle.client.call('ping', {}, {});
@@ -117,7 +117,7 @@ export const runSuite = (factory: TransportFactory) => {
     });
 
     it('notification handlers that throw do not break delivery', async () => {
-      const received: JsonRpcNotification[] = [];
+      const received: McpNotification[] = [];
       handle.client.onNotification(() => {
         throw new Error('broken handler');
       });

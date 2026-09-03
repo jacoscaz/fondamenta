@@ -5,15 +5,11 @@ import { type Emygdala } from "./emygdala/emygdala.js";
 import { type PromptManager } from "./prompts/manager.js";
 import { type SessionManager } from "./sessions/manager.js";
 import { type Compactor } from "./sessions/compactor.js";
-import { type TodoNotifier } from "./sessions/todo-scheduler.js";
-import { type NotificationBus } from "./sessions/notification-bus.js";
-import { type HarnessMcpToolCallContext } from "./types.js";
-import { type McpLocalServer } from "@fondamenta/mcp-local";
+import { type NotificationBus } from "./notifications/bus.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
-
 import { type RootMcpManager } from "./mcp-manager/manager.js";
 import { type ModelManager } from "./models/manager.js";
 
@@ -59,28 +55,8 @@ export interface CompleteContext {
   compactor: Compactor;
   distiller: Distiller;
   embedder: Embedder;
-  notifiers: {
-    todo: TodoNotifier;
-    /**
-     * The JMAP mail MCP server (with its notifier attached), built by
-     * server.ts via startMailServer before manager initialization.
-     * `mail_server` is the McpLocalServer to register in the descriptors;
-     * `mail.stop` tears the poller down.
-     */
-    mail_server: McpLocalServer;
-    mail: { stop(): void };
-    /** Telegram MCP server instance + teardown handle (step 5). */
-    telegram_server: McpLocalServer;
-    telegram: { stop(): void };
-    /**
-     * Transcription MCP server instance (2026-09-02). Created in
-     * server.ts after model init, when config.models.transcription
-     * exists; the descriptors gate on it being set. Notifier-free:
-     * it subscribes to the bus rather than polling anything.
-     */
-    transcription_server?: McpLocalServer<HarnessMcpToolCallContext>;
-    /** Generic MCP notification bus (Phase II step 3). */
-    bus: NotificationBus;
+  buses: {
+    notifications: NotificationBus;
   };
   managers: {
     mcp: RootMcpManager;

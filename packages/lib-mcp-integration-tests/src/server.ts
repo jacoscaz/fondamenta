@@ -30,7 +30,10 @@ export const registerTestTools = (server: McpLocalServer) => {
     'Ping',
     'Emits a test notification and returns a text block.',
     async () => {
-      server.notify('test/ping', { source: 'ping-tool' });
+      server.notify({
+        method: 'test/ping',
+        params: { source: 'ping-tool' },
+      });
       return 'pinged';
     },
   );

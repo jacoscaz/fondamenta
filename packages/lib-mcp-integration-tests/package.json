@@ -7,7 +7,7 @@
     "ts:clean": "rm -rf ./dist && rm -f ./tsconfig.tsbuildinfo",
     "ts:build": "tsc",
     "build": "npm run ts:clean && npm run ts:build",
-    "test": "node --test dist/"
+    "test": "node --enable-source-maps --test dist/tests.js"
   },
   "devDependencies": {
     "@runtyped/type-compiler": "^2.0.0",

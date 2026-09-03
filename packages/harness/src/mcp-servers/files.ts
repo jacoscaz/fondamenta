@@ -4,7 +4,7 @@ import { McpLocalServer } from "@fondamenta/mcp-local";
 import { isUtf8 } from "node:buffer";
 import { readFile, writeFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { HarnessMcpToolCallContext } from "../types.js";
+import { HarnessMcpToolCallContext } from "../types/tools.js";
 import sharp from "sharp";
 
 interface ReadFileParams {

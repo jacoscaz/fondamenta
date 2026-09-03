@@ -8,10 +8,8 @@
     "ts:clean": "rm -rf ./dist && rm -f ./tsconfig.tsbuildinfo",
     "ts:build": "npm run ts:clean && tsc",
     "ts:watch": "npm run ts:clean && tsc --watch",
-    "build": "npm run ts:build"
-  },
-  "bin": {
-    "dir2bundle": "dist/bin/dir2bundle.js"
+    "build": "npm run ts:build",
+    "test": "node --enable-source-maps --test dist/**/*.test.js"
   },
   "author": "Jacopo Scazzosi <jacopo@scazzosi.com>",
   "homepage": "https://github.com/fondamenta/fondamenta",

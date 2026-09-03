@@ -6,7 +6,7 @@ import { type TextBlock, type ToolUseErrorBlock, type ToolUseRequestBlock, type 
 import { AgentMessage, type Message, type UserMessage } from "../models/session/types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
-import { type HarnessMcpToolCallContext } from "../types.js";
+import { type HarnessMcpToolCallContext } from "../types/tools.js";
 import { type McpManager } from "../mcp-manager/manager.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";

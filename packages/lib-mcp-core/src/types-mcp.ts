@@ -1,3 +1,4 @@
+import { JsonRpcParams } from "./types-jsonrpc.js";
 
 export interface McpInitializeParams {
   protocolVersion: string;
@@ -70,4 +71,9 @@ export interface McpToolDescriptor {
 
 export interface McpToolListResult {
   tools: McpToolDescriptor[];
+}
+
+export interface McpNotification {
+  method: string;
+  params: JsonRpcParams;
 }

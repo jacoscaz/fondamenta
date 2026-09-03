@@ -4,8 +4,8 @@ import {
   type McpInitializeResult,
   type McpToolCallResult,
   type McpToolListResult,
+  type McpNotification,
 } from "./types-mcp.js";
-import { type JsonRpcNotification } from "./types-jsonrpc.js";
 
 export interface McpClient<C extends McpToolCallContext = {}> {
   initialize(params: McpInitializeParams): Promise<McpInitializeResult>;
@@ -24,5 +24,5 @@ export interface McpClient<C extends McpToolCallContext = {}> {
    * order; each handler's errors are swallowed so one bad handler
    * cannot break the notification flow.
    */
-  onNotification(handler: (notification: JsonRpcNotification) => void): void;
+  onNotification(handler: (notification: McpNotification) => void): void;
 }

@@ -1,7 +1,7 @@
+
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { Config } from "../config/config.js";
-import pinetto from 'pinetto';
-import { type HarnessMcpToolCallContext } from "../types.js";
+import { type HarnessMcpToolCallContext } from "../types/tools.js";
 
 export const registerProcessTools = (mcp_server: McpLocalServer<HarnessMcpToolCallContext>) => {
 

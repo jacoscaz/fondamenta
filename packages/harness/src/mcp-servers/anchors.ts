@@ -1,7 +1,7 @@
 
 import { type InsertableIdentityAnchor, type SelectableIdentityAnchor, type IdentityAnchorFilters } from "../database/tables/identity_anchors.js";
 import { deleteIdentityAnchor, insertIdentityAnchor, selectIdentityAnchors, updateIdentityAnchor } from "../database/tables/identity_anchors.js";
-import { type HarnessMcpToolCallContext } from "../types.js";
+import { type HarnessMcpToolCallContext } from "../types/tools.js";
 import { type CompleteContext } from "../context.js";
 import { McpLocalServer } from "@fondamenta/mcp-local";
 

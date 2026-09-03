@@ -1,17 +1,14 @@
 
-import { spawn } from "node:child_process";
 import { errToString } from "@fondamenta/utils";
 import { Logger } from "pinetto";
-import { IAgentMcpHttpServer, IAgentMcpLocalServer, McpServer, IAgentMcpStdioServer } from "./types.js";
-import assert from "node:assert";
+import { HarnessMcpServerDescriptor } from "./types.js";
 import { McpContentBlock, McpToolDescriptor, McpToolListResult } from "@fondamenta/mcp-core";
-import { McpHttpClient } from "@fondamenta/mcp-http-client";
-import { McpLocalClient } from "@fondamenta/mcp-local";
-import { InitContext, WithContext } from "../context.js";
-import { getMcpServers } from "./descriptors.js";
-import { HarnessMcpToolCallContext } from "../types.js";
+import { type InitContext, WithContext } from "../context.js";
+import { type HarnessMcpToolCallContext } from "../types/tools.js";
+import { cast } from "@runtyped/type";
+import { HarnessNotification } from "../notifications/types.js";
 
-type ToolRegistry = Record<string, { name: string, server: McpServer, desc: McpToolDescriptor }>;
+type ToolRegistry = Record<string, { name: string, server: HarnessMcpServerDescriptor, desc: McpToolDescriptor }>;
 
 export class McpManager extends WithContext {
 
@@ -52,9 +49,9 @@ export class McpManager extends WithContext {
 
 export class RootMcpManager extends McpManager {
 
-  #tools: Record<string, { name: string, server: McpServer, desc: McpToolDescriptor }>;
+  #tools: Record<string, { name: string, server: HarnessMcpServerDescriptor, desc: McpToolDescriptor }>;
   #logger: Logger;
-  #servers: Record<string, McpServer>;
+  #servers: Record<string, HarnessMcpServerDescriptor>;
 
   constructor(ctx: InitContext) {
     const tools: ToolRegistry = Object.create(null);
@@ -64,76 +61,29 @@ export class RootMcpManager extends McpManager {
     this.#servers = Object.create(null);
   }
 
-  async #initChild(server: IAgentMcpStdioServer) {
-    const child = spawn('/usr/local/bin/node', [server.path], {
-      stdio: ['ignore', 'inherit', 'inherit'],
-      env: server.env,
-    });
-    child.on('exit', (code, signal) => {
-      this.#logger.error(`MCP server ${server.name} exited with code ${code} and signal ${signal}`);
-    });
-    server.child = child;
-    this.#logger.info(`MCP server ${server.name} started`);
-  }
-
-  async #initializeAndRegisterTools(server: McpServer) {
-    await server.client!.initialize({
+  async register(server: HarnessMcpServerDescriptor) {
+    await server.client.initialize({
       protocolVersion: '2025-06-18',
       capabilities: { },
-      clientInfo: { name: 'agency', version: '0.1.0' },
+      clientInfo: { name: 'fondamenta', version: '0.1.0' },
     });
-    await server.client!.initialized();
+    await server.client.initialized();
     // Subscribe to server-emitted notifications and route them to the
     // notification bus (Phase II step 3). Same interface for every
     // transport — the manager does not need to know which one speaks.
-    server.client!.onNotification((notification) => {
+    server.client.onNotification((notification) => {
       try {
-        this._ctx.notifiers.bus.handleNotification(server.name, notification);
+        const _notification = cast<HarnessNotification>(notification);
+        this._ctx.buses.notifications.notify(_notification);
       } catch (err) {
         this.#logger.error('notification routing error (%s): %s', server.name, errToString(err));
       }
     });
-    const { tools } = await server.client!.list();
+    const { tools } = await server.client.list();
     tools.forEach((desc) => {
       const name = `mcp_${server.name}_${desc.name}`;
       this.#tools[name] = { name, desc, server };
     });
-  }
-
-  async #initStdio(server: IAgentMcpStdioServer) {
-    throw new Error('not implemented');
-  }
-
-  async #initHttp(server: IAgentMcpHttpServer) {
-    server.client = new McpHttpClient(server.url);
-    await this.#initializeAndRegisterTools(server);
-  }
-
-  async #initLocal(server: IAgentMcpLocalServer) {
-    server.client = new McpLocalClient(server.server);
-    await this.#initializeAndRegisterTools(server);
-  }
-
-  async initialize() {
-    for (const server of getMcpServers(this._ctx)) {
-      assert(!(server.name in this.#servers), `duplicate server name ${server.name}`);
-      this.#servers[server.name] = server;
-      switch (server.type) {
-        case 'http': await this.#initHttp(server); break;
-        case 'stdio': await this.#initStdio(server); break;
-        case 'local': await this.#initLocal(server); break;
-        default: throw new Error(`unknown server type`);
-      }
-      this.#logger.info('Initialization of MCP server %s of type %s completed', server.name, server.type);
-    }
-  }
-
-  async shutdown() {
-    await Promise.all(Object.values(this.#servers).map(async (server) => {
-      if (server.type === 'stdio') {
-        server.child?.kill('SIGKILL');
-      }
-    }));
   }
 
   blacklist(blacklist: string[]): McpManager {

@@ -8,6 +8,7 @@ export {
   McpToolDescriptor,
   McpToolListResult,
   McpToolCallContext,
+  McpNotification,
 } from './types-mcp.js'
 
 export {

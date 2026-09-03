@@ -1,13 +1,13 @@
-import { ChildProcess } from "node:child_process";
-import { McpClient } from "@fondamenta/mcp-core";
-import { McpLocalServer } from "@fondamenta/mcp-local";
-import { type HarnessMcpToolCallContext } from "../types.js";
 
+// import { type ChildProcess } from "node:child_process";
 
-export interface IAgentMcpBaseServer {
+import { type McpClient } from "@fondamenta/mcp-core";
+import { type McpLocalClient } from "@fondamenta/mcp-local";
+import { type HarnessMcpToolCallContext } from "../types/tools.js";
+
+export interface BaseHarnessMcpServerDescriptor {
   name: string;
   type: 'stdio' | 'http' | 'local';
-  client?: McpClient<HarnessMcpToolCallContext>;
   /**
    * Whether this server's outputs can be treated as trusted content by the
    * session's prompt injection guardrails. Set to `true` only for servers
@@ -15,24 +15,25 @@ export interface IAgentMcpBaseServer {
    * stores). Servers that relay third-party content (mail, web, files,
    * shell, ...) must leave this undefined/false so their output is scanned.
    */
-  safe?: boolean;
+  safe: boolean;
+  client: McpClient<HarnessMcpToolCallContext>;
 };
 
-export interface IAgentMcpHttpServer extends IAgentMcpBaseServer {
-  name: string;
-  type: 'http';
-  url: URL;
-}
+// export interface McpHttpServerDescriptor extends BaseMcpServerDescriptor {
+//   name: string;
+//   type: 'http';
+//   url: URL;
+// }
 
-export interface IAgentMcpStdioServer extends IAgentMcpBaseServer {
-  name: string;
-  type: 'stdio';
-  env: Record<string, string>;
-  path: string;
-  child?: ChildProcess;
-}
+// export interface McpStdioServerDescriptor extends BaseMcpServerDescriptor {
+//   name: string;
+//   type: 'stdio';
+//   env: Record<string, string>;
+//   path: string;
+//   child?: ChildProcess;
+// }
 
-export interface IAgentMcpLocalServer extends IAgentMcpBaseServer {
+export interface HarnessMcpLocalServerDescriptor extends BaseHarnessMcpServerDescriptor {
   name: string;
   type: 'local';
   /**
@@ -40,7 +41,7 @@ export interface IAgentMcpLocalServer extends IAgentMcpBaseServer {
    * (for continuity tools that need DB/session access); servers that
    * need no context use the default parameterization.
    */
-  server: McpLocalServer<HarnessMcpToolCallContext> | McpLocalServer<{}>;
+  client: McpLocalClient<HarnessMcpToolCallContext>;
 }
 
-export type McpServer = IAgentMcpHttpServer | IAgentMcpStdioServer | IAgentMcpLocalServer;
+export type HarnessMcpServerDescriptor = /* McpHttpServerDescriptor | McpStdioServerDescriptor | */ HarnessMcpLocalServerDescriptor;

@@ -5,7 +5,7 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from 'node:path';
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { HarnessMcpToolCallContext } from "../types.js";
+import { HarnessMcpToolCallContext } from "../types/tools.js";
 
 interface ExecParams {
   command: string;

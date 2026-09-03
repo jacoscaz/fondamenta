@@ -34,19 +34,20 @@
 // Anchors are a separate table with their own semantics and keep their
 // own server (they are identity, not continuity entries).
 
-import { ellipsis } from "@fondamenta/utils";
 import {
   countRecords,
   deleteRecord,
   insertRecord,
   selectRecords,
   updateRecord,
+  selectTodosDueForNotification,
   type ContinuityRecordType,
   type SelectableContinuityRecord,
-} from "../database/tables/continuity_records.js";
-import { type HarnessMcpToolCallContext } from "../types.js";
-import { type CompleteContext } from "../context.js";
+} from "../../database/tables/continuity_records.js";
+import { type HarnessMcpToolCallContext } from "../../types/tools.js";
+import { type CompleteContext } from "../../context.js";
 import { McpLocalServer } from "@fondamenta/mcp-local";
+  import { ellipsis, errToString } from "@fondamenta/utils";
 
 // ── Shared params ──
 
@@ -132,6 +133,59 @@ export const initContinuityMcpServer = (ctx: CompleteContext): McpLocalServer<Ha
 
   const mcp = new McpLocalServer<HarnessMcpToolCallContext>();
   const model = ctx.managers.models.embedding;
+  const logger = ctx.logger.child('[mcp-continuity]');
+
+  const schedule_interval: NodeJS.Timeout = setInterval(() => {
+    tick();
+  }, 60_000);
+
+  mcp.destroy = () => {
+    clearInterval(schedule_interval);
+  };
+
+  let injecting: boolean = false;
+
+  const tick = async (): Promise<void> => {
+    if (injecting) {
+      return;
+    }
+    injecting = true;
+    try {
+      const now = new Date();
+      let due: SelectableContinuityRecord[];
+      try {
+        due = await selectTodosDueForNotification(ctx.db, now);
+      } catch (err) {
+        logger.error('todo scan error: %s', err instanceof Error ? err.message : String(err));
+        return;
+      }
+      if (due.length === 0) return;
+      for (const todo of due) {
+        // Clear notify_at FIRST: if injection fails we lose the reminder
+        // rather than risk an injection loop. Snoozing or re-notifying is
+        // a deliberate act; re-firing automatically is noise.
+        await updateRecord(ctx.db, todo.id, { notify_at: null });
+      }
+      const text = due.map(todo => [
+        `⏰ TODO DUE — #${todo.id}${todo.title ? `: ${todo.title}` : ''}`,
+        todo.due_at ? `  due: ${todo.due_at.toISOString()}${todo.due_at < now ? ' (overdue)' : ''}` : '',
+        ``,
+        `This reminder was scheduled by your past self (notify_at has now arrived; it has been consumed).`,
+        todo.content ? `\n${ellipsis(todo.content, 400, '...')}` : '',
+      ].filter(s => s !== '').join('\n')).join('\n\n');
+      // Emit onto the MCP notification bus instead of injecting
+      // directly (Phase II step 3 dogfood).
+      ctx.buses.notifications.notify({
+        method: 'todo/due',
+        params: { text },
+      });
+      logger.info('emitted %d todo reminder(s) to notification bus', due.length);
+    } catch (err) {
+      logger.error('todo reminder error: %s', errToString(err));
+    } finally {
+      injecting = false;
+    }
+  };
 
   // ── continuity_query — the cross-type retrieval motion ──
 

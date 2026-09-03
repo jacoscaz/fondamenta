@@ -3,7 +3,7 @@
 
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { Config } from "../../config/config.js";
-import { type HarnessMcpToolCallContext } from "../../types.js";
+import { type HarnessMcpToolCallContext } from "../../types/tools.js";
 import { TerminalSession, type TerminalSessionOptions, type SessionInfo } from "./session.js";
 import { CompleteContext } from "../../context.js";
 import { errToString } from "@fondamenta/utils";
