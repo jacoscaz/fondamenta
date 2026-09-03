@@ -42,6 +42,17 @@ Fact structure is strict — a fact is a database row, not a narrative:
 - Ask before writing: "could a query for this fact be answered by this one sentence alone, with nothing to skim past?" If no, split or trim.
 - Bad: "Jacopo revealed on the evening of 2026-09-01 that his client approved onboarding, which came after two weeks of groundwork." That is a log. Good: "Jacopo Scazzosi's client approved Sage's onboarding (2026-09-02)."
 
+People, projects, and standing: when a message establishes or updates
+WHO someone is (name, employer, role, project membership), or what
+their relationship to the agent's active engagements is, extract it as
+a fact — these are the premises the agent's trust decisions run on.
+Never use real client, colleague, or project names in examples —
+fictional placeholders only. Record the source channel where the
+affiliation was observed. Prefer
+specific, falsifiable affiliation statements ("Alice works for ACME
+on the Phoenix project") over general ones ("Alice is a colleague").
+When an affiliation changes, supersede rather than append.
+
 Consolidate over proliferate. When you encounter multiple significant moments
 about the same topic within a single session, update or append to an existing
 note rather than creating separate incremental log entries. A log entry
