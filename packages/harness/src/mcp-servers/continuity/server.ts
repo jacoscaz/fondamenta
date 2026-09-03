@@ -25,7 +25,7 @@
 // - todo:   any record with due_at set; complete/snooze/reopen/modify
 //           operate through continuity_update's todo branch.
 // - fact:   continuity of knowledge. entities (space-separated name
-//           strings, e.g. "Jacopo Scazzariello", "GridPulse"), source
+//           strings, e.g. "Jacopo Scazzariello", "Example Project"), source
 //           trust gradient ('stated' > 'observed' > 'inferred'),
 //           superseded_by/superseded_at keep history — superseded facts
 //           stay in the store. Authored and resolved primarily by the
