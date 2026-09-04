@@ -9,12 +9,10 @@
 export const withTimeout = <T>(
   fn: () => Promise<T>,
   ms: number,
-  opts: {
-    /** Human-readable subject for the timeout error, e.g. a model id. */
-    subject?: string,
-    /** Invoked once, when the timeout fires (e.g. abort an HTTP request). */
-    onTimeout?: () => void,
-  } = {},
+  /** A human-readable description of the operation being timed out. */
+  subject: string,
+  /** Invoked once, when the timeout fires (e.g. abort an HTTP request). */
+  onTimeout?: () => void,
 ): Promise<T> => {
   let timer: NodeJS.Timeout;
   const promise = fn();
@@ -24,8 +22,8 @@ export const withTimeout = <T>(
   promise.catch(() => { /* abandoned: handled via `race` below, or timed out */ });
   const race = new Promise<T>((resolve, reject) => {
     timer = setTimeout(() => {
-      opts.onTimeout?.();
-      reject(new Error(`Timed out after ${ms}ms${opts.subject ? ` (${opts.subject})` : ''}`));
+      onTimeout?.();
+      reject(new Error(`${subject} timed out after ${ms}ms`));
     }, ms);
     promise.then(resolve, reject);
   });

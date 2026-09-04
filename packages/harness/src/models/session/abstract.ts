@@ -69,10 +69,8 @@ export abstract class AbstractSessionModel {
     return withTimeout(
       () => this._query(opts, controller.signal),
       this.#timeout,
-      {
-        subject: `model query (${this.#id})`,
-        onTimeout: () => controller.abort(),
-      },
+      `model query (${this.#id})`,
+      () => controller.abort(),
     );
   }
 
