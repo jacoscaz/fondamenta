@@ -30,6 +30,13 @@ const EXEC_DESCRIPTION = `
   On failure, includes both stdout and stderr in the output.
   Exceedingly long outputs will be truncated and written to temp files.
   Timeout MUST be specified in SECONDS.
+
+  PREFER THIS TOOL for short-lived commands (exploration, file reads, git
+  plumbing, verification): the result returns directly as a tool result in a
+  single roundtrip. Blocks the activation loop until completion — for
+  long-running commands (>~60s) or processes that must outlive the activation
+  (servers, watchers, builds you want to stay responsive during), use the
+  mcp_terminal_* tools instead.
 `;
 
 const registerTools = (mcpLocalServer: McpLocalServer<HarnessMcpToolCallContext>) => {
