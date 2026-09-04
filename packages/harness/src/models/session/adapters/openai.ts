@@ -59,7 +59,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
     return (this.#reasoning ?? 'none') as ReasoningEffort;
   }
 
-  async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
+  async _query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
     try {
       const messages: ChatCompletionMessageParam[] = opts.messages.flatMap(m => this.#format(m));
       messages.unshift({

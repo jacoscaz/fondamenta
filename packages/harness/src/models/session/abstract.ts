@@ -3,6 +3,7 @@ import { type McpToolDescriptor } from "@fondamenta/mcp-core";
 import { type ConfigModelBase, type ConfigModalities } from "../../config/config.js";
 
 import { AgentMessage, Message } from "./types/messages.js";
+import { withTimeout } from "@fondamenta/utils";
 
 export interface ModelQueryOpts {
   tools: McpToolDescriptor[];
@@ -22,6 +23,7 @@ export interface ModelQueryResults {
 export abstract class AbstractSessionModel {
 
   readonly #id: string;
+  readonly #timeout: number;
   readonly #guidance?: string;
   readonly #max_output_size: number;
   readonly #max_context_size: number;
@@ -29,6 +31,7 @@ export abstract class AbstractSessionModel {
 
   constructor(opts: ConfigModelBase) {
     this.#id = opts.id;
+    this.#timeout = opts.timeout;
     this.#guidance = opts.guidance;
     this.#max_output_size = opts.max_output_size;
     this.#max_context_size = opts.max_context_size;
@@ -57,7 +60,11 @@ export abstract class AbstractSessionModel {
     return this.#modalities.images ?? false;
   }
 
-  abstract query(opts: ModelQueryOpts): Promise<ModelQueryResults>;
+  async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
+    return withTimeout(() => this._query(opts), this.#timeout);
+  }
+
+  protected abstract _query(opts: ModelQueryOpts): Promise<ModelQueryResults>;
 
   /**
    * Runtime reasoning-effort update, part of the dynamic substrate
