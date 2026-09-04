@@ -2,7 +2,7 @@
 
 import 'dotenv/config';
 
-import pinetto from 'pinetto';
+import pinetto, { datetimeISO, datetimeVoid } from 'pinetto';
 import { ProcessWriter } from 'pinetto';
 
 import { getDB } from "./database/client.js";
@@ -43,7 +43,10 @@ const config = await getConfigFromProcessArgv();
 // Main (ops) logger. Everything that is not a formatted block
 // representation of the session stream goes to stderr: stdout is
 // reserved for the monologue mirror (see MonologueLogger).
-const logger = pinetto({ level: config.logging.level, writer: new ProcessWriter('stderr') });
+const logger = pinetto({
+  level: config.logging.level,
+  datetime: config.logging.datetime === false ? datetimeVoid : datetimeISO,
+});
 
 
 logger.info('PID %s', process.pid);

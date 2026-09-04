@@ -104,6 +104,11 @@ export type ConfigTranscriptionModel = ConfigTranscriptionModelOpenAI;
 export interface ConfigLogging {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   /**
+   * Whether log entries should be prefixed with an ISO 8601 datetime string.
+   * If unspecified, defaults to `true`.
+   */
+  datetime?: boolean;
+  /**
    * Directory for the monologue log (the human-facing mirror of the
    * session stream) and its rotated files. Defaults to
    * /var/log/fondamenta.
