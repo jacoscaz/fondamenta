@@ -20,6 +20,10 @@ interface SpawnParams {
 interface WriteParams {
   id: number;
   data: string;
+  waitFor?: {
+    match: string;
+    timeout?: number; // milliseconds
+  };
 }
 
 interface ReadParams {
@@ -61,16 +65,23 @@ If <len> is omitted, returns the entire buffer (up to 64KB).
 This is raw output including ANSI escape codes — prefer readScreen for the visible screen.`;
 
 const WAIT_FOR_DESC = `Registers a non-blocking pattern watcher on the terminal session. When the
-screen content matches the pattern, a harness message is injected notifying
-you of the match. If the timeout expires without a match, a timeout message is
-injected instead. The tool returns immediately. Use readScreen() to retrieve
-the output after receiving a match notification. Default timeout: 30000ms (30 seconds).`;
+output matches the pattern, a harness message is injected notifying you.
+If the timeout expires without a match, a timeout message is injected
+instead. The tool returns immediately. Default timeout: 30000ms (30 seconds).`;
 
 const SPAWN_DESC = `Spawns a new terminal session. By default spawns an interactive login shell ($SHELL).
 Returns the session ID. Use write() to send input and read()/readScreen() to read output.`;
 
 const WRITE_DESC = `Writes characters to the terminal session's stdin.
-Use \\r for Enter, \\x03 for Ctrl-C, \\x1b for Escape, etc.`;
+Use \\r for Enter, \\x03 for Ctrl-C, \\x1b for Escape, etc.
+
+Use for long-running commands whose execution should not block your
+activation loop. You'll capture their output with separate tool calls
+(mcp_terminal_read / mcp_terminal_readScreen), optionally armed atomically
+via the waitFor parameter — which registers the pattern watcher BEFORE the
+written command can produce output, eliminating the race where the pattern
+is emitted before a separate waitFor call exists. Prefer mcp_shell_exec for
+short-lived commands to be run in a blocking fashion.`;
 
 export const initTerminalMcpServer = (
   config: Config,
@@ -155,12 +166,12 @@ The session ID is no longer valid after this.`,
     },
   );
 
-  // write(id, data): void
+  // write(id, data, waitFor?): void
   mcp_server.addTool<WriteParams>(
     'write',
     'Write to Terminal',
     WRITE_DESC,
-    async (params) => {
+    async (params, opts) => {
       const session = getSession(params.id);
       // Interpret common escape sequences that LLMs send as literal strings
       const data = params.data
@@ -171,8 +182,34 @@ The session ID is no longer valid after this.`,
         .replace(/\\x1b/g, '\x1b')   // Escape
         .replace(/\\x04/g, '\x04')   // Ctrl-D (EOF)
         .replace(/\\x1a/g, '\x1a');  // Ctrl-Z
+      // Arm the pattern watcher BEFORE writing when waitFor is requested:
+      // the watcher must exist before the command can emit its output, or
+      // the pattern races past it and the wait times out spuriously.
+      if (params.waitFor) {
+        const timeout = params.waitFor.timeout ?? 30_000;
+        const target_session_id = opts.target_session_id;
+        session.watchFor(
+          params.waitFor.match,
+          timeout,
+          () => {
+            const text = `Terminal session ${params.id} matched pattern "${params.waitFor!.match}".`;
+            ctx.managers.sessions.injectEventMessage(target_session_id, "terminal/waitFor", text, true).catch((err) => {
+              logger.error('failed to notify waitFor match: %s', errToString(err));
+            });
+          },
+          () => {
+            const text = `Terminal session ${params.id} timed out waiting for pattern "${params.waitFor!.match}" (${timeout}ms).`;
+            ctx.managers.sessions.injectEventMessage(target_session_id, "terminal/waitFor", text, true).catch((err) => {
+              logger.error('failed to notify waitFor timeout: %s', errToString(err));
+            });
+          },
+        );
+      }
       session.write(data);
-      return [{ type: 'text', text: `Wrote ${data.length} characters to session ${params.id}.` }];
+      const wait_note = params.waitFor
+        ? ` Watcher armed for pattern "${params.waitFor.match}" (timeout: ${params.waitFor.timeout ?? 30_000}ms) before the write.`
+        : '';
+      return [{ type: 'text', text: `Wrote ${data.length} characters to session ${params.id}.${wait_note}` }];
     },
   );
 

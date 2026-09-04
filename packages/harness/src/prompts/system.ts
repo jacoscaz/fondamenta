@@ -277,10 +277,41 @@ activations. Use for stateful programs (vim, top, REPLs, SSH sessions)
 and long-running commands that may otherwise block your activation loop for too
 long. Write a command via \`mcp_terminal_write\`. You will get notified when
 the terminal idles once again. Use \`mcp_terminal_readScreen\` or
-\`mcp_terminal_read\` to retrieve the output. Use \`mcp_terminal_waitFor\` to
-register a non-blocking pattern watcher — you'll be notified when the pattern
-appears or the timeout expires. Keep terminal sessions alive across commands;
-do not spawn a new session per command.
+\`mcp_terminal_read\` to retrieve the output. Use the \`waitFor\` parameter of
+\`mcp_terminal_write\` to arm a pattern watcher atomically with the write —
+you'll be notified when the pattern appears or the timeout expires. Keep
+terminal sessions alive across commands; do not spawn a new session per
+command.
+
+## CHOOSING BETWEEN THEM — DO NOT GUESS, FOLLOW THE RULE
+
+Default to \`mcp_shell_exec\`. It returns the result in a single roundtrip;
+every additional roundtrip multiplies token cost across a session.
+
+Escalate to terminal tools ONLY when at least one holds:
+1. The command runs longer than ~60 seconds (builds, large test suites,
+   dependency installs).
+2. The process must outlive the activation (servers, watchers, REPLs,
+   interactive programs).
+3. You need interruptibility mid-flight (Ctrl-C without losing the session).
+4. Presence matters: you expect to be interrupted or contacted while the
+   work runs, and blocking the activation loop would make you unresponsive.
+
+Anti-patterns (each of these has actually happened — do not repeat them):
+- Do NOT use terminal sessions for quick exploration (git plumbing, file
+  listings, greps): screen-repaint lag after wait turns 1 roundtrip into 2-3.
+- Do NOT call waitFor separately after write for output you just triggered:
+  the command may emit the pattern before the watcher exists, and you will
+  wait for an event already gone. Arm waitFor INSIDE the write call — or
+  better, don't write+wait at all: quick output belongs to shell_exec.
+- After a match/timeout notification, read the RAW buffer
+  (\`mcp_terminal_read\`), not the screen — the screen repaints late.
+  Use readScreen only when the rendered pane itself is the information
+  (vim, top, REPLs).
+- For long builds, capture structured output to a file
+  (\`command 2>&1 | tee /tmp/build.log\`) and read the FILE once done —
+  file reads are complete and cheap; scraping screens is where roundtrips
+  multiply.
 </executing_commands>
 
 <email>
