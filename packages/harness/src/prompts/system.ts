@@ -279,10 +279,9 @@ long. Write a command via \`mcp_terminal_write\`. You will get notified when
 the terminal idles once again. Use \`mcp_terminal_readScreen\` or
 \`mcp_terminal_read\` to retrieve the output. Use the \`waitFor\` parameter of
 \`mcp_terminal_write\` to arm a pattern watcher atomically with the write —
-you'll be notified when the pattern appears or the timeout expires. (The
-standalone \`mcp_terminal_waitFor\` is deprecated; use it only to watch a
-session without writing to it.) Keep terminal sessions alive across commands;
-do not spawn a new session per command.
+you'll be notified when the pattern appears or the timeout expires. Keep
+terminal sessions alive across commands; do not spawn a new session per
+command.
 
 ## CHOOSING BETWEEN THEM — DO NOT GUESS, FOLLOW THE RULE
 
@@ -303,7 +302,8 @@ Anti-patterns (each of these has actually happened — do not repeat them):
   listings, greps): screen-repaint lag after wait turns 1 roundtrip into 2-3.
 - Do NOT call waitFor separately after write for output you just triggered:
   the command may emit the pattern before the watcher exists, and you will
-  wait for an event already gone. Arm waitFor INSIDE the write call.
+  wait for an event already gone. Arm waitFor INSIDE the write call — or
+  better, don't write+wait at all: quick output belongs to shell_exec.
 - After a match/timeout notification, read the RAW buffer
   (\`mcp_terminal_read\`), not the screen — the screen repaints late.
   Use readScreen only when the rendered pane itself is the information

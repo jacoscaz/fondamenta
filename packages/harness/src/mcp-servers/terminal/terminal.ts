@@ -64,14 +64,10 @@ const READ_DESC = `Reads the latest <len> characters from the terminal's raw out
 If <len> is omitted, returns the entire buffer (up to 64KB).
 This is raw output including ANSI escape codes — prefer readScreen for the visible screen.`;
 
-const WAIT_FOR_DESC = `DEPRECATED: prefer the waitFor parameter of mcp_terminal_write, which arms
-the pattern watcher atomically with the write and eliminates the race where
-the command's output is emitted before a separate waitFor call arms the
-watcher. This standalone tool remains for cases where you need to watch a
-session WITHOUT writing to it (e.g. waiting on a long-running process
-started earlier). Registers a non-blocking pattern watcher on the terminal
-session: on match or timeout, a harness message is injected notifying you.
-The tool returns immediately. Default timeout: 30000ms (30 seconds).`;
+const WAIT_FOR_DESC = `Registers a non-blocking pattern watcher on the terminal session. When the
+output matches the pattern, a harness message is injected notifying you.
+If the timeout expires without a match, a timeout message is injected
+instead. The tool returns immediately. Default timeout: 30000ms (30 seconds).`;
 
 const SPAWN_DESC = `Spawns a new terminal session. By default spawns an interactive login shell ($SHELL).
 Returns the session ID. Use write() to send input and read()/readScreen() to read output.`;
