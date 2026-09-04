@@ -277,17 +277,27 @@ export class JMAPClient {
               mailFrom: { email: identity.email },
               rcptTo: envelopeRecipients,
             },
-            // After a successful send, destroy the draft copy so it does
-            // not linger in the Drafts mailbox (the Sent copy is managed
-            // by the server's submission handling).
-            onSuccessDestroyEmail: `#${createKey}`,
           },
         },
       }, '1'],
+      // Fastmail rejects onSuccessDestroyEmail / onSuccessUpdateEmail /
+      // undoStatus as CREATE properties on EmailSubmission (invalidProperties,
+      // live-probed 2026-09-04), so the submitted draft is filed out of the
+      // Drafts mailbox in a follow-up method call in the same JMAP request.
+      // (The Sent copy is managed by the server's submission handling.)
+      ['Email/set', {
+        accountId,
+        update: {
+          [`#${createKey}`]: {
+            [`mailboxIds/${draftMailboxId}`]: null,
+          },
+        },
+      }, '2'],
     ], USING_SUBMISSION);
 
     const emailResult = (responses[0] as unknown[])[1] as { created: Record<string, { id: string }> | null; notCreated: Record<string, unknown> | null };
     const sendResult = (responses[1] as unknown[])[1] as { created: Record<string, { id: string; sendAt: string; undoStatus: string }> | null; notCreated: Record<string, { type: string; description: string }> | null };
+    const fileResult = (responses[2] as unknown[])[1] as { updated: Record<string, Record<string, unknown>> | null; notUpdated: Record<string, { type: string; description?: string }> | null } | undefined;
 
     if (emailResult.notCreated || sendResult.notCreated) {
       if (sendResult.notCreated) {
@@ -297,6 +307,12 @@ export class JMAPClient {
       if (emailResult.notCreated) {
         throw new Error(`Email creation failed: ${JSON.stringify(emailResult.notCreated)}`);
       }
+    }
+
+    // Filing the submitted draft out of Drafts is cosmetic — a failure here
+    // must not fail the send (the mail is already out). Warn and continue.
+    if (fileResult && fileResult.notUpdated) {
+      console.warn('[jmap] could not file submitted draft out of Drafts:', JSON.stringify(fileResult.notUpdated));
     }
 
     const emailId = emailResult.created![createKey].id;
