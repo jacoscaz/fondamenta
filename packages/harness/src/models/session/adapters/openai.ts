@@ -59,7 +59,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
     return (this.#reasoning ?? 'none') as ReasoningEffort;
   }
 
-  async _query(opts: ModelQueryOpts, signal?: AbortSignal): Promise<ModelQueryResults> {
+  async _query(opts: ModelQueryOpts, signal?: AbortSignal, on_activity?: () => void): Promise<ModelQueryResults> {
     try {
       const messages: ChatCompletionMessageParam[] = opts.messages.flatMap(m => this.#format(m));
       messages.unshift({
@@ -87,6 +87,12 @@ export class OpenAISessionModel extends AbstractSessionModel {
           },
         })),
       });
+      // Every received chunk re-arms the stall timeout: the model may think
+      // server-side (reasoning, slow generation) for long stretches, and
+      // that is health — silence is what indicates a hang.
+      if (on_activity) {
+        stream.on('chunk', () => on_activity());
+      }
       const response = await stream.finalMessage();
       const usage = await stream.totalUsage();
       return {
