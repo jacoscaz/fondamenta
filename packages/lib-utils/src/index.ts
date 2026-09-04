@@ -4,6 +4,10 @@ export {
 } from './arrayqueue.js';
 
 export {
+  withTimeout,
+} from './timers.js';
+
+export {
   BufferedAsyncIterable,
 } from './bufferedasynciterable.js';
 

@@ -114,6 +114,12 @@
             max_output_size: 20000,
             // Context window of the model.
             max_context_size: 1000000,
+            // Stall timeout for model queries, in milliseconds. The timer
+            // measures SILENCE, not total duration: it re-arms on every
+            // stream chunk received from the provider, so long-running or
+            // slow-thinking queries are never killed while healthy — only
+            // a connection that goes silent for this long is aborted.
+            timeout: 60000,
             // Input modalities the model supports. Enable images to let the
             // agent see photos (e.g. those downloaded via the telegram
             // package's photo tool).
@@ -133,6 +139,9 @@
             },
             max_output_size: 20000,
             max_context_size: 1000000,
+            // Stall timeout (ms): re-armed on every stream chunk; aborts
+            // only when the provider goes silent for this long.
+            timeout: 60000,
         },
         // Dedicated compaction model. Static — same reasoning as above.
         compaction: {
@@ -145,6 +154,9 @@
             },
             max_output_size: 20000,
             max_context_size: 1000000,
+            // Stall timeout (ms): re-armed on every stream chunk; aborts
+            // only when the provider goes silent for this long.
+            timeout: 60000,
         },
         // Embedding model used to compute vector representations of
         // continuity records and similarity queries. Use a model that

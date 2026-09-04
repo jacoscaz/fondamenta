@@ -21,6 +21,7 @@ import OpenAI from 'openai';
 import { ConfigModelOpenAI } from "../../../config/config.js";
 import { type ReasoningEffort } from "../../../constants.js";
 import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
+import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
 
 export class OpenAISessionModel extends AbstractSessionModel {
   #model: string;
@@ -59,14 +60,15 @@ export class OpenAISessionModel extends AbstractSessionModel {
     return (this.#reasoning ?? 'none') as ReasoningEffort;
   }
 
-  async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
+  async _query(opts: ModelQueryOpts, signal?: AbortSignal, on_activity?: () => void): Promise<ModelQueryResults> {
+    let stream: ChatCompletionStream<null> | undefined = undefined;
     try {
       const messages: ChatCompletionMessageParam[] = opts.messages.flatMap(m => this.#format(m));
       messages.unshift({
         role: 'system',
         content: opts.system_prompt,
       } satisfies ChatCompletionMessageParam);
-      const stream = this.#client.chat.completions.stream({
+      stream = this.#client.chat.completions.stream({
         ...this.#extras,
         messages,
         max_tokens: opts.max_output_size ?? this.max_ouput_size,
@@ -74,6 +76,10 @@ export class OpenAISessionModel extends AbstractSessionModel {
         model: this.#model,
         reasoning_effort: this.#reasoning as OpenAIReasoningEffort,
         stream_options: { include_usage: true },
+        // Aborted by the session-model timeout wrapper on expiry; the SDK
+        // then errors the stream itself (covering mid-stream stalls, which
+        // the SDK's own time-to-headers timeout does not).
+        signal,
         tools: opts.tools.map(t => ({
           type: 'function',
           function: {
@@ -83,6 +89,12 @@ export class OpenAISessionModel extends AbstractSessionModel {
           },
         })),
       });
+      // Every received chunk re-arms the stall timeout: the model may think
+      // server-side (reasoning, slow generation) for long stretches, and
+      // that is health — silence is what indicates a hang.
+      if (on_activity) {
+        stream.on('chunk', on_activity);
+      }
       const response = await stream.finalMessage();
       const usage = await stream.totalUsage();
       return {
@@ -93,6 +105,10 @@ export class OpenAISessionModel extends AbstractSessionModel {
       };
     } catch (e) {
       throw new Error(`Failed to query OpenAI model: ${e}`);
+    } finally {
+      if (on_activity) {
+        stream?.off('chunk', on_activity);
+      }
     }
   }
 
