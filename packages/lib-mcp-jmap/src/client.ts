@@ -243,6 +243,12 @@ export class JMAPClient {
     const ccAddrs = (params.cc ?? []).map(email => ({ email }));
     const fromAddr = [{ name: identity.name, email: identity.email }];
 
+    // The SMTP envelope must list ALL recipients (To + CC [+ BCC]);
+    // the document headers are display-only and are NOT merged into
+    // delivery by the server. Omitting CC here silently drops those
+    // recipients from actual delivery.
+    const envelopeRecipients = [...params.to, ...(params.cc ?? [])].map(email => ({ email }));
+
     const createKey = 'draft';
     const responses = await this.jmapRequest([
       ['Email/set', {
@@ -269,8 +275,12 @@ export class JMAPClient {
             identityId: identity.id,
             envelope: {
               mailFrom: { email: identity.email },
-              rcptTo: params.to.map(email => ({ email })),
+              rcptTo: envelopeRecipients,
             },
+            // After a successful send, destroy the draft copy so it does
+            // not linger in the Drafts mailbox (the Sent copy is managed
+            // by the server's submission handling).
+            onSuccessDestroyEmail: `#${createKey}`,
           },
         },
       }, '1'],
