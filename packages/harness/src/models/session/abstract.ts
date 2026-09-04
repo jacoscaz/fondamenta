@@ -61,10 +61,22 @@ export abstract class AbstractSessionModel {
   }
 
   async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
-    return withTimeout(() => this._query(opts), this.#timeout);
+    // On expiry, abort the in-flight request: the timer merely rejecting
+    // the race would leave the underlying stream open (and any eventual
+    // orphaned error would be an unhandled rejection). Aborting makes the
+    // provider request itself fail, settling the abandoned promise.
+    const controller = new AbortController();
+    return withTimeout(
+      () => this._query(opts, controller.signal),
+      this.#timeout,
+      {
+        subject: `model query (${this.#id})`,
+        onTimeout: () => controller.abort(),
+      },
+    );
   }
 
-  protected abstract _query(opts: ModelQueryOpts): Promise<ModelQueryResults>;
+  protected abstract _query(opts: ModelQueryOpts, signal?: AbortSignal): Promise<ModelQueryResults>;
 
   /**
    * Runtime reasoning-effort update, part of the dynamic substrate

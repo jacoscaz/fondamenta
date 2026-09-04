@@ -59,7 +59,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
     return (this.#reasoning ?? 'none') as ReasoningEffort;
   }
 
-  async _query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
+  async _query(opts: ModelQueryOpts, signal?: AbortSignal): Promise<ModelQueryResults> {
     try {
       const messages: ChatCompletionMessageParam[] = opts.messages.flatMap(m => this.#format(m));
       messages.unshift({
@@ -74,6 +74,10 @@ export class OpenAISessionModel extends AbstractSessionModel {
         model: this.#model,
         reasoning_effort: this.#reasoning as OpenAIReasoningEffort,
         stream_options: { include_usage: true },
+        // Aborted by the session-model timeout wrapper on expiry; the SDK
+        // then errors the stream itself (covering mid-stream stalls, which
+        // the SDK's own time-to-headers timeout does not).
+        signal,
         tools: opts.tools.map(t => ({
           type: 'function',
           function: {
