@@ -6,7 +6,7 @@ import { type McpLocalServer } from "@fondamenta/mcp-local";
 import { type TelegramConfig } from "./config.js";
 import { type TelegramClient } from "./client.js";
 import { type TelegramUpdate } from "./types/message.js";
-import { type TelegramNotification } from "./types/notifications.js";
+import { type McpNewMessageNotification } from "@fondamenta/mcp-core";
 import { describeMessage } from "./helpers.js";
 
 /**
@@ -63,15 +63,19 @@ export const startTelegramNotifier = (
             const path = join(dir, `${message.voice.file_id.slice(-16)}-${Date.now()}.ogg`);
             await client.downloadFile(message.voice.file_id, path);
             server.notify({
-              method: 'telegram/voice_message',
+              method: 'message/new',
               params: {
-                path,
-                chat_id: message.chat.id,
-                from_id: from.id,
-                sender,
-                duration: message.voice.duration,
+                content: {
+                  type: 'voice',
+                  path,
+                },
+                transport: {
+                  type: 'telegram',
+                  chat_id: message.chat.id,
+                  from_id: from.id,
+                }
               }
-            });
+            } satisfies McpNewMessageNotification);
             log('voice note downloaded: %s (%ss)', path, message.voice.duration);
           } catch (err) {
             log('voice note download failed: %s', err instanceof Error ? err.message : String(err));
@@ -82,14 +86,20 @@ export const startTelegramNotifier = (
         const body = describeMessage(message);
         if (body === null) continue;
         server.notify({
-          method: 'telegram/text_message',
+          method: 'message/new',
           params: {
-            text: `💬 Telegram message from ${sender}${edited} (chat_id ${message.chat.id}):\n${body}`,
-            chat_id: message.chat.id,
-            from_id: from.id,
-            sender,
+            content: {
+              type: 'text',
+              text: body,
+            },
+            transport: {
+              type: 'telegram',
+              chat_id: message.chat.id,
+              from_id: from.id,
+              username: from.username,
+            },
           },
-        });
+        } satisfies McpNewMessageNotification);
       }
     }
   };

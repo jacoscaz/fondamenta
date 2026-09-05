@@ -2,7 +2,8 @@
 import { type McpLocalServer } from "@fondamenta/mcp-local";
 import { type JMAPClient, type EmailSummary } from "./client.js";
 import { type JmapConfig } from "./config.js";
-import { type JMAPNotification } from "./types/notifications.js";
+import { type McpNewMessageNotification } from "@fondamenta/mcp-core";
+import { ellipsis } from "@fondamenta/utils";
 
 /**
  * Start the inbox polling loop for the given server. On new mail from
@@ -38,9 +39,21 @@ export const startJmapNotifier = (
       const filtered = newEmails.filter(e =>
         e.from.some(addr => config.allowlist.includes(addr.email))
       );
-      if (filtered.length > 0) {
-        const text = filtered.map(formatArrival).join('\n\n');
-        server.notify({ method: 'jmap/new_email', params: { text } });
+      for (const email of filtered) {
+        server.notify({
+          method: 'message/new',
+          params: {
+            content: {
+              type: 'text',
+              text: ellipsis(email.preview, 200),
+              subject: email.subject,
+            },
+            transport: {
+              type: 'email',
+              from: { name: email.from[0].name, address: email.from[0].email },
+            },
+          },
+        } satisfies McpNewMessageNotification);
       }
     } catch (err) {
       log('jmap notifier poll error: %s', err instanceof Error ? err.message : String(err));
@@ -71,11 +84,4 @@ export const startJmapNotifier = (
       }
     },
   };
-};
-
-const formatArrival = (email: EmailSummary): string => {
-  const from = email.from.map(a => a.name ? `${a.name} <${a.email}>` : a.email).join(', ');
-  const preview = email.preview.slice(0, 200);
-  const ellipsis = email.preview.length > 200 ? '...' : '';
-  return `📬 New email from ${from}\n  Subject: ${email.subject || '(no subject)'}\n  Preview: ${preview}${ellipsis}\n\nUse the mail tools to read the full email.`;
 };

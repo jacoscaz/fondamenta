@@ -14,8 +14,3 @@ export {
   Mailbox,
   EmailAddress,
 } from './client.js';
-
-export {
-  JMAPNotification,
-  JMAPNewEmailNotification,
-} from './types/notifications.js';

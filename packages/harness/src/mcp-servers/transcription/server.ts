@@ -1,7 +1,6 @@
 
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type CompleteContext } from "../../context.js";
-import { type TranscriptionNotification } from "./types.js";
 import { type HarnessMcpToolCallContext } from "../../types/tools.js";
 
 interface TranscribeParams {
@@ -19,7 +18,10 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
   const logger = ctx.logger.child('[mcp:transcription]');
 
   ctx.buses.notifications.subscribe('mcp-transcription', async (notification) => {
-    if (notification.method != 'telegram/voice_message') {
+    if (notification.method != 'message/new') {
+      return false;
+    }
+    if (notification.params.content.type !== 'voice') {
       return false;
     }
     if (!ctx.managers.models.transcription) {
@@ -27,17 +29,19 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
       //       thus the transcription. Change to `return true` when done.
       return false;
     }
+    if ('transcription' in notification.params) {
+      return false;
+    }
+    notification.params.transcription = null;
     try {
-      const result = await ctx.managers.models.transcription.transcribe(notification.params.path);
-      await ctx.buses.notifications.notify({
-        method: 'transcription/ready',
-        params: {
-          text: result.text,
-          language: result.language,
-          duration: result.duration_ms,
-          transcriber: 'transcription model', // TODO: model id or coordinates
-        },
-      });
+      const result = await ctx.managers.models.transcription.transcribe(notification.params.content.path);
+      notification.params.transcription = {
+        text: result.text,
+        language: result.language,
+        time: result.duration_ms,
+        transcriber: 'transcription model', // TODO: model id or coordinates
+      };
+      await ctx.buses.notifications.notify(notification);
       return true;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

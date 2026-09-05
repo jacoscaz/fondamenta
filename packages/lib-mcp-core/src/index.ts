@@ -42,3 +42,7 @@ export {
   isJsonRpcRequest,
   validateJsonRpcMessage,
 } from './helpers-jsonrpc.js';
+
+export {
+  McpNewMessageNotification,
+} from './types-mcp-notifications.js';
