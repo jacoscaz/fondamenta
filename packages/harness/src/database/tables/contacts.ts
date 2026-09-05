@@ -44,7 +44,7 @@ const initSelectContactsQuery = (db: DB, opts: SelectContactsOpts) => {
         .where('url', '=', opts.url!)
     );
   }
-  return db.selectFrom('contacts').selectAll();
+  return query;
 }
 
 export const selectContact = async (db: DB, opts: SelectContactsOpts) => {
