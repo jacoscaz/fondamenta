@@ -14,8 +14,14 @@ export interface EmailTransport {
 }
 
 export interface VerifiedContact {
+  verified: true;
   id: number;
   name: string;
+  guidance: string;
+}
+
+export interface UnverifiedContact {
+  verified: false;
   guidance: string;
 }
 
@@ -31,7 +37,8 @@ export interface VoiceContent {
   path: string;
 }
 
-export interface Transcription {
+export interface TranscriptionSuccess {
+  success: true;
   text: string;
   time?: number;
   language?: string | null;
@@ -39,6 +46,7 @@ export interface Transcription {
 }
 
 export interface TranscriptionError {
+  success: false;
   error: string;
 }
 
@@ -46,8 +54,8 @@ export interface McpNewMessageNotification extends McpNotification {
   method: 'message/new';
   params: {
     content: TextContent | VoiceContent;
-    contact?: VerifiedContact | null;
+    contact?: VerifiedContact | UnverifiedContact | null;
     transport: TelegramTransport | EmailTransport;
-    transcription?: Transcription | TranscriptionError | null;
+    transcription?: TranscriptionSuccess | TranscriptionError | null;
   };
 }

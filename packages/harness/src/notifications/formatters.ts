@@ -38,7 +38,7 @@ const formatDueTodoNotification = (notification: DueTodoNotification, lines: str
 
 const formatNewMessageNotification = (notification: McpNewMessageNotification, lines: string[]) => {
   const { params } = notification;
-  if (params.contact) {
+  if (params.contact?.verified) {
     lines.push(`contact: ${params.contact.name} (#${params.contact.id})`);
     lines.push(`guidance: ${params.contact.guidance}`);
   } else {
@@ -55,7 +55,7 @@ const formatNewMessageNotification = (notification: McpNewMessageNotification, l
   } else if (params.content.type === 'voice') {
     lines.push(`file: ${params.content.path} (audio file)`);
     if (params.transcription) {
-      if ('text' in params.transcription) {
+      if (params.transcription.success) {
         lines.push(`transcription: ${params.transcription.text}`);
       } else {
         lines.push(`transcription: -- N/A --`);

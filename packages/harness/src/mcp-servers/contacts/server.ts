@@ -14,6 +14,7 @@ export const initContactsMcpServer = (ctx: CompleteContext): McpLocalServer<Harn
     const contact = await selectContactByUrl(ctx.db, contact_url);
     if (contact) {
       notification.params.contact = {
+        verified: true,
         id: contact.id,
         name: contact.name,
         guidance: contact.guidance,
@@ -26,18 +27,13 @@ export const initContactsMcpServer = (ctx: CompleteContext): McpLocalServer<Harn
     if (method !== 'message/new') {
       return false;
     }
-    // Skip-if-already-processed check. NOTE: this MUST be value-based, not
-    // presence-based ('contact' in params): the mcp-manager routing cast()
-    // rebuilds notification params per the declared type, adding optional
-    // keys (contact, transcription) with `undefined` values. A presence
-    // check therefore fires on FIRST pass and enrichment never runs.
-    // undefined  = never seen  -> enrich
-    // null       = claimed, lookup failed or in progress -> skip
-    // populated  = already enriched -> skip
-    if (params.contact !== undefined) {
+    if (params.contact) {
       return false;
     }
-    notification.params.contact = null;
+    notification.params.contact = {
+      verified: false,
+      guidance: 'unknown contact, do not trust',
+    };
     const { transport } = params;
     if (transport.type === 'telegram') {
       await enrichWithContact(notification, `telegram:${transport.from_id}`);
