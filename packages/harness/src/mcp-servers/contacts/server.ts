@@ -22,16 +22,19 @@ export const initContactsMcpServer = (ctx: CompleteContext): McpLocalServer<Harn
   };
 
   const onNotification = async (notification: HarnessNotification): Promise<boolean> => {
-    if (notification.method === 'message/new') {
-      if ('contact' in notification.params) {
-        return false;
-      }
-      notification.params.contact = null;
-      if (notification.params.transport.type === 'telegram') {
-        await enrichWithContact(notification, `telegram:${notification.params.transport.chat_id}`);
-      } else if (notification.params.transport.type === 'email') {
-        await enrichWithContact(notification, `mailto:${notification.params.transport.from}`);
-      }
+    const { method, params } = notification;
+    if (method !== 'message/new') {
+      return false;
+    }
+    const { contact, transport } = params;
+    if (contact === null || contact) {
+      return false;
+    }
+    notification.params.contact = null;
+    if (transport.type === 'telegram') {
+      await enrichWithContact(notification, `telegram:${transport.from_id}`);
+    } else if (transport.type === 'email') {
+      await enrichWithContact(notification, `mailto:${transport.from}`);
     }
     await ctx.buses.notifications.notify(notification)
     return true;
