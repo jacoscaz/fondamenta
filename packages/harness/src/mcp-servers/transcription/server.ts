@@ -31,7 +31,7 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
     }
     const { content } = params;
     const pending_blocks: VoiceContent[] = content.filter(b => b.type === 'voice' && !b.transcription) as VoiceContent[];
-    if (!pending_blocks) {
+    if (pending_blocks.length === 0) {
       return false;
     }
     for (const block of pending_blocks) {
@@ -44,15 +44,14 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
           time: result.duration_ms,
           transcriber: 'transcription model', // TODO: model id or coordinates
         };
-        await ctx.buses.notifications.notify(notification);
       } catch (err) {
         block.transcription = {
           success: false,
           error: errToString(err),
         };
-        await ctx.buses.notifications.notify(notification);
       }
     }
+    await ctx.buses.notifications.notify(notification);
     return true;
   });
 
