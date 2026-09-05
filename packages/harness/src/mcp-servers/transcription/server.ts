@@ -28,7 +28,11 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
     if (method != 'message/new') {
       return false;
     }
-    if ('transcription' in params) {
+    // Skip-if-already-processed: value-based, NOT presence-based — the
+    // mcp-manager routing cast() adds optional keys with undefined values,
+    // so presence checks fire on first pass (same trap as contacts; see
+    // the comment in contacts/server.ts).
+    if (params.transcription !== undefined) {
       return false;
     }
     notification.params.transcription = null;

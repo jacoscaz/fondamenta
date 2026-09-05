@@ -26,7 +26,15 @@ export const initContactsMcpServer = (ctx: CompleteContext): McpLocalServer<Harn
     if (method !== 'message/new') {
       return false;
     }
-    if ('contact' in params) {
+    // Skip-if-already-processed check. NOTE: this MUST be value-based, not
+    // presence-based ('contact' in params): the mcp-manager routing cast()
+    // rebuilds notification params per the declared type, adding optional
+    // keys (contact, transcription) with `undefined` values. A presence
+    // check therefore fires on FIRST pass and enrichment never runs.
+    // undefined  = never seen  -> enrich
+    // null       = claimed, lookup failed or in progress -> skip
+    // populated  = already enriched -> skip
+    if (params.contact !== undefined) {
       return false;
     }
     notification.params.contact = null;
