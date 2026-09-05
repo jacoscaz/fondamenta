@@ -44,5 +44,14 @@ export {
 } from './helpers-jsonrpc.js';
 
 export {
+  TelegramTransport,
+  EmailTransport,
+  VerifiedContact,
+  UnverifiedContact,
+  TextContent,
+  VoiceContent,
+  FileContent,
+  TranscriptionSuccess,
+  TranscriptionError,
   McpNewMessageNotification,
 } from './types-mcp-notifications.js';
