@@ -2,6 +2,7 @@
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type CompleteContext } from "../../context.js";
 import { type HarnessMcpToolCallContext } from "../../types/tools.js";
+import { errToString } from "@fondamenta/utils";
 
 interface TranscribeParams {
   /** Absolute path to the audio file on disk. */
@@ -46,8 +47,11 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
       await ctx.buses.notifications.notify(notification);
       return true;
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return false;
+      notification.params.transcription = {
+        error: errToString(err),
+      };
+      await ctx.buses.notifications.notify(notification);
+      return true;
     }
   });
 
