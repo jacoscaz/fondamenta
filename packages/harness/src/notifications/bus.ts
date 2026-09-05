@@ -25,8 +25,12 @@ export class NotificationBus extends WithContext {
    * NOTE: Subscribers are called in the order they are registered.
    *       Subscription order is load-bearing but implicit.
    */
-  subscribe(name: string, handler: NotificationHandler): void {
-    this.#subscribers.push({ name, handler });
+  subscribe(name: string, handler: NotificationHandler, priority: 'high' | 'low' = 'low'): void {
+    if (priority === 'high') {
+      this.#subscribers.unshift({ name, handler });
+    } else {
+      this.#subscribers.push({ name, handler });
+    }
     this.#logger.info('subscriber %s registered', name);
   }
 
