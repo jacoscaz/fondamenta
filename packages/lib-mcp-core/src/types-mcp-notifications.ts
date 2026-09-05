@@ -38,12 +38,16 @@ export interface Transcription {
   transcriber?: string | null;
 }
 
+export interface TranscriptionError {
+  error: string;
+}
+
 export interface McpNewMessageNotification extends McpNotification {
   method: 'message/new';
   params: {
     content: TextContent | VoiceContent;
     contact?: VerifiedContact | null;
     transport: TelegramTransport | EmailTransport;
-    transcription?: Transcription | null;
+    transcription?: Transcription | TranscriptionError | null;
   };
 }

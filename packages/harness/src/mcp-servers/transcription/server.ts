@@ -18,23 +18,25 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
   const logger = ctx.logger.child('[mcp:transcription]');
 
   ctx.buses.notifications.subscribe('mcp-transcription', async (notification) => {
-    if (notification.method != 'message/new') {
-      return false;
-    }
-    if (notification.params.content.type !== 'voice') {
-      return false;
-    }
     if (!ctx.managers.models.transcription) {
       // TODO: notify the agent that no transcription model is configured and
       //       thus the transcription. Change to `return true` when done.
       return false;
     }
-    if ('transcription' in notification.params) {
+    const { method, params } = notification;
+    if (method != 'message/new') {
+      return false;
+    }
+    const { content, transcription } = params;
+    if (content.type !== 'voice') {
+      return false;
+    }
+    if (transcription === null || transcription) {
       return false;
     }
     notification.params.transcription = null;
     try {
-      const result = await ctx.managers.models.transcription.transcribe(notification.params.content.path);
+      const result = await ctx.managers.models.transcription.transcribe(content.path);
       notification.params.transcription = {
         text: result.text,
         language: result.language,

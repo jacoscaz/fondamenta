@@ -55,7 +55,13 @@ const formatNewMessageNotification = (notification: McpNewMessageNotification, l
   } else if (params.content.type === 'voice') {
     lines.push(`file: ${params.content.path} (audio file)`);
     if (params.transcription) {
-      lines.push(`transcription: ${params.transcription.text}`);
+      if ('text' in params.transcription) {
+        lines.push(`transcription: ${params.transcription.text}`);
+      } else {
+        lines.push(`transcription: -- N/A --`);
+        lines.push(`transcription error: ${params.transcription.error}`);
+      }
+
     }
   }
 };
