@@ -43,11 +43,11 @@ export const startJmapNotifier = (
         server.notify({
           method: 'message/new',
           params: {
-            content: {
+            content: [{
               type: 'text',
               text: ellipsis(email.preview, 200),
               subject: email.subject,
-            },
+            }],
             transport: {
               type: 'email',
               from: { name: email.from[0].name, address: email.from[0].email },

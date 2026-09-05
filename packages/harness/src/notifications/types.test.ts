@@ -21,10 +21,10 @@ describe('HarnessNotification casting', () => {
     {
       method: 'message/new',
       params: {
-        content: {
+        content: [{
           type: 'text',
           text: 'test',
-        },
+        }],
         transport: {
           type: 'email',
           from: { name: 'test', address: 'test' },

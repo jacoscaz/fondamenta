@@ -3,6 +3,7 @@ import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type CompleteContext } from "../../context.js";
 import { type HarnessMcpToolCallContext } from "../../types/tools.js";
 import { errToString } from "@fondamenta/utils";
+import { VoiceContent } from "@fondamenta/mcp-core/src/types-mcp-notifications.js";
 
 interface TranscribeParams {
   /** Absolute path to the audio file on disk. */
@@ -29,31 +30,30 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
       return false;
     }
     const { content } = params;
-    if (content.type !== 'voice') {
+    const pending_blocks: VoiceContent[] = content.filter(b => b.type === 'voice' && !b.transcription) as VoiceContent[];
+    if (!pending_blocks) {
       return false;
     }
-    if (params.transcription) {
-      return false;
+    for (const block of pending_blocks) {
+      try {
+        const result = await ctx.managers.models.transcription.transcribe(block.path);
+        block.transcription = {
+          success: true,
+          text: result.text,
+          language: result.language,
+          time: result.duration_ms,
+          transcriber: 'transcription model', // TODO: model id or coordinates
+        };
+        await ctx.buses.notifications.notify(notification);
+      } catch (err) {
+        block.transcription = {
+          success: false,
+          error: errToString(err),
+        };
+        await ctx.buses.notifications.notify(notification);
+      }
     }
-    try {
-      const result = await ctx.managers.models.transcription.transcribe(content.path);
-      notification.params.transcription = {
-        success: true,
-        text: result.text,
-        language: result.language,
-        time: result.duration_ms,
-        transcriber: 'transcription model', // TODO: model id or coordinates
-      };
-      await ctx.buses.notifications.notify(notification);
-      return true;
-    } catch (err) {
-      notification.params.transcription = {
-        success: false,
-        error: errToString(err),
-      };
-      await ctx.buses.notifications.notify(notification);
-      return true;
-    }
+    return true;
   });
 
   mcp.addTool<TranscribeParams>(

@@ -33,8 +33,16 @@ export interface TextContent {
 
 export interface VoiceContent {
   type: 'voice';
-  subject?: string;
+  subject?: string | null;
+  caption?: string | null;
   path: string;
+  transcription?: TranscriptionSuccess | TranscriptionError | null;
+}
+
+export interface FileContent {
+  type: 'file';
+  path: string;
+  caption?: string | null;
 }
 
 export interface TranscriptionSuccess {
@@ -53,9 +61,8 @@ export interface TranscriptionError {
 export interface McpNewMessageNotification extends McpNotification {
   method: 'message/new';
   params: {
-    content: TextContent | VoiceContent;
+    content: (TextContent | VoiceContent | FileContent)[];
     contact?: VerifiedContact | UnverifiedContact | null;
     transport: TelegramTransport | EmailTransport;
-    transcription?: TranscriptionSuccess | TranscriptionError | null;
   };
 }

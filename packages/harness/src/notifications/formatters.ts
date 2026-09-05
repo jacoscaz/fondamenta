@@ -38,6 +38,7 @@ const formatDueTodoNotification = (notification: DueTodoNotification, lines: str
 
 const formatNewMessageNotification = (notification: McpNewMessageNotification, lines: string[]) => {
   const { params } = notification;
+  lines.push('--- META ---');
   if (params.contact?.verified) {
     lines.push(`contact: ${params.contact.name} (#${params.contact.id})`);
     lines.push(`guidance: ${params.contact.guidance}`);
@@ -50,18 +51,23 @@ const formatNewMessageNotification = (notification: McpNewMessageNotification, l
   } else if (params.transport.type === 'email') {
     lines.push(`transport: email, from ${params.transport.from.address}`);
   }
-  if (params.content.type === 'text') {
-    lines.push(`text: ${params.content.text}`);
-  } else if (params.content.type === 'voice') {
-    lines.push(`file: ${params.content.path} (audio file)`);
-    if (params.transcription) {
-      if (params.transcription.success) {
-        lines.push(`transcription: ${params.transcription.text}`);
-      } else {
-        lines.push(`transcription: -- N/A --`);
-        lines.push(`transcription error: ${params.transcription.error}`);
+  params.content.forEach((block, idx) => {
+    lines.push('');
+    lines.push(`--- BLOCK #${idx} - TYPE: ${block.type} ---`);
+    if (block.type === 'text') {
+      lines.push(`text:`);
+      lines.push(block.text);
+    } else if (block.type === 'voice') {
+      lines.push(`file: ${block.path} (audio file)`);
+      if (block.transcription) {
+        if (block.transcription.success) {
+          lines.push(`transcription:`);
+          lines.push(block.transcription.text);
+        } else {
+          lines.push(`transcription error: ${block.transcription.error}`);
+        }
       }
-
     }
-  }
+  });
+
 };

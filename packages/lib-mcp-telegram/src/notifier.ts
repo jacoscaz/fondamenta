@@ -49,6 +49,8 @@ export const startTelegramNotifier = (
         const sender = from.username ? `@${from.username}` : from.first_name;
         const edited = update.edited_message ? ' (edited)' : '';
 
+        const content: McpNewMessageNotification['params']['content'] = [];
+
         // Voice notes take the preprocessing path (2026-09-02 design):
         // download to disk NOW, then emit audio/available — a
         // non-ingestible notification consumed by the harness's
@@ -62,44 +64,49 @@ export const startTelegramNotifier = (
             await mkdir(dir, { recursive: true });
             const path = join(dir, `${message.voice.file_id.slice(-16)}-${Date.now()}.ogg`);
             await client.downloadFile(message.voice.file_id, path);
-            server.notify({
-              method: 'message/new',
-              params: {
-                content: {
-                  type: 'voice',
-                  path,
-                },
-                transport: {
-                  type: 'telegram',
-                  chat_id: message.chat.id,
-                  from_id: from.id,
-                }
-              }
-            } satisfies McpNewMessageNotification);
+            content.push({
+              type: 'voice',
+              path,
+            });
             log('voice note downloaded: %s (%ss)', path, message.voice.duration);
           } catch (err) {
             log('voice note download failed: %s', err instanceof Error ? err.message : String(err));
           }
-          continue;
         }
 
-        const body = describeMessage(message);
-        if (body === null) continue;
-        server.notify({
-          method: 'message/new',
-          params: {
-            content: {
-              type: 'text',
-              text: body,
+        if (message.photo) {
+          // Telegram sends photos as an array of sizes; the last entry is
+          // the largest. Expose its file_id so the agent can download it.
+          const largest = message.photo[message.photo.length - 1];
+          content.push({
+            type: 'file',
+            path: `telegram photo ${largest.width}x${largest.height} file_id: ${largest.file_id}`,
+            caption: message.caption,
+          });
+        }
+
+        // TODO: if (message.document) {}
+        if (message.text) {
+          content.push({
+            type: 'text',
+            text: message.text,
+          });
+        }
+
+        if (content.length > 0) {
+          server.notify({
+            method: 'message/new',
+            params: {
+              content,
+              transport: {
+                type: 'telegram',
+                chat_id: message.chat.id,
+                from_id: from.id,
+                username: from.username,
+              },
             },
-            transport: {
-              type: 'telegram',
-              chat_id: message.chat.id,
-              from_id: from.id,
-              username: from.username,
-            },
-          },
-        } satisfies McpNewMessageNotification);
+          } satisfies McpNewMessageNotification);
+        }
       }
     }
   };
