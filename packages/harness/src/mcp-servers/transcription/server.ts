@@ -28,14 +28,14 @@ export const initTranscriptionMcpServer = (ctx: CompleteContext): McpLocalServer
     if (method != 'message/new') {
       return false;
     }
+    if ('transcription' in params) {
+      return false;
+    }
+    notification.params.transcription = null;
     const { content, transcription } = params;
     if (content.type !== 'voice') {
       return false;
     }
-    if (transcription === null || transcription) {
-      return false;
-    }
-    notification.params.transcription = null;
     try {
       const result = await ctx.managers.models.transcription.transcribe(content.path);
       notification.params.transcription = {

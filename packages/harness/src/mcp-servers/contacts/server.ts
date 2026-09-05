@@ -26,11 +26,11 @@ export const initContactsMcpServer = (ctx: CompleteContext): McpLocalServer<Harn
     if (method !== 'message/new') {
       return false;
     }
-    const { contact, transport } = params;
-    if (contact === null || contact) {
+    if ('contact' in params) {
       return false;
     }
     notification.params.contact = null;
+    const { transport } = params;
     if (transport.type === 'telegram') {
       await enrichWithContact(notification, `telegram:${transport.from_id}`);
     } else if (transport.type === 'email') {
