@@ -38,7 +38,7 @@ export const initContactsMcpServer = (ctx: CompleteContext): McpLocalServer<Harn
     if (transport.type === 'telegram') {
       await enrichWithContact(notification, `telegram:${transport.from_id}`);
     } else if (transport.type === 'email') {
-      await enrichWithContact(notification, `mailto:${transport.from}`);
+      await enrichWithContact(notification, `mailto:${transport.from.address}`);
     }
     await ctx.buses.notifications.notify(notification)
     return true;
