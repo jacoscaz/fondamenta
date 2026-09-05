@@ -57,8 +57,10 @@ const formatNewMessageNotification = (notification: McpNewMessageNotification, l
     if (block.type === 'text') {
       lines.push(`text:`);
       lines.push(block.text);
+    } else if (block.type === 'file') {
+      lines.push(`path: ${block.path}`);
     } else if (block.type === 'voice') {
-      lines.push(`file: ${block.path} (audio file)`);
+      lines.push(`path: ${block.path} (audio file)`);
       if (block.transcription) {
         if (block.transcription.success) {
           lines.push(`transcription:`);
@@ -67,6 +69,10 @@ const formatNewMessageNotification = (notification: McpNewMessageNotification, l
           lines.push(`transcription error: ${block.transcription.error}`);
         }
       }
+    } else {
+      // @ts-ignore
+      lines.push(`unsupported block type ${block.type}, raw block data:`);
+      lines.push(JSON.stringify(block, null, 2));
     }
   });
 
