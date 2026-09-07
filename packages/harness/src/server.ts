@@ -37,7 +37,7 @@ import { initAnchorsTools } from "./tools/servers/anchors.js";
 import { initSessionTools } from "./tools/servers/session.js";
 import { initFilesTools } from "./tools/servers/files.js";
 import { initSessionMcpServer } from "./mcp-servers/session.js";
-import { initTerminalMcpServer } from "./mcp-servers/terminal/terminal.js";
+import { initTerminalTools } from "./tools/servers/terminal/index.js";
 import { initContinuityMcpServer } from "./mcp-servers/continuity/server.js";
 import { initPinningMcpServer } from "./mcp-servers/pinning.js";
 import { initAnchorsMcpServer } from "./mcp-servers/anchors.js";
@@ -183,14 +183,7 @@ complete_context.managers.mcp.register({
 
 initJMAPTools(complete_context);
 
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'terminal',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTerminalMcpServer(config, complete_context),
-  ),
-});
+initTerminalTools(complete_context);
 
 // ────────────────────────────────────────────────────────────────────────
 // NOTIFICATION SUBSCRIBER REGISTRATION ORDER IS LOAD-BEARING.

@@ -1,11 +1,9 @@
 // Terminal MCP server: provides persistent terminal sessions via zigpty.
 // Tools allow spawning, writing, reading, and managing interactive PTY sessions.
 
-import { McpLocalServer } from "@fondamenta/mcp-local";
-import { Config } from "../../config/config.js";
-import { type HarnessMcpToolCallContext } from "../../types/tools.js";
 import { TerminalSession, type TerminalSessionOptions, type SessionInfo } from "./session.js";
-import { CompleteContext } from "../../context.js";
+import { type IdleEvent } from "zigpty/idle";
+import { type CompleteContext } from "../../../context.js";
 import { errToString } from "@fondamenta/utils";
 
 interface SpawnParams {
@@ -83,13 +81,12 @@ written command can produce output, eliminating the race where the pattern
 is emitted before a separate waitFor call exists. Prefer mcp_shell_exec for
 short-lived commands to be run in a blocking fashion.`;
 
-export const initTerminalMcpServer = (
-  config: Config,
-  ctx: CompleteContext,
-): McpLocalServer<HarnessMcpToolCallContext> => {
+// Terminal tools — ported from the MCP server (2026-09-07 overnight
+// handoff). Persistent PTY sessions via zigpty; semantics unchanged.
 
-  const logger = ctx.logger.child('[mcp][terminal]');
-  const mcp_server = new McpLocalServer<HarnessMcpToolCallContext>();
+export const initTerminalTools = (ctx: CompleteContext) => {
+
+  const logger = ctx.logger.child('[tools:terminal]');
 
   const sessions = new Map<number, TerminalSession>();
 
@@ -104,10 +101,11 @@ export const initTerminalMcpServer = (
   };
 
   // list(): SessionInfo[]
-  mcp_server.addTool<Record<string, never>>(
+  ctx.managers.tools.add<Record<string, never>>(
     'list',
     'List Terminal Sessions',
     'Lists all active terminal sessions with their metadata (id, pid, command, cols, rows, running).',
+    false,
     async () => {
       const infos: SessionInfo[] = [];
       for (const session of sessions.values()) {
@@ -121,10 +119,11 @@ export const initTerminalMcpServer = (
   );
 
   // spawn(opts?): number
-  mcp_server.addTool<SpawnParams>(
+  ctx.managers.tools.add<SpawnParams>(
     'spawn',
     'Spawn Terminal Session',
     SPAWN_DESC,
+    false,
     async (params, opts) => {
       const id = nextId++;
       const options: TerminalSessionOptions = {
@@ -136,7 +135,7 @@ export const initTerminalMcpServer = (
         env: params.env,
       };
       const terminal_session = new TerminalSession(id, options);
-      terminal_session.onIdle = (event, delta) => {
+      terminal_session.onIdle = (event: IdleEvent, delta: string) => {
         // Signal-only notification: the agent decides whether to read the
         // screen content via readScreen/read. This avoids duplicating output
         // that shell_exec already returns for blocking commands, and keeps
@@ -152,11 +151,12 @@ export const initTerminalMcpServer = (
   );
 
   // destroy(id): void
-  mcp_server.addTool<DestroyParams>(
+  ctx.managers.tools.add<DestroyParams>(
     'destroy',
     'Destroy Terminal Session',
     `Closes a terminal session, killing all subprocesses with SIGHUP.
 The session ID is no longer valid after this.`,
+    false,
     async (params) => {
       const session = getSession(params.id);
       session.onIdle = null;
@@ -167,10 +167,11 @@ The session ID is no longer valid after this.`,
   );
 
   // write(id, data, waitFor?): void
-  mcp_server.addTool<WriteParams>(
+  ctx.managers.tools.add<WriteParams>(
     'write',
     'Write to Terminal',
     WRITE_DESC,
+    false,
     async (params, opts) => {
       const session = getSession(params.id);
       // Interpret common escape sequences that LLMs send as literal strings
@@ -214,10 +215,11 @@ The session ID is no longer valid after this.`,
   );
 
   // read(id, len?): string
-  mcp_server.addTool<ReadParams>(
+  ctx.managers.tools.add<ReadParams>(
     'read',
     'Read Terminal Output',
     READ_DESC,
+    false,
     async (params) => {
       const session = getSession(params.id);
       const content = session.read(params.len);
@@ -226,10 +228,11 @@ The session ID is no longer valid after this.`,
   );
 
   // readScreen(id): string
-  mcp_server.addTool<ReadScreenParams>(
+  ctx.managers.tools.add<ReadScreenParams>(
     'readScreen',
     'Read Terminal Screen',
     READ_SCREEN_DESC,
+    false,
     async (params) => {
       const session = getSession(params.id);
       const content = session.readScreen();
@@ -238,10 +241,11 @@ The session ID is no longer valid after this.`,
   );
 
   // waitFor(id, match, timeout?): string
-  mcp_server.addTool<WaitForParams>(
+  ctx.managers.tools.add<WaitForParams>(
     'waitFor',
     'Wait for Terminal Output',
     WAIT_FOR_DESC,
+    false,
     async (params, opts) => {
       const session = getSession(params.id);
       const timeout = params.timeout ?? 30_000;
@@ -267,10 +271,11 @@ The session ID is no longer valid after this.`,
   );
 
   // resize(id, cols, rows): void
-  mcp_server.addTool<ResizeParams>(
+  ctx.managers.tools.add<ResizeParams>(
     'resize',
     'Resize Terminal',
     `Resizes the terminal session to the specified columns and rows. Sends SIGWINCH to the child process.`,
+    false,
     async (params) => {
       const session = getSession(params.id);
       session.resize(params.cols, params.rows);
@@ -279,10 +284,11 @@ The session ID is no longer valid after this.`,
   );
 
   // kill(id, signal?): void
-  mcp_server.addTool<KillParams>(
+  ctx.managers.tools.add<KillParams>(
     'kill',
     'Send Signal to Terminal',
     `Sends a signal to the terminal session's foreground process. Default: SIGINT (Ctrl-C). The session remains active after the signal — use destroy() to close it entirely.`,
+    false,
     async (params) => {
       const session = getSession(params.id);
       session.kill(params.signal);
@@ -290,6 +296,4 @@ The session ID is no longer valid after this.`,
     },
   );
 
-  return mcp_server;
-
-};
+}
