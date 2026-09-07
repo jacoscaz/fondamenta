@@ -37,6 +37,7 @@ import { initPinningMcpServer } from "./mcp-servers/pinning.js";
 import { initAnchorsMcpServer } from "./mcp-servers/anchors.js";
 import { initSpeechMcpServer } from "./mcp-servers/speech/server.js";
 import { ContactsManager } from "./contacts/manager.js";
+import { SpeechManager } from "./speech/manager.js";
 import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
 import { HarnessMcpToolCallContext } from './types/tools.js';
 import { RootToolManager } from './tools/manager.js';
@@ -90,6 +91,7 @@ const complete_context: CompleteContext = {
   },
   files: new FileManager(init_context),
   contacts: new ContactsManager(init_context),
+  speech: new SpeechManager(init_context),
   managers: {
     mcp: new RootMcpManager(init_context),
     tools: new RootToolManager(init_context),
