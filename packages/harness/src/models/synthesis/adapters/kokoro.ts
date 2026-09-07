@@ -14,6 +14,10 @@ import { type ConfigSynthesisModelKokoro } from "../../../config/config.js";
  * {path, duration, voice}. Duration comes from ffprobe of the FINAL
  * encoded file, so it is exact and survives any format change.
  *
+ * The container has no host mounts (by design — isolation), so the
+ * adapter renders to a container-local path and `docker cp`s the
+ * result out to the caller's FileManager-allocated path.
+ *
  * The caller (speech server) allocates out_path via the FileManager.
  * Text travels as an argv argument — it is script-authored content,
  * never interpolated into a shell string.
@@ -33,7 +37,11 @@ export class KokoroSynthesisModel extends AbstractSynthesisModel {
 
   async synthesize(text: string, out_path?: string): Promise<SynthesisResult> {
     const format = 'ogg';
-    const target = out_path ?? `/tmp/fondamenta-synthesis-${Date.now()}.${format}`;
+    const host_path = out_path ?? `/tmp/fondamenta-synthesis-${Date.now()}.${format}`;
+    // The kokoro-tts container has no host mounts, so the host path is
+    // unreachable from inside. Synthesize to a container-local path,
+    // then docker cp the result to the caller's target.
+    const container_path = `/work/fondamenta-out-${Date.now()}.${format}`;
 
     const args = [
       'exec',
@@ -41,8 +49,8 @@ export class KokoroSynthesisModel extends AbstractSynthesisModel {
       'python3',
       this.#script_path,
       text,
-      target,
-      '--voice', this.#voice,
+      container_path,
+      this.#voice,
     ];
 
     const { execFile } = await import('node:child_process');
@@ -51,6 +59,17 @@ export class KokoroSynthesisModel extends AbstractSynthesisModel {
         if (err) reject(new Error(`Kokoro synthesis failed: ${err.message}`));
         else resolve(stdout);
       });
+    });
+
+    // Copy the result out of the container, then clean up inside.
+    await new Promise<void>((resolve, reject) => {
+      execFile('docker', ['cp', `${this.#container}:${container_path}`, host_path], { timeout: 30_000 }, (err) => {
+        if (err) reject(new Error(`Kokoro result copy failed: ${err.message}`));
+        else resolve();
+      });
+    });
+    execFile('docker', ['exec', this.#container, 'rm', '-f', container_path], { timeout: 15_000 }, () => {
+      /* best-effort cleanup */
     });
 
     // The script prints one JSON line as its last output line.
@@ -65,6 +84,6 @@ export class KokoroSynthesisModel extends AbstractSynthesisModel {
     if (typeof parsed.duration !== 'number' || !Number.isFinite(parsed.duration) || parsed.duration <= 0) {
       throw new Error(`Kokoro synthesis returned invalid duration: ${String(parsed.duration)}`);
     }
-    return { path: target, duration: parsed.duration, format };
+    return { path: host_path, duration: parsed.duration, format };
   }
 }
