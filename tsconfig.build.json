@@ -4,16 +4,12 @@
     { "path": "packages/harness" },
     { "path": "packages/lib-mcp-core" },
     { "path": "packages/lib-mcp-local" },
-    { "path": "packages/lib-mcp-jmap" },
-    { "path": "packages/lib-mcp-telegram" },
     { "path": "packages/lib-utils" },
   ],
   "include": [
     "packages/harness/src/**/*.ts",
     "packages/lib-mcp-core/src/**/*.ts",
     "packages/lib-mcp-local/src/**/*.ts",
-    "packages/lib-mcp-jmap/src/**/*.ts",
-    "packages/lib-mcp-telegram/src/**/*.ts",
     "packages/lib-utils/src/**/*.ts",
   ]
 }

@@ -6,9 +6,7 @@
   },
   "references": [
     { "path": "../lib-mcp-core" },
-    { "path": "../lib-mcp-jmap" },
     { "path": "../lib-mcp-local" },
-    { "path": "../lib-mcp-telegram" },
     { "path": "../lib-utils" },
   ]
 }

@@ -10,6 +10,7 @@ import {
 } from "./formatters.js";
 
 import { startJmapNotifier } from "./notifier.js";
+import { CompleteContext } from "../../../context.js";
 
 // ── Formatters ──
 
@@ -77,17 +78,17 @@ export interface JmapHostContext {
  * source and survives untouched (same claim-state semantics as the
  * transcription/synthesis block decorations).
  */
-export const initJmapMcpServer = (config: JmapConfig, ctx?: JmapHostContext): McpLocalServer<any> => {
-
-  const mcp = new McpLocalServer<any>();
+export const initJMAPTools = (ctx: CompleteContext) => {
 
   const client = new JMAPClient({
-    token: config.api_token,
-    apiUrl: config.api_url,
-    sessionUrl: config.session_url,
+    token: ctx.config.mail.api_token,
+    apiUrl: ctx.config.mail.api_url,
+    sessionUrl: ctx.config.mail.session_url,
   });
 
-  const notifier = startJmapNotifier(mcp, client, config, console.log, ctx?.contacts);
+  const logger = ctx.logger.child('[tools:jmap]');
+
+  const notifier = startJmapNotifier(ctx, client, logger);
 
   /**
    * Resolve the standing of an email's first sender through the host's
@@ -103,10 +104,11 @@ export const initJmapMcpServer = (config: JmapConfig, ctx?: JmapHostContext): Mc
     return await ctx.contacts.lookup(`mailto:${addr}`);
   };
 
-  mcp.addTool<InboxParams>(
+  ctx.managers.tools.add<InboxParams>(
     'inbox',
     'List Inbox Emails',
     'List previews of recent emails in the inbox. Returns email ID, date, from, subject, and preview text.',
+    false,
     async ({ limit }) => {
       const { total, emails } = await client.listInbox(limit ?? 10);
       const header = `Inbox — ${total} total threads, showing ${emails.length}\n`;
@@ -114,41 +116,43 @@ export const initJmapMcpServer = (config: JmapConfig, ctx?: JmapHostContext): Mc
         const standing = await standingFor(email);
         return `${contactStandingLine(standing)}\n${formatEmailSummary(email)}`;
       }));
-      return [{ type: 'text', text: `${header}\n${lines.join('\n\n')}` }];
+      return [{ type: 'text', safe: false, text: `${header}\n${lines.join('\n\n')}` }];
     },
   );
 
-  mcp.addTool<ReadEmailParams>(
+  ctx.managers.tools.add<ReadEmailParams>(
     'read',
     'Read Email',
     'Retrieve the full content of a specific email by ID.',
+    false,
     async ({ id }) => {
       const email = await client.readEmail(id);
       const standing = await standingFor(email);
-      return [{ type: 'text', text: `${contactStandingLine(standing)}\n\n${formatEmailDetail(email)}` }];
+      return [{ type: 'text', safe: false, text: `${contactStandingLine(standing)}\n\n${formatEmailDetail(email)}` }];
     },
   );
 
-  mcp.addTool<SendEmailParams>(
+  ctx.managers.tools.add<SendEmailParams>(
     'send',
     'Send Email',
     'Send an email to one or more recipients. Body is plain text.',
+    true,
     async ({ to, cc, subject, body }) => {
       const result = await client.sendEmail({ to, cc, subject, body });
-      return [{ type: 'text', text: `Sent — Email ID: ${result.emailId}, Submission ID: ${result.submissionId}, Send time: ${result.sendAt}` }];
+      return [{ type: 'text', safe: false, text: `Sent — Email ID: ${result.emailId}, Submission ID: ${result.submissionId}, Send time: ${result.sendAt}` }];
     },
   );
 
-  mcp.addTool<{}>(
+  ctx.managers.tools.add<{}>(
     'mailboxes',
     'List Mailboxes',
     'List all mailboxes with thread counts and unread indicators.',
+    false,
     async ({}) => {
       const mailboxes = await client.listMailboxes();
       const body = mailboxes.map(formatMailbox).join('\n');
-      return [{ type: 'text', text: body }];
+      return [{ type: 'text', safe: false, text: body }];
     },
   );
 
-  return mcp;
 };

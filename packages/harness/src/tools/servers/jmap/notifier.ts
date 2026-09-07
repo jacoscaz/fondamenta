@@ -1,9 +1,9 @@
-import { type McpLocalServer } from "@fondamenta/mcp-local";
+
 import { type JMAPClient, type EmailSummary } from "./client.js";
-import { type JmapConfig } from "./config.js";
-import { type McpNewMessageNotification } from "@fondamenta/mcp-core";
-import { type ContactStanding, type JmapHostContext } from "./server.js";
 import { ellipsis } from "@fondamenta/utils";
+import { CompleteContext } from "../../../context.js";
+import { Logger } from "pinetto";
+import { UserNotification } from "../../../types/messages.js";
 
 /**
  * Start the inbox polling loop for the given server. On new mail from
@@ -22,23 +22,13 @@ import { ellipsis } from "@fondamenta/utils";
  * happens where the message is born, not downstream.
  */
 export const startJmapNotifier = (
-  server: McpLocalServer<{}>,
+  ctx: CompleteContext,
   client: JMAPClient,
-  config: JmapConfig,
-  log: (msg: string, ...args: any[]) => void = () => { },
-  contacts?: JmapHostContext['contacts'],
+  logger: Logger,
 ): { stop(): void } => {
   let lastSeenTimestamp: string | null = null;
   let running = false;
   let timer: NodeJS.Timeout | null = null;
-
-  const standingFor = async (email: EmailSummary): Promise<ContactStanding> => {
-    const addr = email.from[0]?.email;
-    if (!contacts || !addr) {
-      return { verified: false, guidance: 'no contact verification available' };
-    }
-    return await contacts.lookup(`mailto:${addr}`);
-  };
 
   const poll = async (): Promise<void> => {
     if (running) return;
@@ -52,27 +42,30 @@ export const startJmapNotifier = (
       if (newEmails.length === 0) return;
       lastSeenTimestamp = newEmails[0].receivedAt;
       const filtered = newEmails.filter(e =>
-        e.from.some(addr => config.allowlist.includes(addr.email))
+        e.from.some(addr => ctx.config.mail.allowlist.includes(addr.email))
       );
       for (const email of filtered) {
-        server.notify({
-          method: 'message/new',
-          params: {
-            contact: await standingFor(email),
-            content: [{
+        ctx.buses.notifications.notify({
+          method: 'message/incoming',
+          contact: await ctx.contacts.lookup(`mailto:${email.from[0].email}`),
+          blocks: [
+            {
+              type: 'text',
+              text: `subject: ${email.subject}`,
+            },
+            {
               type: 'text',
               text: ellipsis(email.preview, 200),
-              subject: email.subject,
-            }],
-            transport: {
-              type: 'email',
-              from: { name: email.from[0].name, address: email.from[0].email },
-            },
+            }
+          ],
+          transport: {
+            type: 'email',
+            from: { name: email.from[0].name, address: email.from[0].email },
           },
-        } satisfies McpNewMessageNotification);
+        } satisfies UserNotification);
       }
     } catch (err) {
-      log('jmap notifier poll error: %s', err instanceof Error ? err.message : String(err));
+      logger.error('jmap notifier poll error: %s', err instanceof Error ? err.message : String(err));
     } finally {
       running = false;
     }
@@ -82,15 +75,15 @@ export const startJmapNotifier = (
   void client.listInbox(1).then(({ emails }) => {
     if (emails.length > 0) {
       lastSeenTimestamp = emails[0].receivedAt;
-      log('jmap notifier baseline: %s', lastSeenTimestamp);
+      logger.info('jmap notifier baseline: %s', lastSeenTimestamp);
     }
   }).catch((err: unknown) => {
-    log('jmap notifier baseline error: %s', err instanceof Error ? err.message : String(err));
+    logger.error('jmap notifier baseline error: %s', err instanceof Error ? err.message : String(err));
   });
 
-  const interval_ms = config.poll_interval_ms ?? 120_000;
+  const interval_ms = ctx.config.mail.poll_interval_ms ?? 120_000;
   timer = setInterval(() => void poll(), interval_ms);
-  log('jmap notifier polling every %dms', interval_ms);
+  logger.info('jmap notifier polling every %dms', interval_ms);
 
   return {
     stop(): void {

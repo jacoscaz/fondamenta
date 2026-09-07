@@ -1,15 +1,21 @@
 
 import {
-  ImageBlock,
-  RefusalBlock,
-  TextBlock,
-  ThinkingBlock,
-  ThinkingRedactedBlock,
-  UnsupportedBlock,
-  VoiceBlock,
+  type ImageBlock,
+  type RefusalBlock,
+  type TextBlock,
+  type ThinkingBlock,
+  type ThinkingRedactedBlock,
+  type UnsupportedBlock,
+  type VoiceBlock,
 } from "./blocks.js";
 
-import { Contact } from "./contacts.js";
+import {
+  type Contact,
+} from "./contacts.js";
+
+import {
+  type UserNotification,
+} from "./notifications.js";
 
 export type UserBlock =
   | TextBlock
@@ -33,14 +39,6 @@ export interface BaseMessage {
 export interface UserInput extends BaseMessage {
   role: 'user';
   type: 'input';
-  blocks: UserBlock[];
-  contact?: Contact;
-}
-
-export interface UserNotification extends BaseMessage {
-  role: 'user';
-  type: 'notification';
-  method: string;
   blocks: UserBlock[];
   contact?: Contact;
 }
