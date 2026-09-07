@@ -8,6 +8,7 @@ import { type Compactor } from "./sessions/compactor.js";
 import { type NotificationBus } from "./notifications/bus.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
+import { type ContactsManager } from "./contacts/manager.js";
 import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
 import { type RootMcpManager } from "./mcp-manager/manager.js";
@@ -60,6 +61,7 @@ export interface CompleteContext {
     notifications: NotificationBus;
   };
   files: FileManager;
+  contacts: ContactsManager;
   managers: {
     mcp: RootMcpManager;
     models: ModelManager;

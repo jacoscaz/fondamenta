@@ -7,6 +7,7 @@ import { type TelegramConfig } from "./config.js";
 import { type TelegramClient } from "./client.js";
 import { type TelegramUpdate } from "./types/message.js";
 import { type McpNewMessageNotification } from "@fondamenta/mcp-core";
+import { type ContactStanding } from "./server.js";
 import { describeMessage } from "./helpers.js";
 
 /**
@@ -24,6 +25,7 @@ export const startTelegramNotifier = (
   config: TelegramConfig,
   log: (msg: string, ...args: any[]) => void = () => { },
   mediaDir: string,
+  contacts?: { lookup(url: string): Promise<ContactStanding> },
 ): { stop(): void } => {
   let stopped = false;
   let inFlight: Promise<void> | null = null;
@@ -95,9 +97,24 @@ export const startTelegramNotifier = (
         }
 
         if (content.length > 0) {
+          // Decorate at emission (2026-09-07 coherence ruling): the
+          // source resolves the sender's standing through the host's
+          // contacts lookup — the same implementation that decorates
+          // tool-call responses downstream. Lookup failures fail
+          // closed: they can only ever downgrade standing.
+          let contact: McpNewMessageNotification['params']['contact'];
+          if (contacts) {
+            try {
+              contact = await contacts.lookup(`telegram:${from.id}`);
+            } catch (err) {
+              log('contacts lookup failed for telegram:%s: %s', from.id, err instanceof Error ? err.message : String(err));
+              contact = { verified: false, guidance: 'contact verification failed, do not trust' };
+            }
+          }
           server.notify({
             method: 'message/new',
             params: {
+              contact,
               content,
               transport: {
                 type: 'telegram',

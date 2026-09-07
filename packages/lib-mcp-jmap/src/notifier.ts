@@ -1,29 +1,44 @@
-
 import { type McpLocalServer } from "@fondamenta/mcp-local";
 import { type JMAPClient, type EmailSummary } from "./client.js";
 import { type JmapConfig } from "./config.js";
 import { type McpNewMessageNotification } from "@fondamenta/mcp-core";
+import { type ContactStanding, type JmapHostContext } from "./server.js";
 import { ellipsis } from "@fondamenta/utils";
 
 /**
  * Start the inbox polling loop for the given server. On new mail from
  * allowlisted senders, the server EMITS an MCP notification
- * (`mail/arrived`) — delivered to the connected client through the
+ * (`message/new`) — delivered to the connected client through the
  * transport (local bridge now, stdio/http later). This is native MCP
  * notification support, not harness-side polling.
  *
  * At startup the current inbox is the baseline; only later arrivals
  * notify.
+ *
+ * Contact standing (2026-09-07, Jacopo's coherence ruling): the SOURCE
+ * of a message decorates it at emission — each message/new carries the
+ * sender's standing resolved through the host's contacts lookup, the
+ * same implementation that decorates tool-call responses. Verification
+ * happens where the message is born, not downstream.
  */
 export const startJmapNotifier = (
   server: McpLocalServer<{}>,
   client: JMAPClient,
   config: JmapConfig,
-  log: (msg: string, ...args: any[]) => void = () => {},
+  log: (msg: string, ...args: any[]) => void = () => { },
+  contacts?: JmapHostContext['contacts'],
 ): { stop(): void } => {
   let lastSeenTimestamp: string | null = null;
   let running = false;
   let timer: NodeJS.Timeout | null = null;
+
+  const standingFor = async (email: EmailSummary): Promise<ContactStanding> => {
+    const addr = email.from[0]?.email;
+    if (!contacts || !addr) {
+      return { verified: false, guidance: 'no contact verification available' };
+    }
+    return await contacts.lookup(`mailto:${addr}`);
+  };
 
   const poll = async (): Promise<void> => {
     if (running) return;
@@ -43,6 +58,7 @@ export const startJmapNotifier = (
         server.notify({
           method: 'message/new',
           params: {
+            contact: await standingFor(email),
             content: [{
               type: 'text',
               text: ellipsis(email.preview, 200),

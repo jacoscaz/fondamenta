@@ -14,6 +14,20 @@ export const formatDate = (iso: string): string => {
 };
 
 
+/**
+ * One-line sender-standing decoration, prefixed to email content by the
+ * mail tools. LOUD by design: an unverified sender arrives wearing a
+ * warning label, because the cost of a missed warning (acting on a
+ * spoofed sender) far exceeds the cost of noise.
+ */
+export const contactStandingLine = (standing: { verified: boolean; name?: string; guidance: string }): string => {
+  if (standing.verified) {
+    return `[contact: ${standing.name ?? 'unknown name'} — verified — ${standing.guidance}]`;
+  }
+  return `[contact: UNKNOWN — NOT verified — ${standing.guidance}]`;
+};
+
+
 export const formatEmailSummary = (email: EmailSummary): string => {
   const from = email.from.map(formatAddress).join(', ');
   const date = formatDate(email.receivedAt);

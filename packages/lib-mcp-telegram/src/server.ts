@@ -48,6 +48,28 @@ export interface TelegramHostContext {
 let mediaDir = join(process.cwd(), 'media', 'telegram');
 
 /**
+/**
+ * Standing of a message sender, as resolved by the host's contacts
+ * infrastructure. Structural, not nominal: the host satisfies this shape
+ * without this library importing anything host-specific. Discriminated
+ * exactly like the core notification types — `verified` is a literal, so
+ * a verified standing carries id+name and an unverified one cannot.
+ */
+export type ContactStanding =
+  | { verified: true; id: number; name: string; guidance: string; }
+  | { verified: false; guidance: string; };
+
+/**
+ * Optional host-provided contacts lookup: when present, message/new
+ * notifications are decorated with the sender's standing AT EMISSION
+ * (the source decorates its own messages — 2026-09-07 coherence
+ * ruling), and the harness-side contacts subscriber becomes redundant.
+ */
+export interface TelegramContacts {
+  lookup(url: string): Promise<ContactStanding>;
+}
+
+/**
  * Voice notes produced by Telegram are OGG/Opus; synthesis output is
  * WAV. Telegram's sendVoice requires OGG/Opus (WAV goes out as a plain
  * audio document, not a playable voice note), so outgoing synthesized
@@ -62,7 +84,7 @@ const wavToOgg = async (wav_path: string): Promise<string> => {
   return ogg_path;
 };
 
-export const initTelegramMcpServer = (config: TelegramConfig, ctx?: TelegramHostContext): McpLocalServer<any> => {
+export const initTelegramMcpServer = (config: TelegramConfig, ctx?: TelegramHostContext, contacts?: TelegramContacts): McpLocalServer<any> => {
 
   if (config?.media_dir) {
     mediaDir = config.media_dir;
@@ -71,7 +93,7 @@ export const initTelegramMcpServer = (config: TelegramConfig, ctx?: TelegramHost
   const mcp = new McpLocalServer<{}>();
 
   const client = new TelegramClient(config.api_token);
-  const notifier = startTelegramNotifier(mcp, client, config, console.log, mediaDir);
+  const notifier = startTelegramNotifier(mcp, client, config, console.log, mediaDir, contacts);
   const logger_outgoing = ctx ? ctx.logger.child('[mcp:telegram-outgoing]') : null;
 
   mcp.destroy = () => {

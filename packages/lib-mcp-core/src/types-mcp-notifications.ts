@@ -90,7 +90,7 @@ export interface TranscriptionError {
   error: string;
 }
 
-export interface McpNewMessageNotification extends McpNotification {
+export interface McpIncomingMessageNotification extends McpNotification {
   method: 'message/new';
   params: {
     content: (TextContent | VoiceContent | FileContent)[];

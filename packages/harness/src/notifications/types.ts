@@ -5,7 +5,7 @@
 //
 // See: https://github.com/runtyped/runtyped/issues/11
 import { McpNotification } from '@fondamenta/mcp-core/dist/types-mcp.js';
-import { McpNewMessageNotification, McpOutgoingMessageNotification } from '@fondamenta/mcp-core/dist/types-mcp-notifications.js';
+import { McpIncomingMessageNotification, McpOutgoingMessageNotification } from '@fondamenta/mcp-core/dist/types-mcp-notifications.js';
 import { DueTodoNotification } from '../mcp-servers/continuity/types.js';
 
 
@@ -26,7 +26,7 @@ export interface ProcessingErrorNotification extends McpNotification {
 export type HarnessNotification =
   // External notifications
   | DueTodoNotification
-  | McpNewMessageNotification
+  | McpIncomingMessageNotification
   | McpOutgoingMessageNotification
   // Internal notifications
   | ProcessingErrorNotification
