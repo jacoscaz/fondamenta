@@ -89,6 +89,7 @@ export class Distiller extends WithContext {
         session_id: origin_session_id,
         data: {
           role: 'user',
+          type: 'input',
           blocks: [{ type: 'text', text: contextText }],
         },
         created_at: new Date(),
