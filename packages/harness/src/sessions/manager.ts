@@ -189,7 +189,11 @@ export class SessionManager extends WithContext {
       .select('id')
       .executeTakeFirst();
     this.#main_session_id = session?.id ?? await this.create();
-    this._ctx.buses.notifications.subscribe('session-manager', this.#onNotification);
+    // OLD-BUS SUBSCRIBER RETIRED (2026-09-07 switchover): the new
+    // notification model delivers events through notify_NEW →
+    // injectUserNotification directly. The old subscribe/transform/
+    // re-emit chain (contacts → speech → session-manager ordering) is
+    // gone; notifiers emit complete events.
   }
 
   async getById(id: number) {
