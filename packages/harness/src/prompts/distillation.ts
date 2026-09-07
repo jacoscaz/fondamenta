@@ -81,12 +81,17 @@ export const formatMessagesForDistillation = (
 ): string => {
   const formatted: string[] = [];
   for (const m of messages) {
-    const label = m.role === 'agent' ? 'Sage' : 'User';
+    if (m.data.type === 'tool_req') {
+      continue;
+    }
+    if (m.data.type === 'tool_res') {
+      continue;
+    }
     for (const block of m.data.blocks) {
       switch (block.type) {
         case 'text':
         case 'thinking':
-          formatted.push(`[${label}] ${block.text || ''}`);
+          formatted.push(`[${m.data.role}] ${block.text || ''}`);
           break;
       }
     }
