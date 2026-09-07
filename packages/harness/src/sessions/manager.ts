@@ -4,6 +4,7 @@ import { type InitContext, WithContext } from "../context.js";
 import { SessionRunner } from "./runner.js";
 import { insertSession, selectSessionById } from "../database/tables/sessions.js";
 import { type UserMessage, type Message } from "../types/messages.js";
+import { type UserNotification } from "../types/notifications.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import assert from "node:assert";
 import { type HarnessNotification } from "../notifications/types.js";
@@ -143,6 +144,17 @@ export class SessionManager extends WithContext {
   async injectEventMessage(session_id: number, event: string, text: string, run: boolean): Promise<void> {
     const runner = this.#ensureRunner(session_id);
     await runner.injectEventMessage(event, text, run);
+  }
+
+  /**
+   * Inject a structured UserNotification into a session. This is the
+   * consumer side of the NEW notification model: notifiers emit
+   * complete events (standing and transcriptions already decorated);
+   * this renders them for the weave in ONE place — the contact
+   * standing header plus the structured blocks.
+   */
+  async injectUserNotification(session_id: number, notification: UserNotification): Promise<void> {
+    await this.injectMessage(session_id, notification, true);
   }
 
   async getHistory(session_id: number): Promise<Message[]> {
