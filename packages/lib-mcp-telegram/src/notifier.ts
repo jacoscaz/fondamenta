@@ -67,6 +67,7 @@ export const startTelegramNotifier = (
             content.push({
               type: 'voice',
               path,
+              duration: message.voice.duration,
             });
             log('voice note downloaded: %s (%ss)', path, message.voice.duration);
           } catch (err) {

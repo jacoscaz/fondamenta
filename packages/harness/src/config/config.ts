@@ -103,6 +103,41 @@ export interface ConfigTranscriptionModelOpenAI {
 
 export type ConfigTranscriptionModel = ConfigTranscriptionModelOpenAI;
 
+/**
+ * Speech synthesis (text-to-speech) model configuration. Optional: when
+ * absent, the speech server's synthesize path is unavailable and outgoing
+ * messages always dispatch as text. Mirrors the transcription model
+ * pattern: adapter + options, adapters own all format details.
+ */
+export interface ConfigSynthesisModelOpenAI {
+  adapter: 'openai';
+  options: {
+    model: string;
+    /** Optional; local endpoints typically need no key. */
+    api_key?: string;
+    base_url?: string;
+    /** Speaker voice id (endpoint-specific, e.g. 'alloy', 'af_nicole'). */
+    voice: string;
+    /** Audio format requested from the endpoint. Default 'mp3'. */
+    response_format?: 'mp3' | 'opus' | 'wav' | 'ogg';
+    /** Speech speed multiplier where supported. Default 1.0. */
+    speed?: number;
+  };
+}
+
+export type ConfigSynthesisModel = ConfigSynthesisModelOpenAI;
+
+/**
+ * FileManager (temporary-path allocation + expiration cleanup)
+ * configuration. Optional — defaults apply when absent.
+ */
+export interface ConfigFiles {
+  /** Root directory for expiring temp files. Defaults to <cwd>/media/tmp. */
+  temp_dir?: string;
+  /** Cleanup sweep interval in milliseconds. Default 60000. */
+  cleanup_interval_ms?: number;
+}
+
 export interface ConfigLogging {
   level: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   /**
@@ -196,6 +231,7 @@ export interface Config {
     session: ConfigSessionModel[];
     embedding: ConfigEmbeddingModel;
     transcription?: ConfigTranscriptionModel;
+    synthesis?: ConfigSynthesisModel;
     /** Dedicated model for distillation (continuity maintenance). Static — not switchable. */
     distillation: ConfigSessionModel;
     /** Dedicated model for compaction. Static — not switchable. */
@@ -209,6 +245,8 @@ export interface Config {
   heartbeat: ConfigHeartbeat;
   /** Session runner limits. Optional — defaults apply when absent. */
   session?: Partial<ConfigSession>;
+  /** Temp-file management (FileManager). Optional — defaults apply when absent. */
+  files?: ConfigFiles;
   postgres: ConfigPostgres;
 }
 

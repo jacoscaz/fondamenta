@@ -4,7 +4,7 @@
  * outbound. No state beyond the update offset. Photos are resolved
  * via getFile and downloaded as raw bytes on demand.
  */
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
 
 import {
   type TelegramMessage,
@@ -61,6 +61,26 @@ export class TelegramClient {
       chat_id: chatId,
       text,
     });
+  }
+
+  /**
+   * Send a voice note. Audio must be OGG/Opus (Telegram's documented
+   * voice-note format; MP3 falls back to a plain audio file).
+   * Duration in seconds is REQUIRED by the API — enforced upstream by
+   * the mandatory duration on voice blocks.
+   */
+  async sendVoice(chatId: number, filePath: string, durationSeconds: number): Promise<TelegramMessage> {
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    form.append('duration', String(Math.max(1, Math.round(durationSeconds))));
+    const bytes = await readFile(filePath);
+    form.append('voice', new Blob([new Uint8Array(bytes)], { type: 'audio/ogg' }), 'voice.ogg');
+    const res = await fetch(`${this.#api_base}/bot${this.#token}/sendVoice`, { method: 'POST', body: form });
+    const json = await res.json() as { ok?: boolean, result?: TelegramMessage, description?: string };
+    if (!res.ok || !json.ok || !json.result) {
+      throw new Error(`sendVoice failed: HTTP ${res.status}${json.description ? ` — ${json.description}` : ''}`);
+    }
+    return json.result;
   }
 
   /** Bootstrap utility: who is this bot? */

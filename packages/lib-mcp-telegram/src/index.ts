@@ -1,5 +1,7 @@
 export {
   initTelegramMcpServer,
+  TelegramHostContext,
+  OutgoingBusLike,
 } from './server.js';
 
 export {

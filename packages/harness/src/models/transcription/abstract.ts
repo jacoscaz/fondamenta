@@ -19,5 +19,5 @@ export abstract class AbstractTranscriptionModel {
    * pipeline produced (e.g. Telegram OGG/Opus voice notes) and the
    * adapter delivers text or throws.
    */
-  abstract transcribe(filePath: string): Promise<TranscriptionResult>;
+  abstract transcribe(filePath: string, language?: string): Promise<TranscriptionResult>;
 }
