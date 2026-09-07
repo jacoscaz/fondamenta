@@ -104,19 +104,19 @@ export class Distiller extends WithContext {
     // handful of times; today's runaway hit 160+ turns searching for a
     // record that didn't exist. The limit is the mechanical backstop for
     // the prompt's cognitive stop-rule.
-    await runner.run(db, this._ctx.managers.mcp.whitelist([
-      'mcp_continuity_query',
-      'mcp_continuity_read',
-      'mcp_continuity_update',
-      'mcp_continuity_delete',
-      'mcp_continuity_append',
-      'mcp_continuity_create_log',
-      'mcp_continuity_create_note',
-      'mcp_continuity_create_fact',
-      'mcp_anchors_insert',
-      'mcp_anchors_select',
-      'mcp_anchors_update',
-      'mcp_anchors_delete',
+    await runner.run(db, this._ctx.managers.tools.whitelist([
+      'continuity_query',
+      'continuity_read',
+      'continuity_update',
+      'continuity_delete',
+      'continuity_append',
+      'continuity_create_log',
+      'continuity_create_note',
+      'continuity_create_fact',
+      'anchors_insert',
+      'anchors_select',
+      'anchors_update',
+      'anchors_delete',
     ]), 30);
   }
 }
