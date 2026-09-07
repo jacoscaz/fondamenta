@@ -32,6 +32,10 @@ import { initProcessTools } from "./tools/servers/process.js";
 import { initTimeTools } from "./tools/servers/time.js";
 import { initSpeechTools } from "./tools/servers/speech.js";
 import { initContinuityTools } from "./tools/servers/continuity.js";
+import { initPinningTools } from "./tools/servers/pinning.js";
+import { initAnchorsTools } from "./tools/servers/anchors.js";
+import { initSessionTools } from "./tools/servers/session.js";
+import { initFilesTools } from "./tools/servers/files.js";
 import { initSessionMcpServer } from "./mcp-servers/session.js";
 import { initTerminalMcpServer } from "./mcp-servers/terminal/terminal.js";
 import { initContinuityMcpServer } from "./mcp-servers/continuity/server.js";
@@ -148,6 +152,14 @@ initTimeTools(complete_context);
 initSpeechTools(complete_context);
 
 initContinuityTools(complete_context);
+
+initPinningTools(complete_context);
+
+initAnchorsTools(complete_context);
+
+initSessionTools(complete_context);
+
+initFilesTools(complete_context);
 
 complete_context.managers.mcp.register({
   type: 'local',
