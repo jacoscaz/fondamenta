@@ -1,5 +1,5 @@
 import { AbstractSynthesisModel, type SynthesisResult } from "../abstract.js";
-import { type ConfigSynthesisModelOpenAI } from "../../../config/config.js";
+import { type ConfigSynthesisModel, type ConfigSynthesisModelOpenAI } from "../../../config/config.js";
 
 /**
  * Adapter for OpenAI-compatible speech-synthesis endpoints
@@ -19,26 +19,30 @@ export class OpenAISynthesisModel extends AbstractSynthesisModel {
 
   #endpoint: string;
 
-  constructor(opts: ConfigSynthesisModelOpenAI) {
+  constructor(opts: ConfigSynthesisModel & { adapter: 'openai' }) {
     super(opts);
+    if (opts.adapter !== 'openai') {
+      throw new Error('OpenAISynthesisModel requires adapter "openai"');
+    }
     const base = (opts.options.base_url ?? 'https://api.openai.com/v1').replace(/\/+$/, '');
     this.#endpoint = `${base}/audio/speech`;
   }
 
   async synthesize(text: string, out_path?: string): Promise<SynthesisResult> {
-    const format = this.opts.options.response_format ?? 'mp3';
+    const opts = this.opts as ConfigSynthesisModelOpenAI;
+    const format = opts.options.response_format ?? 'mp3';
     const body: Record<string, unknown> = {
-      model: this.opts.options.model,
+      model: opts.options.model,
       input: text,
-      voice: this.opts.options.voice,
+      voice: opts.options.voice,
       response_format: format,
     };
-    if (this.opts.options.speed !== undefined) {
-      body.speed = this.opts.options.speed;
+    if (opts.options.speed !== undefined) {
+      body.speed = opts.options.speed;
     }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (this.opts.options.api_key) {
-      headers['Authorization'] = `Bearer ${this.opts.options.api_key}`;
+    if (opts.options.api_key) {
+      headers['Authorization'] = `Bearer ${opts.options.api_key}`;
     }
 
     const res = await fetch(this.#endpoint, { method: 'POST', body: JSON.stringify(body), headers });

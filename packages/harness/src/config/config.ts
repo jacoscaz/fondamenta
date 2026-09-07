@@ -125,7 +125,19 @@ export interface ConfigSynthesisModelOpenAI {
   };
 }
 
-export type ConfigSynthesisModel = ConfigSynthesisModelOpenAI;
+export interface ConfigSynthesisModelKokoro {
+  adapter: 'kokoro';
+  options: {
+    /** Docker container running the kokoro-synth.py script. Default 'kokoro-tts'. */
+    container?: string;
+    /** Path of the synthesis script inside the container. Default '/work/synth.py'. */
+    script_path?: string;
+    /** Kokoro voice id. Default 'bm_fable'. */
+    voice?: string;
+  };
+}
+
+export type ConfigSynthesisModel = ConfigSynthesisModelOpenAI | ConfigSynthesisModelKokoro;
 
 /**
  * FileManager (temporary-path allocation + expiration cleanup)
