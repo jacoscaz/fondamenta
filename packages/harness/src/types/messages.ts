@@ -46,25 +46,17 @@ export interface UserNotification extends BaseMessage {
 export interface UserToolResult extends BaseMessage {
   role: 'user';
   type: 'tool_res';
-  req_id: string;
-  blocks: UserBlock[];
-  tool: string;
-  params: any;
-}
-
-export interface UserToolError extends BaseMessage {
-  role: 'user';
-  type: 'tool_err';
-  req_id: string;
-  blocks: TextBlock[]; // errors are harness-generated text, never images
-  tool: string;
-  params: any;
+  results: {
+    req_id: string;
+    blocks: UserBlock[];
+    tool: string;
+    params: any;
+  }[];
 }
 
 export type UserMessage =
   | UserInput
   | UserNotification
-  | UserToolError
   | UserToolResult
   ;
 
@@ -77,9 +69,11 @@ export interface AgentOutput extends BaseMessage {
 export interface AgentToolRequest extends BaseMessage {
   role: 'agent';
   type: 'tool_req';
-  req_id: string;
-  tool: string;
-  params: any;
+  requests: {
+    req_id: string;
+    tool: string;
+    params: any;
+  }[];
 }
 
 export type AgentMessage = AgentOutput | AgentToolRequest;

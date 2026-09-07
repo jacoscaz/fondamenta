@@ -2,7 +2,7 @@ import { ellipsis, errToString } from "@fondamenta/utils";
 import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, insertMessage, selectMessages } from "../database/tables/messages.js";
-import { type TextBlock, type ToolUseErrorBlock, type ToolUseRequestBlock, type ToolUseResultBlock } from "../types/blocks.js";
+import { type TextBlock } from "../types/blocks.js";
 import { AgentMessage, type Message, type UserMessage } from "../types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
@@ -225,8 +225,9 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * of the system prompt for interpretation.
    */
   async injectEventMessage(event: string, text: string, run: boolean): Promise<void> {
-    const message: UserMessage<TextBlock> = {
+    const message: UserMessage = {
       role: 'user',
+      type: 'input',
       blocks: [{ type: 'text', text: `${EVENT_PREFIX}${event}] ${text}` }],
     };
     await this.injectMessage(message, run);

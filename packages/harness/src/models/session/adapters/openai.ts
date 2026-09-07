@@ -263,6 +263,11 @@ const formatToolUseResultContent = (blocks: ToolUseResultBlock['result']): OpenA
       case 'text':
         if (block.text.trim().length > 0) parts.push({ type: 'text', text: block.text });
         break;
+      case 'voice':
+        if (block.transcription) {
+          parts.push({ type: 'text', text: block.transcription });
+        }
+        break;
       case 'image':
         parts.push({
           type: 'image_url',
@@ -281,6 +286,7 @@ const formatTextOnly = (blocks: ToolUseResultBlock['result']): OpenAI.ChatComple
         return { type: 'text', text: block.text };
       case 'image':
         return { type: 'text', text: `[image withheld: ${block.mimeType}, ${block.data.length} base64 chars]` };
+      case 'voice':
     }
   });
 };

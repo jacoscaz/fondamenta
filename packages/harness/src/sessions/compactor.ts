@@ -56,9 +56,9 @@ export class Compactor extends WithContext {
       // carrying their results/errors. With results grouped in one user
       // message, the pair is simply (agent, next message): if the split
       // index lands on the results message, move it back to the request.
-      if (all_messages[split_index].data.blocks.some(b => b.type === 'tool_use_err' || b.type === 'tool_use_res')) {
+      if (all_messages[split_index]?.data.type === 'tool_res' || all_messages[split_index]?.data.type === 'tool_err') {
         split_index -= 1;
-        if (!all_messages[split_index]?.data.blocks.some(b => b.type === 'tool_use_req')) {
+        if (all_messages[split_index]?.data.type !== 'tool_req') {
           throw new Error(`invalid tool use request/result pair at index ${split_index}`);
         }
       }
@@ -78,6 +78,7 @@ export class Compactor extends WithContext {
       const { messages: res_messages, input_size, output_size } = await model.query({
         messages: [{
           role: 'user',
+          type: 'input',
           blocks: [{ type: 'text', text: conversation_text }],
         }],
         tools: [],
@@ -86,7 +87,8 @@ export class Compactor extends WithContext {
       });
 
       // Extract the summary text from the model's response
-      const summary_text = res_messages.flatMap(p => p.blocks)
+      const summary_text = res_messages
+        .flatMap(m => m.type === 'message' ? m.blocks : [])
         .filter((b: AgentBlock) => b.type === 'text')
         .map((b: TextBlock) => b.text)
         .join('\n');
@@ -111,6 +113,7 @@ export class Compactor extends WithContext {
         session_id,
         data: {
           role: 'user',
+          type: 'input',
           blocks: [{
             type: 'text',
             text: `[Compaction summary — ${new Date().toISOString()}]\n\n${summary_text}`,
@@ -134,32 +137,36 @@ export class Compactor extends WithContext {
     for (const m of messages) {
       const role = m.data.role === 'agent' ? 'Sage' : m.data.role === 'user' ? 'User' : m.role;
       const parts: string[] = [];
-      for (const block of m.data.blocks) {
-        let data: string = '';
-        switch (block.type) {
-          case 'text':
-          case 'thinking':
-            data = block.text || '';
-            break;
-          case 'tool_use_req':
-            data = `🔧 ${block.tool}(${JSON.stringify(block.params)})`;
-            break;
-          case 'tool_use_res':
-            data = `↗ ${block.tool}(${JSON.stringify(block.result)})`;
-            break;
-          case 'tool_use_err':
-            data = `↗ ${block.tool}(${JSON.stringify(block.error)})`;
-            break;
-        }
-        if (data) {
-          parts.push(data);
+      let data: string = '';
+      if (m.data.type === 'tool_req') {
+        data = `🔧 ${m.data.tool}(${JSON.stringify(m.data.params)})`;
+      } else {
+        for (const block of m.data.blocks) {
+          switch (block.type) {
+            case 'text':
+            case 'thinking':
+              data = block.text || '';
+              break;
+            case 'tool_use_req':
+
+              break;
+            case 'tool_use_res':
+              data = `↗ ${block.tool}(${JSON.stringify(block.result)})`;
+              break;
+            case 'tool_use_err':
+              data = `↗ ${block.tool}(${JSON.stringify(block.error)})`;
+              break;
+          }
+          if (data) {
+            parts.push(data);
+          }
         }
       }
       if (parts.length > 0) {
         formatted.push(`${role}: ${parts.join('\n')}`);
       }
     }
-    return formatted.join('\n\n');
+    return formatted.join('\n\n --- \n\n');
   }
 
 }
