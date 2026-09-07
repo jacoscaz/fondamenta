@@ -12,6 +12,7 @@ import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
 import { type RootMcpManager } from "./mcp-manager/manager.js";
 import { type ModelManager } from "./models/manager.js";
+import { type FileManager } from "./files/manager.js";
 
 import EventEmitter from "node:events";
 
@@ -58,6 +59,7 @@ export interface CompleteContext {
   buses: {
     notifications: NotificationBus;
   };
+  files: FileManager;
   managers: {
     mcp: RootMcpManager;
     models: ModelManager;

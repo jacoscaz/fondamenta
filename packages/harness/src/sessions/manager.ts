@@ -207,6 +207,10 @@ export class SessionManager extends WithContext {
       case 'message/new':
         await this.#injectNotification(notification);
         return true;
+      case 'message/outgoing':
+        // Outgoing messages are dispatched by their transport subscriber —
+        // the session must NOT re-inject them as inbound events.
+        return false;
       case 'todo/due':
         await this.#injectNotification(notification);
         return true;

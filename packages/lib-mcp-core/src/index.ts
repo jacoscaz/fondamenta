@@ -54,4 +54,5 @@ export {
   TranscriptionSuccess,
   TranscriptionError,
   McpNewMessageNotification,
+  McpOutgoingMessageNotification,
 } from './types-mcp-notifications.js';

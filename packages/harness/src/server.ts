@@ -21,6 +21,7 @@ import { InitContext, type CompleteContext } from './context.js';
 
 import { RootMcpManager } from './mcp-manager/manager.js';
 import { ModelManager } from './models/manager.js';
+import { FileManager } from './files/manager.js';
 import { MonologueLogger } from './sessions/monologue-logger.js';
 
 import { initJmapMcpServer } from "@fondamenta/mcp-jmap";
@@ -34,7 +35,7 @@ import { initTerminalMcpServer } from "./mcp-servers/terminal/terminal.js";
 import { initContinuityMcpServer } from "./mcp-servers/continuity/server.js";
 import { initPinningMcpServer } from "./mcp-servers/pinning.js";
 import { initAnchorsMcpServer } from "./mcp-servers/anchors.js";
-import { initTranscriptionMcpServer } from "./mcp-servers/transcription/server.js";
+import { initSpeechMcpServer } from "./mcp-servers/speech/server.js";
 import { initContactsMcpServer } from "./mcp-servers/contacts/server.js";
 import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
 import { HarnessMcpToolCallContext } from './types/tools.js';
@@ -86,6 +87,7 @@ const complete_context: CompleteContext = {
   buses: {
     notifications: new NotificationBus(init_context),
   },
+  files: new FileManager(init_context),
   managers: {
     mcp: new RootMcpManager(init_context),
     models: new ModelManager(init_context),
@@ -95,6 +97,7 @@ const complete_context: CompleteContext = {
 };
 
 await complete_context.managers.models.initialize();
+await complete_context.files.start();
 await complete_context.managers.sessions.initialize();
 await complete_context.emygdala.initialize();
 await complete_context.distiller.initialize(300_000);
@@ -187,15 +190,6 @@ complete_context.managers.mcp.register({
 
 complete_context.managers.mcp.register({
   type: 'local',
-  name: 'telegram',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTelegramMcpServer(config.telegram),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
   name: 'terminal',
   safe: false,
   client: new McpLocalClient<HarnessMcpToolCallContext>(
@@ -203,20 +197,48 @@ complete_context.managers.mcp.register({
   ),
 });
 
+// ────────────────────────────────────────────────────────────────────────
+// NOTIFICATION SUBSCRIBER REGISTRATION ORDER IS LOAD-BEARING.
+//
+// The bus is first-true-wins; 'high' priority UNSHIFTS, so among high
+// subscribers the LAST registered runs FIRST. Registration order here:
+//   1. telegram  (high)  — emits message/new; consumes message/outgoing
+//   2. speech    (high)  — transcribes inbound voice, synthesizes outbound
+//   3. contacts  (high)  — decorates inbound with standing
+// Runtime chain (reverse of registration among highs):
+//   message/new:     contacts → speech → telegram(pass) → session-manager
+//   message/outgoing: telegram → speech → session-manager(ignored)
+// The session-manager subscribes at default (low) priority during its
+// initialize() and is the TERMINAL consumer of message/new (injects and
+// stops the chain). Any subscriber that must transform an inbound
+// notification before injection MUST be high-priority and registered
+// BEFORE session-manager's initialize() runs — which registration order
+// above guarantees. See speech/server.ts for the full chain commentary.
+// ────────────────────────────────────────────────────────────────────────
+
+complete_context.managers.mcp.register({
+  type: 'local',
+  name: 'telegram',
+  safe: false,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initTelegramMcpServer(config.telegram, complete_context),
+  ),
+});
+
 complete_context.managers.mcp.register({
   type: 'local' as const,
-  name: 'transcription',
+  name: 'speech',
   safe: true,
   client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTranscriptionMcpServer(complete_context),
+    initSpeechMcpServer(complete_context),
   ),
 });
 
 // Contacts server: subscriber-only MCP server (no tools). It enriches
 // inbound message/new notifications with contact standing BEFORE the
-// session manager sees them. Registered FIRST among the notification
-// consumers so its 'high' bus priority is respected relative to
-// transcription and session-manager, which subscribe later.
+// session manager sees them. Registered LAST among the high-priority
+// notification consumers so its 'high' bus priority places it FIRST in
+// the runtime chain (see the ordering block above).
 complete_context.managers.mcp.register({
   type: 'local' as const,
   name: 'contacts',

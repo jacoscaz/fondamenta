@@ -3,9 +3,11 @@ import { InitContext, WithContext } from "../context.js";
 import { AbstractEmbeddingModel } from "./embedding/abstract.js";
 import { AbstractSessionModel } from "./session/abstract.js";
 import { AbstractTranscriptionModel } from "./transcription/abstract.js";
+import { AbstractSynthesisModel } from "./synthesis/abstract.js";
 import { initializeSessionModel } from "./session/init.js";
 import { initializeEmbeddingModel } from "./embedding/init.js";
 import { initializeTranscriptionModel } from "./transcription/init.js";
+import { initializeSynthesisModel } from "./synthesis/init.js";
 
 /**
  * ModelManager is a REGISTRY, not a state-holder (dynamic substrate
@@ -25,6 +27,7 @@ export class ModelManager extends WithContext {
   #sessions: Map<string, AbstractSessionModel> = new Map();
   #embedding?: AbstractEmbeddingModel;
   #transcription?: AbstractTranscriptionModel;
+  #synthesis?: AbstractSynthesisModel;
   #distillation?: AbstractSessionModel;
   #compaction?: AbstractSessionModel;
 
@@ -42,6 +45,9 @@ export class ModelManager extends WithContext {
     this.#embedding = await initializeEmbeddingModel(this._ctx.config.models.embedding);
     if (this._ctx.config.models.transcription) {
       this.#transcription = await initializeTranscriptionModel(this._ctx.config.models.transcription);
+    }
+    if (this._ctx.config.models.synthesis) {
+      this.#synthesis = await initializeSynthesisModel(this._ctx.config.models.synthesis);
     }
     // Dedicated continuity-maintenance models (NOT the switchable session
     // models): distillation and compaction run on their own config entries.
@@ -71,6 +77,11 @@ export class ModelManager extends WithContext {
   /** undefined when no transcription model is configured. */
   get transcription(): AbstractTranscriptionModel | undefined {
     return this.#transcription;
+  }
+
+  /** undefined when no synthesis model is configured. */
+  get synthesis(): AbstractSynthesisModel | undefined {
+    return this.#synthesis;
   }
 
   get distillation(): AbstractSessionModel {

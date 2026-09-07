@@ -22,14 +22,15 @@ export class OpenAITranscriptionModel extends AbstractTranscriptionModel {
     this.#endpoint = `${base}/audio/transcriptions`;
   }
 
-  async transcribe(filePath: string): Promise<TranscriptionResult> {
+  async transcribe(filePath: string, language?: string): Promise<TranscriptionResult> {
     const started = Date.now();
     const form = new FormData();
     const bytes = await (await import('node:fs/promises')).readFile(filePath);
     form.append('file', new Blob([new Uint8Array(bytes)]), filePath.split('/').pop() ?? 'audio');
     form.append('model', this.opts.options.model);
-    if (this.opts.options.language) {
-      form.append('language', this.opts.options.language);
+    const effective_language = language ?? this.opts.options.language;
+    if (effective_language) {
+      form.append('language', effective_language);
     }
     if (this.opts.options.prompt) {
       form.append('prompt', this.opts.options.prompt);
