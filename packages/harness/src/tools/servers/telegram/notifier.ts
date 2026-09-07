@@ -48,24 +48,34 @@ export const startTelegramNotifier = (
 
         const content: UserBlock[] = [];
 
-        // Voice notes take the preprocessing path (2026-09-02 design):
-        // download to disk NOW, then emit audio/available — a
-        // non-ingestible notification consumed by the harness's
-        // transcription pipeline. The agent's context receives the
-        // finished transcript (transcript/ready) or a processing/error
-        // carrying the original payload. The telegram server's job
-        // ends at download-and-emit; it does not transcribe.
+        // Voice notes: download, then transcribe AT EMISSION via
+        // ctx.speech — the notifier emits a COMPLETE event. The
+        // notification bus is no longer a cross-tool pipeline: there is
+        // no downstream transcription subscriber to order against, and
+        // the silent-dead-chain failure class dies with it. Transcription
+        // failures are loud: the block carries the error string, never a
+        // transcription-less voice block dressed as complete.
         if (message.voice) {
           try {
             const path = await ctx.files.tempPath(new Date(Date.now() + 3_600_000), 'ogg');
             await client.downloadFile(message.voice.file_id, path);
+            let transcription: string | undefined;
+            try {
+              const result = await ctx.speech.transcribe(path);
+              transcription = result.text;
+              log('voice note transcribed: %s (%ss)', path, message.voice.duration);
+            } catch (err) {
+              // Fail loud: an explicit error string, never a silent drop.
+              transcription = `[transcription failed: ${err instanceof Error ? err.message : String(err)}]`;
+              log('voice note transcription failed: %s', err instanceof Error ? err.message : String(err));
+            }
             content.push({
               type: 'voice',
               path,
               mimeType: 'audio/ogg',
               duration: message.voice.duration,
+              transcription,
             });
-            log('voice note downloaded: %s (%ss)', path, message.voice.duration);
           } catch (err) {
             log('voice note download failed: %s', err instanceof Error ? err.message : String(err));
           }
@@ -73,17 +83,37 @@ export const startTelegramNotifier = (
 
         if (message.photo) {
           // Telegram sends photos as an array of sizes; the last entry is
-          // the largest. Expose its file_id so the agent can download it.
+          // the largest. Download to an ImageBlock with REAL bytes and
+          // detected mime type — a silent data:'' placeholder would
+          // render as a broken image in the agent's context (fail loud,
+          // never fail fake-complete).
           const largest = message.photo[message.photo.length - 1];
-          const path = await ctx.files.tempPath(new Date(Date.now() + 3_600_000), 'img');
-          await client.downloadFile(largest.file_id, path);
-          content.push({
-            type: 'image',
-            mimeType: 'image/jpeg', // TODO: detect actual mimeType!
-            data: '', // TODO: read image into data URL!
-            // path: `telegram photo ${largest.width}x${largest.height} file_id: ${largest.file_id}`,
-            caption: message.caption,
-          });
+          try {
+            const path = await ctx.files.tempPath(new Date(Date.now() + 3_600_000), 'img');
+            await client.downloadFile(largest.file_id, path);
+            const { readFile } = await import('node:fs/promises');
+            const data = (await readFile(path)).toString('base64');
+            // Telegram photos are JPEG; detect from magic bytes rather
+            // than trust, and skip loudly if unrecognized.
+            const head = Buffer.from(data.slice(0, 8), 'base64');
+            let mimeType = '';
+            if (head[0] === 0xff && head[1] === 0xd8) mimeType = 'image/jpeg';
+            else if (head[0] === 0x89 && head[1] === 0x50) mimeType = 'image/png';
+            else if (head[0] === 0x47 && head[1] === 0x49) mimeType = 'image/gif';
+            else if (head.slice(0, 4).toString() === 'RIFF' && head.slice(8, 12).toString() === 'WEBP') mimeType = 'image/webp';
+            if (!mimeType) {
+              log('photo skipped: unrecognized image format (file saved at %s)', path);
+            } else {
+              content.push({
+                type: 'image',
+                mimeType,
+                data,
+                caption: message.caption,
+              });
+            }
+          } catch (err) {
+            log('photo download failed: %s', err instanceof Error ? err.message : String(err));
+          }
         }
 
         // TODO: if (message.document) {}
