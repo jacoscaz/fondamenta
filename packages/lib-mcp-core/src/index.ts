@@ -53,6 +53,6 @@ export {
   FileContent,
   TranscriptionSuccess,
   TranscriptionError,
-  McpNewMessageNotification,
+  McpIncomingMessageNotification as McpNewMessageNotification,
   McpOutgoingMessageNotification,
 } from './types-mcp-notifications.js';
