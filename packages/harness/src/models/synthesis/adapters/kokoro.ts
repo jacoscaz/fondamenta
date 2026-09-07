@@ -84,6 +84,6 @@ export class KokoroSynthesisModel extends AbstractSynthesisModel {
     if (typeof parsed.duration !== 'number' || !Number.isFinite(parsed.duration) || parsed.duration <= 0) {
       throw new Error(`Kokoro synthesis returned invalid duration: ${String(parsed.duration)}`);
     }
-    return { path: host_path, duration: parsed.duration, format };
+    return { path: host_path, duration: parsed.duration, format, voice: parsed.voice };
   }
 }

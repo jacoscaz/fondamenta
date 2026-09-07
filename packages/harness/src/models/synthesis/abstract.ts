@@ -7,6 +7,8 @@ export interface SynthesisResult {
   duration: number;
   /** Audio format/extension actually produced (e.g. 'wav', 'mp3'). */
   format: string;
+  /** Voice id used (e.g. 'bm_fable'), when the adapter knows it. */
+  voice?: string;
 }
 
 /**

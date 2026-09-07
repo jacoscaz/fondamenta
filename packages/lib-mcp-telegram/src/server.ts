@@ -111,10 +111,20 @@ export const initTelegramMcpServer = (config: TelegramConfig, ctx?: TelegramHost
         const sent_ids: number[] = [];
         for (const block of params.content) {
           if (block.type === 'text') {
-            const message = await client.sendMessage(params.transport.chat_id, block.text);
-            sent_ids.push(message.message_id);
+            // The transport chooses per block: synthesized audio when the
+            // speech server recorded a successful SynthesisResult, text
+            // otherwise (nothing attempted, error, or dispatcher opt-out).
+            // Decoration model — the text block is never replaced.
+            const synth = block.synthesis;
+            if (synth && synth.success) {
+              const message = await client.sendVoice(params.transport.chat_id, synth.path, synth.duration);
+              sent_ids.push(message.message_id);
+            } else {
+              const message = await client.sendMessage(params.transport.chat_id, block.text);
+              sent_ids.push(message.message_id);
+            }
           } else if (block.type === 'voice') {
-            // Synthesis produces WAV; Telegram voice notes want OGG/Opus.
+            // Pre-rendered voice blocks (direct file sends).
             let path = block.path;
             if (path.endsWith('.wav')) {
               path = await wavToOgg(path);
@@ -153,10 +163,12 @@ export const initTelegramMcpServer = (config: TelegramConfig, ctx?: TelegramHost
   /**
    * Voice-note send. When synthesize is true, the call emits a
    * message/outgoing notification and returns immediately — the speech
-   * server transforms text→voice on the bus, then this server's
-   * subscriber dispatches. The returned "queued" line is NOT a delivery
-   * confirmation; delivery confirmation arrives as either the message_id
-   * (via the bus consumer's log) or a processing/error notification.
+   * server decorates the text blocks with synthesis state on the bus,
+   * then this server's subscriber dispatches (choosing audio vs text per
+   * block from the decoration). The returned "queued" line is NOT a
+   * delivery confirmation; delivery confirmation arrives as either the
+   * message_id (via the bus consumer's log) or a processing/error
+   * notification.
    */
   mcp.addTool<{ text: string, chat_id: number, synthesize?: boolean }>(
     'sendVoiceMessage',

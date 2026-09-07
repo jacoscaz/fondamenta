@@ -37,12 +37,12 @@ const synthesizeBlocks = async (
   ctx: CompleteContext,
   text: string,
   lifetime_seconds: number,
-): Promise<{ path: string; duration: number } | { error: string }> => {
+): Promise<{ path: string; duration: number; voice?: string } | { error: string }> => {
   const expiration = new Date(Date.now() + lifetime_seconds * 1000);
   const out_path = await ctx.files.tempPath(expiration, 'wav');
   try {
     const result = await model.synthesize(text, out_path);
-    return { path: result.path, duration: result.duration };
+    return { path: result.path, duration: result.duration, voice: result.voice };
   } catch (err) {
     return { error: errToString(err) };
   }
@@ -124,11 +124,18 @@ export const initSpeechMcpServer = (ctx: CompleteContext): McpLocalServer<Harnes
   // ── Automatic synthesis (outgoing messages, synthesize: true) ──
   //
   // Consumes message/outgoing notifications whose synthesize flag is set,
-  // converts text blocks to voice blocks in place, clears the flag, and
-  // re-emits for the transport subscriber (telegram) to dispatch. If
-  // synthesis fails, the notification is re-emitted UNCHANGED except the
-  // flag is cleared and the text block carries an error prefix — the
-  // message must still be DELIVERED (as text) rather than dropped:
+  // DECORATES each text block with a `synthesis` property in place
+  // (SynthesisResult on success, SynthesisError on failure), and re-emits
+  // for the transport subscriber (telegram) to dispatch — the transport
+  // chooses text vs audio per block. Decoration, never replacement: the
+  // text is the source and survives every transform, mirroring how
+  // inbound voice blocks carry `transcription` without ceasing to be
+  // voice (Jacopo's correction, 2026-09-07 — the inverse of the
+  // transcription pattern, same claim-state semantics).
+  //
+  // On failure the text block stays UNPREFIXED — the SynthesisError
+  // property is the loud record; the dispatcher reads it and delivers as
+  // text. The message must still be DELIVERED rather than dropped:
   // outbound silence is the failure mode this architecture exists to
   // prevent (the unsent-message lesson, anchor #49).
   ctx.buses.notifications.subscribe('mcp-speech-outgoing', async (notification) => {
@@ -139,11 +146,11 @@ export const initSpeechMcpServer = (ctx: CompleteContext): McpLocalServer<Harnes
       return false; // text-only dispatch: not ours; telegram consumes it
     }
     if (!ctx.managers.models.synthesis) {
-      logger.error('synthesize requested but no synthesis model is configured — delivering as text');
+      logger.error('synthesize requested but no synthesis model is configured — decorating blocks with SynthesisError');
       notification.params.synthesize = false;
       for (const block of notification.params.content) {
         if (block.type === 'text') {
-          block.text = `[voice synthesis unavailable — delivered as text]\n${block.text}`;
+          block.synthesis = { success: false, error: 'no synthesis model is configured (config.models.synthesis missing)' };
         }
       }
       await ctx.buses.notifications.notify(notification);
@@ -156,20 +163,13 @@ export const initSpeechMcpServer = (ctx: CompleteContext): McpLocalServer<Harnes
       if ('error' in result) {
         all_succeeded = false;
         logger.error('synthesis failed for outgoing message: %s', result.error);
-        block.text = `[voice synthesis failed — delivered as text: ${result.error}]\n${block.text}`;
+        block.synthesis = { success: false, error: result.error };
         continue;
       }
-      // Replace the text block with a voice block, preserving subject.
-      const index = notification.params.content.indexOf(block);
-      notification.params.content[index] = {
-        type: 'voice',
-        subject: block.subject ?? null,
-        path: result.path,
-        duration: result.duration,
-      };
+      block.synthesis = { success: true, path: result.path, duration: result.duration, voice: result.voice ?? null };
     }
-    notification.params.synthesize = false; // satisfied (or degraded to text)
-    logger.info('outgoing message transformed (%s)', all_succeeded ? 'voice' : 'degraded to text');
+    notification.params.synthesize = false; // satisfied (or error-recorded)
+    logger.info('outgoing message synthesized (%s)', all_succeeded ? 'voice' : 'degraded to text');
     await ctx.buses.notifications.notify(notification);
     return true;
   }, 'high');
