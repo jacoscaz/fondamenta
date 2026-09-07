@@ -37,6 +37,7 @@ import { initPinningMcpServer } from "./mcp-servers/pinning.js";
 import { initAnchorsMcpServer } from "./mcp-servers/anchors.js";
 import { initSpeechMcpServer } from "./mcp-servers/speech/server.js";
 import { initContactsMcpServer } from "./mcp-servers/contacts/server.js";
+import { ContactsManager } from "./contacts/manager.js";
 import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
 import { HarnessMcpToolCallContext } from './types/tools.js';
 
@@ -88,6 +89,7 @@ const complete_context: CompleteContext = {
     notifications: new NotificationBus(init_context),
   },
   files: new FileManager(init_context),
+  contacts: new ContactsManager(init_context),
   managers: {
     mcp: new RootMcpManager(init_context),
     models: new ModelManager(init_context),
@@ -184,7 +186,7 @@ complete_context.managers.mcp.register({
   name: 'mail',
   safe: false,
   client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initJmapMcpServer(config.mail),
+    initJmapMcpServer(config.mail, complete_context),
   ),
 });
 
@@ -221,7 +223,7 @@ complete_context.managers.mcp.register({
   name: 'telegram',
   safe: false,
   client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTelegramMcpServer(config.telegram, complete_context),
+    initTelegramMcpServer(config.telegram, complete_context.contacts),
   ),
 });
 

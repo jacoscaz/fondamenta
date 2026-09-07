@@ -1,5 +1,7 @@
 export {
   initJmapMcpServer,
+  JmapHostContext,
+  ContactStanding,
 } from './server.js';
 
 export {
