@@ -1,29 +1,35 @@
 
 import {
-  AgentInput,
-  AgentToolRequest,
-  UserInput,
-  UserMessage,
-  UserNotification,
-  UserToolResult,
+  type AgentInput,
+  type AgentToolRequest,
+  type UserInput,
+  type UserMessage,
+  type UserToolResult,
   type AgentMessage,
   type Message,
-  type UserBlock,
 } from "../../../types/messages.js";
 
 import {
+  type MessageBlock,
+} from "../../../types/blocks.js";
+
+import {
+  type UserNotification,
+} from "../../../types/notifications.js";
+
+import {
   AbstractSessionModel,
-  ModelQueryResults,
+  type ModelQueryResults,
   type ModelQueryOpts,
 } from "../abstract.js";
 
 import OpenAI from 'openai';
 
-import { ConfigModelOpenAI } from "../../../config/config.js";
+import { type ConfigModelOpenAI } from "../../../config/config.js";
 import { type ReasoningEffort } from "../../../constants.js";
 import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
 import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
-import { MessageBlock } from "../../../types/blocks.js";
+
 
 export class OpenAISessionModel extends AbstractSessionModel {
   #model: string;

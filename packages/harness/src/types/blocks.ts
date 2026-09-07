@@ -30,6 +30,7 @@ export interface VoiceBlock extends BaseBlock {
   type: 'voice';
   path: string;
   mimeType: string;
+  duration: number;
   transcription?: string;
 }
 

@@ -3,7 +3,7 @@ import { type JMAPClient, type EmailSummary } from "./client.js";
 import { ellipsis } from "@fondamenta/utils";
 import { CompleteContext } from "../../../context.js";
 import { Logger } from "pinetto";
-import { UserNotification } from "../../../types/messages.js";
+import { UserMessageIncomingNotification } from "../../../types/notifications.js";
 
 /**
  * Start the inbox polling loop for the given server. On new mail from
@@ -45,7 +45,9 @@ export const startJmapNotifier = (
         e.from.some(addr => ctx.config.mail.allowlist.includes(addr.email))
       );
       for (const email of filtered) {
-        ctx.buses.notifications.notify({
+        ctx.buses.notifications.notify_NEW({
+          role: 'user',
+          type: 'notification',
           method: 'message/incoming',
           contact: await ctx.contacts.lookup(`mailto:${email.from[0].email}`),
           blocks: [
@@ -60,9 +62,9 @@ export const startJmapNotifier = (
           ],
           transport: {
             type: 'email',
-            from: { name: email.from[0].name, address: email.from[0].email },
+            from: { name: email.from[0].name ?? undefined, address: email.from[0].email },
           },
-        } satisfies UserNotification);
+        } satisfies UserMessageIncomingNotification);
       }
     } catch (err) {
       logger.error('jmap notifier poll error: %s', err instanceof Error ? err.message : String(err));

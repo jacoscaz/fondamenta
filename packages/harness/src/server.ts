@@ -24,8 +24,8 @@ import { ModelManager } from './models/manager.js';
 import { FileManager } from './files/manager.js';
 import { MonologueLogger } from './sessions/monologue-logger.js';
 
-import { initJmapMcpServer } from "@fondamenta/mcp-jmap";
-import { initTelegramMcpServer } from '@fondamenta/mcp-telegram';
+import { initJMAPTools } from "./tools/servers/jmap/init.js";
+import { initTelegramTools } from './tools/servers/telegram/init.js';
 import { initShellMcpServer } from "./mcp-servers/shell.js";
 import { initFilesMcpServer } from "./mcp-servers/files.js";
 import { initProcessMcpServer } from "./mcp-servers/process.js";
@@ -40,6 +40,7 @@ import { initContactsMcpServer } from "./mcp-servers/contacts/server.js";
 import { ContactsManager } from "./contacts/manager.js";
 import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
 import { HarnessMcpToolCallContext } from './types/tools.js';
+import { RootToolManager } from './tools/manager.js';
 
 const config = await getConfigFromProcessArgv();
 
@@ -92,6 +93,7 @@ const complete_context: CompleteContext = {
   contacts: new ContactsManager(init_context),
   managers: {
     mcp: new RootMcpManager(init_context),
+    tools: new RootToolManager(init_context),
     models: new ModelManager(init_context),
     prompts: new PromptManager(init_context),
     sessions: new SessionManager(init_context),
@@ -181,14 +183,7 @@ complete_context.managers.mcp.register({
   ),
 });
 
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'mail',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initJmapMcpServer(config.mail, complete_context),
-  ),
-});
+initJMAPTools(complete_context);
 
 complete_context.managers.mcp.register({
   type: 'local',
@@ -218,14 +213,7 @@ complete_context.managers.mcp.register({
 // above guarantees. See speech/server.ts for the full chain commentary.
 // ────────────────────────────────────────────────────────────────────────
 
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'telegram',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTelegramMcpServer(config.telegram, complete_context, complete_context.contacts),
-  ),
-});
+initTelegramTools(complete_context);
 
 complete_context.managers.mcp.register({
   type: 'local' as const,

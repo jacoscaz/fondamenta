@@ -3,6 +3,7 @@ import { errToString } from "@fondamenta/utils";
 import { type InitContext, WithContext } from "../context.js";
 import { type HarnessNotification } from "./types.js";
 import { type Logger } from "pinetto";
+import { UserNotification } from "../types/notifications.js";
 
 export type NotificationHandler = (notification: HarnessNotification) => Promise<boolean> | boolean;
 
@@ -52,6 +53,10 @@ export class NotificationBus extends WithContext {
       }
     }
     await this.#warnOnUnhandledNotification(notification);
+  }
+
+  async notify_NEW(notification: UserNotification): Promise<void> {
+    // TODO!!!
   }
 
   async #warnOnUnhandledNotification(notification: HarnessNotification): Promise<void> {

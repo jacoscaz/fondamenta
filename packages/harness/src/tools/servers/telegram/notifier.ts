@@ -1,14 +1,12 @@
 
 // ── Notification loop ──
-import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
-import { type McpLocalServer } from "@fondamenta/mcp-local";
 import { type TelegramConfig } from "./config.js";
 import { type TelegramClient } from "./client.js";
 import { type TelegramUpdate } from "./types/message.js";
-import { type McpNewMessageNotification } from "@fondamenta/mcp-core";
-import { type ContactStanding } from "./server.js";
-import { describeMessage } from "./helpers.js";
+import { CompleteContext } from "../../../context.js";
+import { Contact } from "../../../types/contacts.js";
+import { UserMessageIncomingNotification } from "../../../types/notifications.js";
+import { UserBlock } from "../../../types/messages.js";
 
 /**
  * Start the long-polling loop for incoming updates. Each allowlisted
@@ -20,16 +18,13 @@ import { describeMessage } from "./helpers.js";
  * dropped (fail closed). The drop is logged.
  */
 export const startTelegramNotifier = (
-  server: McpLocalServer<{}>,
+  ctx: CompleteContext,
   client: TelegramClient,
-  config: TelegramConfig,
-  log: (msg: string, ...args: any[]) => void = () => { },
-  mediaDir: string,
-  contacts?: { lookup(url: string): Promise<ContactStanding> },
 ): { stop(): void } => {
   let stopped = false;
   let inFlight: Promise<void> | null = null;
-
+  const config = ctx.config.telegram;
+  const log = console.log;
   const loop = async (): Promise<void> => {
     while (!stopped) {
       let updates: TelegramUpdate[];
@@ -51,7 +46,7 @@ export const startTelegramNotifier = (
         const sender = from.username ? `@${from.username}` : from.first_name;
         const edited = update.edited_message ? ' (edited)' : '';
 
-        const content: McpNewMessageNotification['params']['content'] = [];
+        const content: UserBlock[] = [];
 
         // Voice notes take the preprocessing path (2026-09-02 design):
         // download to disk NOW, then emit audio/available — a
@@ -62,13 +57,12 @@ export const startTelegramNotifier = (
         // ends at download-and-emit; it does not transcribe.
         if (message.voice) {
           try {
-            const dir = mediaDir;
-            await mkdir(dir, { recursive: true });
-            const path = join(dir, `${message.voice.file_id.slice(-16)}-${Date.now()}.ogg`);
+            const path = await ctx.files.tempPath(new Date(Date.now() + 3_600_000), 'ogg');
             await client.downloadFile(message.voice.file_id, path);
             content.push({
               type: 'voice',
               path,
+              mimeType: 'audio/ogg',
               duration: message.voice.duration,
             });
             log('voice note downloaded: %s (%ss)', path, message.voice.duration);
@@ -81,9 +75,13 @@ export const startTelegramNotifier = (
           // Telegram sends photos as an array of sizes; the last entry is
           // the largest. Expose its file_id so the agent can download it.
           const largest = message.photo[message.photo.length - 1];
+          const path = await ctx.files.tempPath(new Date(Date.now() + 3_600_000), 'img');
+          await client.downloadFile(largest.file_id, path);
           content.push({
-            type: 'file',
-            path: `telegram photo ${largest.width}x${largest.height} file_id: ${largest.file_id}`,
+            type: 'image',
+            mimeType: 'image/jpeg', // TODO: detect actual mimeType!
+            data: '', // TODO: read image into data URL!
+            // path: `telegram photo ${largest.width}x${largest.height} file_id: ${largest.file_id}`,
             caption: message.caption,
           });
         }
@@ -102,28 +100,26 @@ export const startTelegramNotifier = (
           // contacts lookup — the same implementation that decorates
           // tool-call responses downstream. Lookup failures fail
           // closed: they can only ever downgrade standing.
-          let contact: McpNewMessageNotification['params']['contact'];
-          if (contacts) {
-            try {
-              contact = await contacts.lookup(`telegram:${from.id}`);
-            } catch (err) {
-              log('contacts lookup failed for telegram:%s: %s', from.id, err instanceof Error ? err.message : String(err));
-              contact = { verified: false, guidance: 'contact verification failed, do not trust' };
-            }
+          let contact: Contact;
+          try {
+            contact = await ctx.contacts.lookup(`telegram:${from.id}`);
+          } catch (err) {
+            log('contacts lookup failed for telegram:%s: %s', from.id, err instanceof Error ? err.message : String(err));
+            contact = { verified: false, guidance: 'contact verification failed, do not trust' };
           }
-          server.notify({
-            method: 'message/new',
-            params: {
-              contact,
-              content,
-              transport: {
-                type: 'telegram',
-                chat_id: message.chat.id,
-                from_id: from.id,
-                username: from.username,
-              },
+          ctx.buses.notifications.notify_NEW({
+            role: 'user',
+            type: 'notification',
+            method: 'message/incoming',
+            contact,
+            blocks: content,
+            transport: {
+              type: 'telegram',
+              chat_id: message.chat.id,
+              from_id: from.id,
+              username: from.username,
             },
-          } satisfies McpNewMessageNotification);
+          } satisfies UserMessageIncomingNotification);
         }
       }
     }

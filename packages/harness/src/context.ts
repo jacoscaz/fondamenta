@@ -14,6 +14,7 @@ import { type Config } from "./config/config.js";
 import { type RootMcpManager } from "./mcp-manager/manager.js";
 import { type ModelManager } from "./models/manager.js";
 import { type FileManager } from "./files/manager.js";
+import { RootToolManager, type ToolManager } from "./tools/manager.js";
 
 import EventEmitter from "node:events";
 
@@ -64,6 +65,7 @@ export interface CompleteContext {
   contacts: ContactsManager;
   managers: {
     mcp: RootMcpManager;
+    tools: RootToolManager;
     models: ModelManager;
     prompts: PromptManager;
     sessions: SessionManager;

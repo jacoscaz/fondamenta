@@ -1,10 +1,19 @@
 
 import {
-  type UserInput,
+  type Contact,
+} from "./contacts.js";
+
+import {
+  type UserBlock,
+  type BaseMessage,
 } from "./messages.js";
 
-export interface BaseUserNotification extends UserInput {
+export interface BaseUserNotification extends BaseMessage {
+  role: 'user';
+  type: 'notification';
   method: string;
+  blocks: UserBlock[];
+  contact?: Contact;
 }
 
 export interface UserMessageIncomingNotification extends BaseUserNotification {
