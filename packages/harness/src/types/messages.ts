@@ -9,6 +9,8 @@ import {
   VoiceBlock,
 } from "./blocks.js";
 
+import { Contact } from "./contacts.js";
+
 export type UserBlock =
   | TextBlock
   | VoiceBlock
@@ -32,7 +34,7 @@ export interface UserInput extends BaseMessage {
   role: 'user';
   type: 'input';
   blocks: UserBlock[];
-  contact?: string; // TODO
+  contact?: Contact;
 }
 
 export interface UserNotification extends BaseMessage {
@@ -40,7 +42,7 @@ export interface UserNotification extends BaseMessage {
   type: 'notification';
   method: string;
   blocks: UserBlock[];
-  contact?: string; // TODO
+  contact?: Contact;
 }
 
 export interface UserToolResult extends BaseMessage {
