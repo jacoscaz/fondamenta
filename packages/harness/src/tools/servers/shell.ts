@@ -1,11 +1,10 @@
-import { Config } from "../config/config.js";
-import { McpLocalServer } from "@fondamenta/mcp-local";
+
 import { exec } from "node:child_process";
 import { writeFile } from "node:fs/promises";
 import { resolve } from 'node:path';
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
-import { HarnessMcpToolCallContext } from "../types/tools.js";
+import { CompleteContext } from "../../context.js";
 
 interface ExecParams {
   command: string;
@@ -39,12 +38,13 @@ const EXEC_DESCRIPTION = `
   mcp_terminal_* tools instead.
 `;
 
-const registerTools = (mcpLocalServer: McpLocalServer<HarnessMcpToolCallContext>) => {
+export const initShellTools = (ctx: CompleteContext) => {
 
-  mcpLocalServer.addTool<ExecParams>(
-    'exec',
-    'Execute',
+  ctx.managers.tools.add<ExecParams>(
+    'shell_exec',
+    'Execute in shell',
     EXEC_DESCRIPTION,
+    false,
     async (args) => {
       const timeout = args.timeout ?? 10;
       return new Promise((resolve) => {
@@ -71,14 +71,4 @@ const registerTools = (mcpLocalServer: McpLocalServer<HarnessMcpToolCallContext>
       });
     },
   );
-};
-
-export const initShellMcpServer = (config: Config): McpLocalServer<HarnessMcpToolCallContext> => {
-
-  const mcp_server = new McpLocalServer<HarnessMcpToolCallContext>();
-
-  registerTools(mcp_server);
-
-  return mcp_server;
-
 };

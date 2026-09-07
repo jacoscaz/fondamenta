@@ -26,7 +26,7 @@ import { MonologueLogger } from './sessions/monologue-logger.js';
 
 import { initJMAPTools } from "./tools/servers/jmap/init.js";
 import { initTelegramTools } from './tools/servers/telegram/init.js';
-import { initShellMcpServer } from "./mcp-servers/shell.js";
+import { initShellTools } from "./tools/servers/shell.js";
 import { initFilesMcpServer } from "./mcp-servers/files.js";
 import { initProcessTools } from "./tools/servers/process.js";
 import { initTimeTools } from "./tools/servers/time.js";
@@ -150,14 +150,7 @@ complete_context.managers.mcp.register({
   ),
 });
 
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'shell',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initShellMcpServer(config),
-  ),
-});
+initShellTools(complete_context);
 
 complete_context.managers.mcp.register({
   type: 'local',
