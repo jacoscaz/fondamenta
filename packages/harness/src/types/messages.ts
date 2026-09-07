@@ -61,7 +61,7 @@ export type UserMessage =
   | UserToolResult
   ;
 
-export interface AgentOutput extends BaseMessage {
+export interface AgentInput extends BaseMessage {
   role: 'agent';
   type: 'input';
   blocks: AgentBlock[];
@@ -77,6 +77,6 @@ export interface AgentToolRequest extends BaseMessage {
   }[];
 }
 
-export type AgentMessage = AgentOutput | AgentToolRequest;
+export type AgentMessage = AgentInput | AgentToolRequest;
 
 export type Message = UserMessage | AgentMessage;
