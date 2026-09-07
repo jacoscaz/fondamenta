@@ -29,7 +29,7 @@ import { initTelegramTools } from './tools/servers/telegram/init.js';
 import { initShellMcpServer } from "./mcp-servers/shell.js";
 import { initFilesMcpServer } from "./mcp-servers/files.js";
 import { initProcessMcpServer } from "./mcp-servers/process.js";
-import { initTimeMcpServer } from "./mcp-servers/time.js";
+import { initTimeTools } from "./tools/servers/time.js";
 import { initSessionMcpServer } from "./mcp-servers/session.js";
 import { initTerminalMcpServer } from "./mcp-servers/terminal/terminal.js";
 import { initContinuityMcpServer } from "./mcp-servers/continuity/server.js";
@@ -146,14 +146,7 @@ complete_context.managers.mcp.register({
   ),
 });
 
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'time',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTimeMcpServer(config),
-  ),
-});
+initTimeTools(complete_context);
 
 complete_context.managers.mcp.register({
   type: 'local',
