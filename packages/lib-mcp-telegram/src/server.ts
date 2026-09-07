@@ -4,7 +4,6 @@ import { join } from "node:path";
 import { McpLocalServer } from "@fondamenta/mcp-local";
 import { type TelegramConfig } from "./config.js";
 import { TelegramClient } from "./client.js";
-import { type TelegramNotification } from "./types/notifications.js";
 import { startTelegramNotifier } from "./notifier.js";
 
 

@@ -9,7 +9,6 @@ import {
   formatMailbox,
 } from './formatters.js';
 
-import { type JMAPNotification } from "./types/notifications.js";
 import { startJmapNotifier } from "./notifier.js";
 
 // ── Formatters ──

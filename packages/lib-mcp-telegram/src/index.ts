@@ -13,7 +13,3 @@ export {
   TelegramUser,
   TelegramChat,
 } from './types/message.js';
-
-export {
-  TelegramNotification,
-} from './types/notifications.js';

@@ -204,13 +204,7 @@ export class SessionManager extends WithContext {
 
   #onNotification = async (notification: HarnessNotification): Promise<boolean> => {
     switch (notification.method) {
-      case 'telegram/text_message':
-        await this.#injectNotification(notification);
-        return true;
-      case 'transcription/ready':
-        await this.#injectNotification(notification);
-        return true;
-      case 'jmap/new_email':
+      case 'message/new':
         await this.#injectNotification(notification);
         return true;
       case 'todo/due':

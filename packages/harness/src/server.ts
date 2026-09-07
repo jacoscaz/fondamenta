@@ -35,6 +35,7 @@ import { initContinuityMcpServer } from "./mcp-servers/continuity/server.js";
 import { initPinningMcpServer } from "./mcp-servers/pinning.js";
 import { initAnchorsMcpServer } from "./mcp-servers/anchors.js";
 import { initTranscriptionMcpServer } from "./mcp-servers/transcription/server.js";
+import { initContactsMcpServer } from "./mcp-servers/contacts/server.js";
 import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
 import { HarnessMcpToolCallContext } from './types/tools.js';
 
@@ -208,6 +209,20 @@ complete_context.managers.mcp.register({
   safe: true,
   client: new McpLocalClient<HarnessMcpToolCallContext>(
     initTranscriptionMcpServer(complete_context),
+  ),
+});
+
+// Contacts server: subscriber-only MCP server (no tools). It enriches
+// inbound message/new notifications with contact standing BEFORE the
+// session manager sees them. Registered FIRST among the notification
+// consumers so its 'high' bus priority is respected relative to
+// transcription and session-manager, which subscribe later.
+complete_context.managers.mcp.register({
+  type: 'local' as const,
+  name: 'contacts',
+  safe: true,
+  client: new McpLocalClient<HarnessMcpToolCallContext>(
+    initContactsMcpServer(complete_context),
   ),
 });
 
