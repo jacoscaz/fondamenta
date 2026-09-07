@@ -105,7 +105,7 @@ export const initJMAPTools = (ctx: CompleteContext) => {
   };
 
   ctx.managers.tools.add<InboxParams>(
-    'inbox',
+    'email_inbox',
     'List Inbox Emails',
     'List previews of recent emails in the inbox. Returns email ID, date, from, subject, and preview text.',
     false,
@@ -121,7 +121,7 @@ export const initJMAPTools = (ctx: CompleteContext) => {
   );
 
   ctx.managers.tools.add<ReadEmailParams>(
-    'read',
+    'email_read',
     'Read Email',
     'Retrieve the full content of a specific email by ID.',
     false,
@@ -133,7 +133,7 @@ export const initJMAPTools = (ctx: CompleteContext) => {
   );
 
   ctx.managers.tools.add<SendEmailParams>(
-    'send',
+    'email_send',
     'Send Email',
     'Send an email to one or more recipients. Body is plain text.',
     true,
@@ -144,7 +144,7 @@ export const initJMAPTools = (ctx: CompleteContext) => {
   );
 
   ctx.managers.tools.add<{}>(
-    'mailboxes',
+    'email_mailboxes',
     'List Mailboxes',
     'List all mailboxes with thread counts and unread indicators.',
     false,

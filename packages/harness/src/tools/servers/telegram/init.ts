@@ -69,7 +69,7 @@ export const initTelegramTools = (ctx: CompleteContext) => {
   const logger_outgoing = ctx ? ctx.logger.child('[mcp:telegram-outgoing]') : null;
 
   ctx.managers.tools.add<{ text: string, chat_id: number }>(
-    'send',
+    'telegram_send_text',
     'Send Telegram Message',
     'Send a plain-text Telegram message to a chat (use the chat_id from an incoming message event).',
     true,
@@ -92,7 +92,7 @@ export const initTelegramTools = (ctx: CompleteContext) => {
    * TODO: use TTS synthesis available in the context, if any, to replace text blocks with voice blocks
    */
   ctx.managers.tools.add<{ text: string, chat_id: number }>(
-    'sendVoiceMessage',
+    'telegram_send_voice',
     'Send Telegram Voice Message',
     'Send a voice note to a Telegram chat. Two modes: (1) synthesize: true — text is synthesized to speech with the configured voice and sent as a playable voice note (returns immediately with "queued"; delivery follows asynchronously); (2) synthesize: false/omitted — path must point to an existing audio file (WAV is converted to OGG/Opus automatically) and it is sent directly.',
     true,
@@ -122,7 +122,7 @@ export const initTelegramTools = (ctx: CompleteContext) => {
   );
 
   ctx.managers.tools.add<{}>(
-    'me',
+    'telegram_me',
     'Bot Identity',
     'Get this bot\'s Telegram identity (id, username) — useful to share with users.',
     false,
@@ -133,7 +133,7 @@ export const initTelegramTools = (ctx: CompleteContext) => {
   );
 
   ctx.managers.tools.add<{ file_id: string; file_name?: string }>(
-    'file',
+    'telegram_file',
     'Download Telegram File',
     'Download any incoming Telegram media (photo, voice note, document, video note, audio) by its file_id into the media directory. Returns the saved path — view images with the file-reading tool, process other media with CLI tools.',
     false,
