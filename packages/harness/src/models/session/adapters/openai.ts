@@ -223,11 +223,11 @@ export class OpenAISessionModel extends AbstractSessionModel {
   #formatUserToolResult(message: UserToolResult): OpenAI.ChatCompletionMessageParam[] {
     const tool_messages: OpenAI.ChatCompletionToolMessageParam[] = [];
     for (const result of message.results) {
-      const content: OpenAI.ChatCompletionContentPartText[] = [];
+      const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
       content.push(...formatBlocks(result.blocks, true));
       tool_messages.push({
         role: 'tool',
-        content,
+        content: content as OpenAI.ChatCompletionContentPartText[],
         tool_call_id: result.req_id,
       });
     }

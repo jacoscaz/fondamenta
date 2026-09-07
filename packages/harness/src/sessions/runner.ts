@@ -293,44 +293,6 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     }
   }
 
-  /**
-   * Filters content blocks unsupported by the active model's declared input
-   * modalities. Unsupported blocks (e.g., images for a text-only model) are
-   * replaced with placeholder text so downstream tool req/res pairing and
-   * ordering remain intact.
-   */
-  #filterUnsupportedBlocks<M extends Message>(message: M): M {
-    if (message.type === 'tool_req') {
-      return message;
-    }
-    const submessages: (UserToolResult['results'][number] | Exclude<Message, AgentToolRequest | UserToolResult>)[] = message.type === 'tool_res'
-      ? message.results
-      : [message];
-    submessages.forEach((submessage) => {
-      submessage.blocks = submessage.blocks.map(() => { })
-    });
-    let changed = false;
-    const filtered = blocks.map((block) => {
-      if (block.type !== 'tool_use_res') return block;
-      const result = block.result.map((b) => {
-        if (b.type === 'text' || this.#model.supportsImageInput) return b;
-        if (b.type === 'image') {
-          changed = true;
-          return {
-            type: 'text' as const,
-            text: `[image content withheld — model '${this.#model.constructor.name}' does not support image input]`,
-          };
-        }
-        return b;
-      });
-      if (result === block.result) return block;
-      changed = true;
-      return { ...block, result };
-    });
-    if (!changed) return message;
-    return { ...message, blocks: filtered } as M;
-  }
-
   async #query(db_req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
     // Translate the canonical representation to the provider format on
@@ -345,11 +307,10 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         // loop iteration). Agent turns are created already-processed
         // and are mirrored at generation time below instead.
         if (this.#monologue_enabled) {
-          this._ctx.monologue.logMessage(message);
+          this._ctx.monologue.logMessage(message.data);
         }
       }
-      const data = this.#filterUnsupportedBlocks(message.data);
-      return data;
+      return message.data;
     }).flat(1);
     const { messages: res_messages, input_size, output_size } = await this.#model.query({
       messages: req_messages,
@@ -372,14 +333,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       target_session_id: this.#target_session_id,
     };
     for (const msg of res_messages) {
-      // One agent message may carry multiple blocks (e.g. text + several
-      // tool_use_req). All tool calls within it are executed in order and
-      // their results/errors accumulate into ONE following user message —
-      // the canonical store models the exchange (agent acted, environment
-      // answered), not the provider's one-tool-message-per-result wire
-      // format, which #format reconstructs at request time.
-      const tool_reqs = msg.blocks.filter((b): b is ToolUseRequestBlock => b.type === 'tool_use_req');
-      if (tool_reqs.length > 0) {
+      if (msg.type === 'tool_req') {
         const req_created_at = getMonotonicDate();
         db_res_messages.push({
           role: 'agent',
@@ -388,14 +342,14 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           created_at: req_created_at,
           processed_at: req_created_at,
         });
-        const results: (ToolUseErrorBlock | ToolUseResultBlock)[] = [];
-        for (const req of tool_reqs) {
-          results.push(await this.#callTool(mcp_manager, req, tool_use_context));
+        const results: UserToolResult['results'] = [];
+        for (const request of msg.requests) {
+          results.push(await this.#callTool(mcp_manager, request, tool_use_context));
         }
         const res_created_at = getMonotonicDate();
         db_res_messages.push({
           role: 'user',
-          data: { role: 'user', blocks: results },
+          data: { role: 'user', type: 'tool_res', results },
           session_id: this.#origin_session_id,
           created_at: res_created_at,
           processed_at: null,
@@ -418,7 +372,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       // messages are created unprocessed and will be mirrored when
       // they enter the context on the next loop iteration above.
       if (this.#monologue_enabled && message.role === 'agent') {
-        this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+        this._ctx.monologue.logMessage(message.data);
       }
     }
     return db_res_messages;
@@ -440,12 +394,11 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * may have been authored by third parties and is scanned unconditionally,
    * regardless of which agent or identity is running on this harness.
    */
-  static #scanToolResult(mcp_manager: McpManager, tool: string, result: ToolUseResultBlock['result']): { flagged: boolean; patterns: string[] } {
+  static #scanToolResult(mcp_manager: McpManager, tool: string, result: UserToolResult['results'][number]): { flagged: boolean; patterns: string[] } {
     if (mcp_manager.isSafeServer(tool)) {
       return { flagged: false, patterns: [] };
     }
-
-    const text = result.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
+    const text = result.blocks.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
     const matches = detectInjections(text);
     if (matches.length === 0) {
       return { flagged: false, patterns: [] };
@@ -456,53 +409,42 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     };
   }
 
-  async #callTool(mcp_manager: McpManager, block: ToolUseRequestBlock, call_ctx: HarnessMcpToolCallContext): Promise<ToolUseErrorBlock | ToolUseResultBlock> {
+  async #callTool(mcp_manager: McpManager, request: AgentToolRequest['requests'][number], call_ctx: HarnessMcpToolCallContext): Promise<UserToolResult['results'][number]> {
     try {
-      const result = await mcp_manager.call(block.tool, block.params, call_ctx);
-      this.#logger.debug('Tool call success: %s %s', block.tool, () => ellipsis(JSON.stringify(block.params), 128));
+      const result: UserToolResult['results'][number] = await mcp_manager.call(request.tool, request.params, call_ctx);
+      this.#logger.debug('Tool call success: %s %s', request.tool, () => ellipsis(JSON.stringify(request.params), 128));
 
       // Prompt injection guardrails — see `injection-guardrails.ts`.
-      const scan = SessionRunner.#scanToolResult(mcp_manager, block.tool, result);
+      const scan = SessionRunner.#scanToolResult(mcp_manager, request.tool, result);
       if (scan.flagged) {
         this.#logger.warn(
           'Prompt injection pattern(s) detected in tool result [%s]: %s',
-          block.tool,
+          result.tool,
           scan.patterns.map((p) => ellipsis(p, 100)).join('; '),
         );
         return {
-          type: 'tool_use_res',
-          req_id: block.req_id,
-          tool: block.tool,
-          params: block.params,
-          result: [
+          req_id: request.req_id,
+          tool: request.tool,
+          blocks: [
             {
               type: 'text',
               text:
-                `[GUARDED CONTENT] The original output of tool '${block.tool}' was withheld because it matched known prompt-injection patterns:\n` +
+                `[GUARDED CONTENT] The original output of tool '${request.tool}' was withheld because it matched known prompt-injection patterns:\n` +
                 scan.patterns.map((p) => `- ${p}`).join('\n') +
                 `\n\nThe raw content was never inserted into the session transcript. If this tool's output is expected to be legitimate, review it manually outside the model context before trusting it.`,
             },
           ],
         };
       }
-
-      return {
-        type: 'tool_use_res',
-        req_id: block.req_id,
-        result,
-        tool: block.tool,
-        params: block.params,
-      };
+      return result;
     } catch (err) {
       const text = errToString(err, true);
-      this.#logger.warn('Tool call error: %s %s', block.tool, () => ellipsis(JSON.stringify(block.params), 128));
-      this.#logger.debug('Tool call error: %s %s', block.tool, text);
+      this.#logger.warn('Tool call error: %s %s', request.tool, () => ellipsis(JSON.stringify(request.params), 128));
+      this.#logger.debug('Tool call error: %s %s', request.tool, text);
       return {
-        type: 'tool_use_err',
-        req_id: block.req_id,
-        error: [{ type: 'text', text }],
-        tool: block.tool,
-        params: block.params,
+        req_id: request.req_id,
+        blocks: [{ type: 'text', text }],
+        tool: request.tool,
       };
     }
   }
