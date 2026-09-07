@@ -36,7 +36,7 @@ export class Embedder extends WithContext {
 
       // Process in batches of 20
       while (true) {
-        const records = await selectRecords(db, { type: ['log', 'memory', 'note'], limit: 20, embedding: null });
+        const records = await selectRecords(db, { type: ['log', 'memory', 'note', 'fact'], limit: 20, embedding: null });
         if (records.length === 0) break;
 
         this.#logger.debug('found %d records without embedding', records.length);
