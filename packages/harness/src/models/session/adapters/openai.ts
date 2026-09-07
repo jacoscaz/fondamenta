@@ -3,12 +3,12 @@ import {
   type AgentMessage,
   type Message,
   type UserBlock,
-} from "../types/messages.js";
+} from "../../../types/messages.js";
 
 import {
   type ToolUseErrorBlock,
   type ToolUseResultBlock,
-} from '../types/blocks.js';
+} from '../../../types/blocks.js';
 
 import {
   AbstractSessionModel,

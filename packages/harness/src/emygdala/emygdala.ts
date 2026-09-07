@@ -1,7 +1,7 @@
 
 import { type InitContext, WithContext } from "../context.js";
 import { formatDistanceStrict } from "date-fns";
-import { type TextBlock } from "../models/session/types/blocks.js";
+import { type TextBlock } from "../types/blocks.js";
 
 export interface ContextSize {
   length: number;

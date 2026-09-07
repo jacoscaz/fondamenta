@@ -3,7 +3,7 @@ import { type Logger } from "pinetto";
 import { type InitContext, WithContext } from "../context.js";
 import { SessionRunner } from "./runner.js";
 import { insertSession, selectSessionById } from "../database/tables/sessions.js";
-import { type UserMessage, type Message } from "../models/session/types/messages.js";
+import { type UserMessage, type Message } from "../types/messages.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import assert from "node:assert";
 import { type HarnessNotification } from "../notifications/types.js";

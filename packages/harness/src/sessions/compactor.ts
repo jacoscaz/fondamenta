@@ -4,8 +4,8 @@ import { type DB, ensureTrx } from "../database/client.js";
 import { selectMessages, insertMessage, type ASelectableDBMessage } from "../database/tables/messages.js";
 import { updateSessionSystemPrompt } from "../database/tables/sessions.js";
 import { makeCompactionPrompt } from "../prompts/compaction.js";
-import { AgentBlock } from "../models/session/types/messages.js";
-import { TextBlock } from "../models/session/types/blocks.js";
+import { AgentBlock } from "../types/messages.js";
+import { TextBlock } from "../types/blocks.js";
 import assert from "node:assert";
 
 /**
