@@ -80,42 +80,52 @@ export const initTelegramTools = (ctx: CompleteContext) => {
   );
 
   /**
-   * Voice-note send. When synthesize is true, the call emits a
-   * message/outgoing notification and returns immediately — the speech
-   * server decorates the text blocks with synthesis state on the bus,
-   * then this server's subscriber dispatches (choosing audio vs text per
-   * block from the decoration). The returned "queued" line is NOT a
-   * delivery confirmation; delivery confirmation arrives as either the
-   * message_id (via the bus consumer's log) or a processing/error
-   * notification.
-   *
-   * TODO: use TTS synthesis available in the context, if any, to replace text blocks with voice blocks
+   * Voice-note send. Cross-tool interaction is a direct call: synthesis
+   * goes through ctx.speech.synthesize() — no bus, no transforms, no
+   * "queued without delivery" state. The tool returns only after the
+   * message is actually sent (or after an explicit, typed failure), so
+   * delivery confirmation is structural: the message_id in the result
+   * IS the confirmation. The old split — return "queued", confirm via a
+   * later bus notification — placed delivery in the periphery of a
+   * distributed flow; that failure class is gone.
    */
-  ctx.managers.tools.add<{ text: string, chat_id: number }>(
+  ctx.managers.tools.add<{ text: string; chat_id: number; synthesize?: boolean }>(
     'telegram_send_voice',
     'Send Telegram Voice Message',
-    'Send a voice note to a Telegram chat. Two modes: (1) synthesize: true — text is synthesized to speech with the configured voice and sent as a playable voice note (returns immediately with "queued"; delivery follows asynchronously); (2) synthesize: false/omitted — path must point to an existing audio file (WAV is converted to OGG/Opus automatically) and it is sent directly.',
+    'Send a voice note to a Telegram chat. Two modes: (1) synthesize: true/omitted — text is synthesized to speech with the configured voice (vox) and sent as a playable voice note; on synthesis failure the message is delivered as a plain text message instead (never dropped); (2) synthesize: false — text is an absolute path to an existing audio file (WAV is converted to OGG/Opus automatically) and it is sent directly.',
     true,
-    async ({ text, chat_id }) => {
-      // TODO: use TTS synthesis available in the context, if any, to replace text blocks with voice blocks
-      // Direct file mode: `text` carries the audio file path.
-      const path = text;
-      let duration = 0;
-      try {
-        const { execFile } = await import('node:child_process');
-        const { promisify } = await import('node:util');
-        const { stdout } = await promisify(execFile)('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path]);
-        duration = Number(stdout.trim());
-      } catch {
-        duration = 0;
+    async ({ text, chat_id, synthesize }) => {
+      let send_path: string;
+      let duration: number;
+
+      if (synthesize === false) {
+        // Direct file mode: `text` carries the audio file path.
+        const path = text;
+        try {
+          const { execFile } = await import('node:child_process');
+          const { promisify } = await import('node:util');
+          const { stdout } = await promisify(execFile)('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', path]);
+          duration = Number(stdout.trim());
+        } catch {
+          duration = 0;
+        }
+        if (!Number.isFinite(duration) || duration <= 0) {
+          return [{ type: 'text', text: 'Error: could not determine audio duration (ffprobe failed). Duration is required by the Telegram API.' }];
+        }
+        send_path = path.endsWith('.wav') ? await wavToOgg(path) : path;
+      } else {
+        // Synthesis mode: direct call into the voice layer. Typed
+        // SpeechResult keeps failure handling explicit — degrade to
+        // text, never drop the message (the unsent-message lesson).
+        const result = await ctx.speech.synthesize(text);
+        if (!result.success) {
+          const message = await client.sendMessage(chat_id, text);
+          return [{ type: 'text', text: `Synthesis failed (${result.error}) — delivered as text instead. message_id: ${message.message_id}` }];
+        }
+        send_path = result.path.endsWith('.wav') ? await wavToOgg(result.path) : result.path;
+        duration = result.duration;
       }
-      if (!Number.isFinite(duration) || duration <= 0) {
-        return [{ type: 'text', text: 'Error: could not determine audio duration (ffprobe failed). Duration is required by the Telegram API.' }];
-      }
-      let send_path = path;
-      if (path.endsWith('.wav')) {
-        send_path = await wavToOgg(path);
-      }
+
       const message = await client.sendVoice(chat_id, send_path, duration);
       return [{ type: 'text', text: `Sent voice note — message_id: ${message.message_id}, duration: ${Math.round(duration)}s` }];
     },
