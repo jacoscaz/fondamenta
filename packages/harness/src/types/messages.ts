@@ -50,6 +50,7 @@ export interface UserToolResult extends BaseMessage {
     req_id: string;
     blocks: UserBlock[];
     tool: string;
+    contact?: Contact;
   }[];
 }
 

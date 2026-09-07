@@ -1,15 +1,25 @@
 
-import { type Contact } from "./contacts.js";
-import { type UserBlock, type BaseMessage } from "./messages.js";
+import {
+  type UserInput,
+} from "./messages.js";
 
-export interface UserMessageIncomingNotification extends BaseMessage {
-  role: 'user';
-  type: 'notification';
+export interface BaseUserNotification extends UserInput {
+  method: string;
+}
+
+export interface UserMessageIncomingNotification extends BaseUserNotification {
   method: 'message/incoming';
-  blocks: UserBlock[];
-  contact?: Contact;
+  transport:
+    | { type: 'telegram'; from_id: number; chat_id: number; username?: string; }
+    | { type: 'email', from: { address: string; name?: string; } }
+    ;
+}
+
+export interface UserTodoDueNotification extends BaseUserNotification {
+  method: 'todo/due';
 }
 
 export type UserNotification =
   | UserMessageIncomingNotification
+  | UserTodoDueNotification
   ;
