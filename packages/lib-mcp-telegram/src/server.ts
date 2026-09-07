@@ -93,6 +93,17 @@ export const initTelegramMcpServer = (config: TelegramConfig, ctx?: TelegramHost
   if (ctx) {
     ctx.buses.notifications.subscribe('mcp-telegram-outgoing', async (notification): Promise<boolean> => {
       const { params } = notification;
+      // METHOD CHECK IS LOAD-BEARING. This subscriber consumes
+      // message/outgoing ONLY. Inbound message/new notifications share the
+      // same transport shape (telegram) — without the method check, every
+      // inbound telegram message was captured here, echoed back to the
+      // sender's chat as if outbound, and the chain stopped before the
+      // session-manager could inject it into the agent's context
+      // (2026-09-07 loop bug, caught by Jacopo: his messages bounced back
+      // to him and never entered my context).
+      if (notification.method !== 'message/outgoing') {
+        return false;
+      }
       if (params.transport.type !== 'telegram') {
         return false;
       }
