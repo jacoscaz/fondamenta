@@ -3,7 +3,7 @@ import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { type TextBlock } from "../types/blocks.js";
-import { AgentMessage, type Message, type UserMessage } from "../types/messages.js";
+import { AgentMessage, AgentToolRequest, UserToolResult, type Message, type UserMessage } from "../types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
 import { type HarnessMcpToolCallContext } from "../types/tools.js";
@@ -300,7 +300,15 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * ordering remain intact.
    */
   #filterUnsupportedBlocks<M extends Message>(message: M): M {
-    const blocks = message.blocks;
+    if (message.type === 'tool_req') {
+      return message;
+    }
+    const submessages: (UserToolResult['results'][number] | Exclude<Message, AgentToolRequest | UserToolResult>)[] = message.type === 'tool_res'
+      ? message.results
+      : [message];
+    submessages.forEach((submessage) => {
+      submessage.blocks = submessage.blocks.map(() => { })
+    });
     let changed = false;
     const filtered = blocks.map((block) => {
       if (block.type !== 'tool_use_res') return block;
@@ -337,7 +345,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         // loop iteration). Agent turns are created already-processed
         // and are mirrored at generation time below instead.
         if (this.#monologue_enabled) {
-          this._ctx.monologue.logMessage(message.data.role, message.data.blocks);
+          this._ctx.monologue.logMessage(message);
         }
       }
       const data = this.#filterUnsupportedBlocks(message.data);
