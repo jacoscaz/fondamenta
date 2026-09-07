@@ -56,7 +56,7 @@ export class Compactor extends WithContext {
       // carrying their results/errors. With results grouped in one user
       // message, the pair is simply (agent, next message): if the split
       // index lands on the results message, move it back to the request.
-      if (all_messages[split_index]?.data.type === 'tool_res' || all_messages[split_index]?.data.type === 'tool_err') {
+      if (all_messages[split_index]?.data.type === 'tool_res') {
         split_index -= 1;
         if (all_messages[split_index]?.data.type !== 'tool_req') {
           throw new Error(`invalid tool use request/result pair at index ${split_index}`);
@@ -88,7 +88,7 @@ export class Compactor extends WithContext {
 
       // Extract the summary text from the model's response
       const summary_text = res_messages
-        .flatMap(m => m.type === 'message' ? m.blocks : [])
+        .flatMap(m => m.type === 'input' ? m.blocks : [])
         .filter((b: AgentBlock) => b.type === 'text')
         .map((b: TextBlock) => b.text)
         .join('\n');
@@ -137,24 +137,22 @@ export class Compactor extends WithContext {
     for (const m of messages) {
       const role = m.data.role === 'agent' ? 'Sage' : m.data.role === 'user' ? 'User' : m.role;
       const parts: string[] = [];
-      let data: string = '';
+
       if (m.data.type === 'tool_req') {
-        data = `🔧 ${m.data.tool}(${JSON.stringify(m.data.params)})`;
+        for (const request of m.data.requests) {
+          parts.push(`🔧 ${request.tool}(${JSON.stringify(request.params)})`);
+        }
+      } else if (m.data.type === 'tool_res') {
+        for (const result of m.data.results) {
+          parts.push(`↗ ${result.tool}(${JSON.stringify(result.blocks)})`);
+        }
       } else {
+        let data: string = '';
         for (const block of m.data.blocks) {
           switch (block.type) {
             case 'text':
             case 'thinking':
               data = block.text || '';
-              break;
-            case 'tool_use_req':
-
-              break;
-            case 'tool_use_res':
-              data = `↗ ${block.tool}(${JSON.stringify(block.result)})`;
-              break;
-            case 'tool_use_err':
-              data = `↗ ${block.tool}(${JSON.stringify(block.error)})`;
               break;
           }
           if (data) {
