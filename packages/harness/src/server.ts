@@ -223,7 +223,7 @@ complete_context.managers.mcp.register({
   name: 'telegram',
   safe: false,
   client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTelegramMcpServer(config.telegram, complete_context.contacts),
+    initTelegramMcpServer(config.telegram, complete_context, complete_context.contacts),
   ),
 });
 

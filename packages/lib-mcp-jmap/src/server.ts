@@ -40,11 +40,15 @@ interface SendEmailParams {
  * without this library importing anything host-specific (mirror of
  * TelegramHostContext).
  */
-export interface ContactStanding {
-  verified: boolean;
-  name?: string;
-  guidance: string;
-}
+/**
+ * Discriminated exactly like the core notification types: `verified` is
+ * a literal, so a verified standing must carry id+name and an
+ * unverified one cannot. The host's lookup returns this shape; a
+ * harness ContactsManager satisfies it structurally.
+ */
+export type ContactStanding =
+  | { verified: true; id: number; name: string; guidance: string; }
+  | { verified: false; guidance: string; };
 
 /**
  * Minimal structural interface the host may provide so that mail content
@@ -83,7 +87,7 @@ export const initJmapMcpServer = (config: JmapConfig, ctx?: JmapHostContext): Mc
     sessionUrl: config.session_url,
   });
 
-  const notifier = startJmapNotifier(mcp, client, config, console.log);
+  const notifier = startJmapNotifier(mcp, client, config, console.log, ctx?.contacts);
 
   /**
    * Resolve the standing of an email's first sender through the host's
