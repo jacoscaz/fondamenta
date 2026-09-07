@@ -3,16 +3,17 @@ import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, insertMessage, selectMessages } from "../database/tables/messages.js";
 import { type TextBlock } from "../types/blocks.js";
-import { AgentMessage, AgentToolRequest, UserToolResult, type Message, type UserMessage } from "../types/messages.js";
+import { AgentMessage, AgentToolRequest, UserBlock, UserToolResult, type Message, type UserMessage } from "../types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
-import { type HarnessMcpToolCallContext } from "../types/tools.js";
+import { ToolCallContext, type HarnessMcpToolCallContext } from "../types/tools.js";
 import { type McpManager } from "../mcp-manager/manager.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
 import { detectInjections } from "./injection-guardrails.js";
 import { makeActivationPrompt } from "../prompts/activation.js";
 import { EVENT_PREFIX } from "../constants.js";
+import { ToolManager } from "../tools/manager.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
@@ -246,7 +247,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     return messages.map(m => m.data);
   }
 
-  async run(db: DB | undefined, mcp_manager: McpManager | undefined, max_queries_per_run: number): Promise<void> {
+  async run(db: DB | undefined, tool_manager: ToolManager | undefined, max_queries_per_run: number): Promise<void> {
     if (this.#running) {
       return;
     }
@@ -254,7 +255,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#max_queries_per_run = max_queries_per_run;
     this.#query_count = 0;
     db = db ?? this._ctx.db;
-    mcp_manager = mcp_manager ?? this._ctx.managers.mcp;
+    tool_manager = tool_manager ?? this._ctx.managers.tools;
     this.#logger.debug('running (max_queries_per_run: %d)', max_queries_per_run);
     try {
       let has_more = true;
@@ -266,7 +267,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         await this.#runPreQueryListeners(db);
         this.#query_count += 1;
         has_more = this.#query_count < this.#max_queries_per_run && await selectMessagesForActivation(db, this.#origin_session_id, async (messages) => {
-          return await this.#query(messages, db, mcp_manager);
+          return await this.#query(messages, db, tool_manager);
         });
         if (!has_more && this.#query_count >= this.#max_queries_per_run) {
           this.#logger.warn('activation limit reached (%d/%d): stopping the query loop', this.#query_count, this.#max_queries_per_run);
@@ -293,7 +294,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     }
   }
 
-  async #query(db_req_messages: ASelectableDBMessage[], db: DB, mcp_manager: McpManager): Promise<AInsertableDBMessage[]> {
+  async #query(db_req_messages: ASelectableDBMessage[], db: DB, tool_manager: ToolManager): Promise<AInsertableDBMessage[]> {
     const session = await selectSessionById(db, this.#origin_session_id);
     // Translate the canonical representation to the provider format on
     // every query — never cache it. The canonical `data` column is the
@@ -314,7 +315,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     }).flat(1);
     const { messages: res_messages, input_size, output_size } = await this.#model.query({
       messages: req_messages,
-      tools: await this.#listTools(mcp_manager),
+      tools: await this.#listTools(tool_manager),
       session_id: `fondamenta-${this.#origin_session_id}`,
       system_prompt: session.system_prompt,
     });
@@ -326,7 +327,8 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#prompt_size = input_size;
 
     const db_res_messages: AInsertableDBMessage[] = [];
-    const tool_use_context: HarnessMcpToolCallContext = {
+    const tool_use_context: ToolCallContext = {
+      ...this._ctx,
       db,
       runner: this,
       origin_session_id: this.#origin_session_id,
@@ -344,7 +346,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
         });
         const results: UserToolResult['results'] = [];
         for (const request of msg.requests) {
-          results.push(await this.#callTool(mcp_manager, request, tool_use_context));
+          results.push(await this.#callTool(tool_manager, request, tool_use_context));
         }
         const res_created_at = getMonotonicDate();
         db_res_messages.push({
@@ -378,8 +380,13 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     return db_res_messages;
   }
 
-  async #listTools(mcp_manager: McpManager) {
-    return (await mcp_manager.list()).tools;
+  async #listTools(tool_manager: ToolManager) {
+    return tool_manager.list().map(descriptor => ({
+      name: descriptor.name,
+      title: descriptor.title,
+      description: descriptor.description,
+      inputSchema: descriptor.params_schema,
+    }));
   }
 
   /**
@@ -394,11 +401,11 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
    * may have been authored by third parties and is scanned unconditionally,
    * regardless of which agent or identity is running on this harness.
    */
-  static #scanToolResult(mcp_manager: McpManager, tool: string, result: UserToolResult['results'][number]): { flagged: boolean; patterns: string[] } {
-    if (mcp_manager.isSafeServer(tool)) {
+  static #scanToolResult(tool_manager: ToolManager, tool: string, blocks: UserBlock[]): { flagged: boolean; patterns: string[] } {
+    if (tool_manager.isSafe(tool)) {
       return { flagged: false, patterns: [] };
     }
-    const text = result.blocks.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
+    const text = blocks.map((block) => (block.type === 'text' ? block.text : '')).join('\n');
     const matches = detectInjections(text);
     if (matches.length === 0) {
       return { flagged: false, patterns: [] };
@@ -409,17 +416,17 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     };
   }
 
-  async #callTool(mcp_manager: McpManager, request: AgentToolRequest['requests'][number], call_ctx: HarnessMcpToolCallContext): Promise<UserToolResult['results'][number]> {
+  async #callTool(tool_manager: ToolManager, request: AgentToolRequest['requests'][number], call_ctx: ToolCallContext): Promise<UserToolResult['results'][number]> {
     try {
-      const result: UserToolResult['results'][number] = await mcp_manager.call(request.tool, request.params, call_ctx);
+      const result = await tool_manager.call(request.tool, request.params, call_ctx);
       this.#logger.debug('Tool call success: %s %s', request.tool, () => ellipsis(JSON.stringify(request.params), 128));
 
       // Prompt injection guardrails — see `injection-guardrails.ts`.
-      const scan = SessionRunner.#scanToolResult(mcp_manager, request.tool, result);
+      const scan = SessionRunner.#scanToolResult(tool_manager, request.tool, result);
       if (scan.flagged) {
         this.#logger.warn(
           'Prompt injection pattern(s) detected in tool result [%s]: %s',
-          result.tool,
+          request.tool,
           scan.patterns.map((p) => ellipsis(p, 100)).join('; '),
         );
         return {
@@ -436,7 +443,11 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
           ],
         };
       }
-      return result;
+      return {
+        req_id: request.req_id,
+        blocks: result,
+        tool: request.tool,
+      };
     } catch (err) {
       const text = errToString(err, true);
       this.#logger.warn('Tool call error: %s %s', request.tool, () => ellipsis(JSON.stringify(request.params), 128));
