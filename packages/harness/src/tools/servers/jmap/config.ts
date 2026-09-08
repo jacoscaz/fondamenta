@@ -14,8 +14,6 @@ export interface JmapConfig {
   session_url: string;
   api_token: string;
   email_address: string;
-  /** Senders that trigger a mail/arrived notification (matched against email address). */
-  allowlist: string[];
   /** Inbox polling interval in milliseconds. */
   poll_interval_ms?: number;
 }

@@ -36,22 +36,24 @@ export const startJmapNotifier = (
     try {
       const { emails } = await client.listInbox(10);
       if (emails.length === 0) return;
-      const newEmails = lastSeenTimestamp
+      const new_emails = lastSeenTimestamp
         ? emails.filter(e => e.receivedAt > lastSeenTimestamp!)
         : [];
-      if (newEmails.length === 0) return;
-      lastSeenTimestamp = newEmails[0].receivedAt;
-      const filtered = newEmails.filter(e =>
-        e.from.some(addr => ctx.config.mail.allowlist.includes(addr.email))
-      );
-      for (const email of filtered) {
+      if (new_emails.length === 0) return;
+      lastSeenTimestamp = new_emails[0].receivedAt;
+      for (const email of new_emails) {
+        const contact = await ctx.contacts.lookup(`mailto:${email.from[0].email}`);
+        if (!contact.verified) {
+          // Unverified contacts do not trigger notifications.
+          continue;
+        }
         // Await: notify injects into the session and can run the model —
         // fire-and-forget would make any failure an unhandled rejection.
         await ctx.buses.notifications.notify({
           role: 'user',
           type: 'notification',
           method: 'message/incoming',
-          contact: await ctx.contacts.lookup(`mailto:${email.from[0].email}`),
+          contact,
           blocks: [
             {
               type: 'text',

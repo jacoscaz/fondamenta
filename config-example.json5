@@ -32,10 +32,6 @@
         session_url: 'https://api.fastmail.com/jmap/session',
         // API token for authentication. Generate in your provider's settings.
         api_token: "${JMAP_API_TOKEN}",
-        // Sender addresses that trigger a mail/arrived notification.
-        // Everything else stays silently readable via the mail tools.
-        // Fail closed: an empty list means no notifications.
-        allowlist: ["someone@example.com"],
         // How often to poll for new mail, in milliseconds.
         poll_interval_ms: 120000,
     },
