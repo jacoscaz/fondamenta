@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import JSON5 from 'json5';
 import { readFile } from "node:fs/promises";
 import assert from "node:assert";
+import { TelegramConfig } from '../tools/servers/telegram/config.js';
+import { JmapConfig } from '../tools/servers/jmap/config.js';
 
 export interface ConfigPostgres {
   username?: string;
@@ -153,41 +155,6 @@ export interface ConfigLogging {
   monologue_dir?: string;
 }
 
-/**
- * JMAP tools configuration.
- *
- * NOTE: declared structurally, NOT as `interface ConfigMail extends
- * JmapConfig`. runtyped's runtime cast encodes cross-package type
- * references by name only; the harness's compiled config.js cannot
- * resolve a name it doesn't import as a value, and cast() then
- * silently strips every key (config.mail becomes an empty object at
- * runtime while type-checking happily passes). Keep in sync with
- * JmapConfig.
- */
-export interface ConfigMail {
-  api_url: string;
-  session_url: string;
-  api_token: string;
-  email_address: string;
-  /** Senders that trigger a mail/arrived notification. */
-  allowlist: string[];
-  /** Inbox polling interval in milliseconds. */
-  poll_interval_ms?: number;
-}
-
-/**
- * Telegram server configuration. Declared structurally — cross-package type references
- * do not survive runtyped's compiled cast() and get silently stripped
- * (see ConfigMail's note; same trap).
- */
-export interface ConfigTelegram {
-  api_token: string;
-  /** Telegram user ids allowed to interact with the bot (fail closed). */
-  allowed_user_ids: number[];
-  /** Long-poll timeout in seconds. */
-  poll_timeout_seconds?: number;
-}
-
 export interface ConfigHeartbeat {
   /** Heartbeat (check) interval in milliseconds — how often the runner polls for pending work */
   interval: number;
@@ -236,9 +203,9 @@ export interface Config {
   };
   logging: ConfigLogging;
   /** JMAP mail server configuration. */
-  mail: ConfigMail;
+  mail: JmapConfig;
   /** Telegram server configuration. */
-  telegram: ConfigTelegram;
+  telegram: TelegramConfig;
   heartbeat: ConfigHeartbeat;
   /** Session runner limits. Optional — defaults apply when absent. */
   session?: Partial<ConfigSession>;

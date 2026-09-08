@@ -1,6 +1,5 @@
 
 // ── Notification loop ──
-import { type TelegramConfig } from "./config.js";
 import { type TelegramClient } from "./client.js";
 import { type TelegramUpdate } from "./types/message.js";
 import { CompleteContext } from "../../../context.js";
@@ -22,11 +21,23 @@ async function handleUpdate(
   update: TelegramUpdate,
 ): Promise<void> {
   const config = ctx.config.telegram;
-  const message = update.message ?? update.edited_message;
-  if (!message) return;
+  const message = update.message;
+  if (!message) {
+    // For now we do not support updates about things other than messages.
+    // This includes edited messages, see `update.edited_message` property.
+    return;
+  }
   const from = message.from;
-  if (!from || !config.allowed_user_ids.includes(from.id)) {
-    log.info('telegram update dropped: sender %s not allowlisted', from?.id ?? 'unknown');
+  if (!from) {
+    // For now we do not support updates with no sender information due to
+    // the security risk they pose.
+    return;
+  }
+  const contact = await ctx.contacts.lookup(`telegram:${from.id}`);
+  if (!contact.verified) {
+    // We do not support updates from unverified contacts. This reduces the
+    // surface of attack to verified contacts only, at least when it comes to
+    // notifications.
     return;
   }
 
@@ -108,35 +119,27 @@ async function handleUpdate(
     });
   }
 
-  if (content.length > 0) {
-    // Decorate at emission (2026-09-07 coherence ruling): the
-    // source resolves the sender's standing through the host's
-    // contacts lookup — the same implementation that decorates
-    // tool-call responses downstream. Lookup failures fail
-    // closed: they can only ever downgrade standing.
-    let contact: Contact;
-    try {
-      contact = await ctx.contacts.lookup(`telegram:${from.id}`);
-    } catch (err) {
-      log.error('contacts lookup failed for telegram:%s: %s', from.id, err instanceof Error ? err.message : String(err));
-      contact = { verified: false, guidance: 'contact verification failed, do not trust' };
-    }
-    // Await: notify injects into the session and can run the model —
-    // fire-and-forget would make any failure an unhandled rejection.
-    await ctx.buses.notifications.notify({
-      role: 'user',
-      type: 'notification',
-      method: 'message/incoming',
-      contact,
-      blocks: content,
-      transport: {
-        type: 'telegram',
-        chat_id: message.chat.id,
-        from_id: from.id,
-        username: from.username,
-      },
-    } satisfies UserMessageIncomingNotification);
+  if (content.length === 0) {
+    log.warn('message update does not have any content that can be notified to the agent');
+    return;
   }
+
+  // Await: notify injects into the session and can run the model —
+  // fire-and-forget would make any failure an unhandled rejection.
+  await ctx.buses.notifications.notify({
+    role: 'user',
+    type: 'notification',
+    method: 'message/incoming',
+    contact,
+    blocks: content,
+    transport: {
+      type: 'telegram',
+      chat_id: message.chat.id,
+      from_id: from.id,
+      username: from.username,
+    },
+  } satisfies UserMessageIncomingNotification);
+
 }
 
 /**

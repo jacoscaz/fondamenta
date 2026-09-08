@@ -41,11 +41,6 @@
     // events that activate the agent. A bot token is obtained from @BotFather.
     telegram: {
         api_token: "${TELEGRAM_API_TOKEN}",
-        // Telegram user ids allowed to interact with the bot. Bots are
-        // public by design; without this filter anyone finding the bot can
-        // inject content into the agent's context. Fail closed: an empty
-        // list means nothing is injected.
-        allowed_user_ids: [123456789],
         // Long-poll interval in seconds for getUpdates (Telegram timeout).
         poll_timeout_seconds: 30,
         // Optional. Directory where downloaded media (photos) are stored.
