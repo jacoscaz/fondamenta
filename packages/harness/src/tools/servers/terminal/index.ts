@@ -102,7 +102,7 @@ export const initTerminalTools = (ctx: CompleteContext) => {
 
   // list(): SessionInfo[]
   ctx.managers.tools.add<Record<string, never>>(
-    'list',
+    'terminal_list',
     'List Terminal Sessions',
     'Lists all active terminal sessions with their metadata (id, pid, command, cols, rows, running).',
     false,
@@ -120,7 +120,7 @@ export const initTerminalTools = (ctx: CompleteContext) => {
 
   // spawn(opts?): number
   ctx.managers.tools.add<SpawnParams>(
-    'spawn',
+    'terminal_spawn',
     'Spawn Terminal Session',
     SPAWN_DESC,
     false,
@@ -152,7 +152,7 @@ export const initTerminalTools = (ctx: CompleteContext) => {
 
   // destroy(id): void
   ctx.managers.tools.add<DestroyParams>(
-    'destroy',
+    'terminal_destroy',
     'Destroy Terminal Session',
     `Closes a terminal session, killing all subprocesses with SIGHUP.
 The session ID is no longer valid after this.`,
@@ -168,7 +168,7 @@ The session ID is no longer valid after this.`,
 
   // write(id, data, waitFor?): void
   ctx.managers.tools.add<WriteParams>(
-    'write',
+    'terminal_write',
     'Write to Terminal',
     WRITE_DESC,
     false,
@@ -216,7 +216,7 @@ The session ID is no longer valid after this.`,
 
   // read(id, len?): string
   ctx.managers.tools.add<ReadParams>(
-    'read',
+    'terminal_read',
     'Read Terminal Output',
     READ_DESC,
     false,
@@ -229,7 +229,7 @@ The session ID is no longer valid after this.`,
 
   // readScreen(id): string
   ctx.managers.tools.add<ReadScreenParams>(
-    'readScreen',
+    'terminal_readScreen',
     'Read Terminal Screen',
     READ_SCREEN_DESC,
     false,
@@ -242,7 +242,7 @@ The session ID is no longer valid after this.`,
 
   // waitFor(id, match, timeout?): string
   ctx.managers.tools.add<WaitForParams>(
-    'waitFor',
+    'terminal_waitFor',
     'Wait for Terminal Output',
     WAIT_FOR_DESC,
     false,
@@ -272,7 +272,7 @@ The session ID is no longer valid after this.`,
 
   // resize(id, cols, rows): void
   ctx.managers.tools.add<ResizeParams>(
-    'resize',
+    'terminal_resize',
     'Resize Terminal',
     `Resizes the terminal session to the specified columns and rows. Sends SIGWINCH to the child process.`,
     false,
@@ -285,7 +285,7 @@ The session ID is no longer valid after this.`,
 
   // kill(id, signal?): void
   ctx.managers.tools.add<KillParams>(
-    'kill',
+    'terminal_kill',
     'Send Signal to Terminal',
     `Sends a signal to the terminal session's foreground process. Default: SIGINT (Ctrl-C). The session remains active after the signal — use destroy() to close it entirely.`,
     false,
