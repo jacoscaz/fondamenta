@@ -142,7 +142,7 @@ export const normalizeImage = async (
 export const initFilesTools = (ctx: CompleteContext) => {
 
   ctx.managers.tools.add<ReadFileParams>(
-    'read',
+    'file_read',
     'Read File',
     `Reads a file, automatically detecting its content type.
 
@@ -224,7 +224,7 @@ Usage:
   );
 
   ctx.managers.tools.add<WriteFileParams>(
-    'write',
+    'file_write',
     'Write File',
     `Write the provided content to the specified file. If the file does not exist, it will be created.
 Note that this tool will overwrite the file if it already exists.`,
@@ -237,7 +237,7 @@ Note that this tool will overwrite the file if it already exists.`,
   );
 
   ctx.managers.tools.add<EditFileParams>(
-    'edit',
+    'file_edit',
     'Edit File',
     `Applies a targeted edit to a file by finding and replacing text.
 
@@ -287,5 +287,3 @@ with a count of occurrences, asking you to be more specific.`,
   );
 
 };
-
-
