@@ -9,11 +9,12 @@ import { type NotificationBus } from "./notifications/bus.js";
 import { type Distiller } from "./sessions/distiller.js";
 import { type Embedder } from "./sessions/embedder.js";
 import { type ContactsManager } from "./contacts/manager.js";
+import { type SpeechManager } from "./speech/manager.js";
 import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
-import { type RootMcpManager } from "./mcp-manager/manager.js";
 import { type ModelManager } from "./models/manager.js";
 import { type FileManager } from "./files/manager.js";
+import { type RootToolManager } from "./tools/manager.js";
 
 import EventEmitter from "node:events";
 
@@ -62,8 +63,9 @@ export interface CompleteContext {
   };
   files: FileManager;
   contacts: ContactsManager;
+  speech: SpeechManager;
   managers: {
-    mcp: RootMcpManager;
+    tools: RootToolManager;
     models: ModelManager;
     prompts: PromptManager;
     sessions: SessionManager;

@@ -19,27 +19,25 @@ import { Distiller } from './sessions/distiller.js';
 import { Embedder } from './sessions/embedder.js';
 import { InitContext, type CompleteContext } from './context.js';
 
-import { RootMcpManager } from './mcp-manager/manager.js';
 import { ModelManager } from './models/manager.js';
 import { FileManager } from './files/manager.js';
 import { MonologueLogger } from './sessions/monologue-logger.js';
 
-import { initJmapMcpServer } from "@fondamenta/mcp-jmap";
-import { initTelegramMcpServer } from '@fondamenta/mcp-telegram';
-import { initShellMcpServer } from "./mcp-servers/shell.js";
-import { initFilesMcpServer } from "./mcp-servers/files.js";
-import { initProcessMcpServer } from "./mcp-servers/process.js";
-import { initTimeMcpServer } from "./mcp-servers/time.js";
-import { initSessionMcpServer } from "./mcp-servers/session.js";
-import { initTerminalMcpServer } from "./mcp-servers/terminal/terminal.js";
-import { initContinuityMcpServer } from "./mcp-servers/continuity/server.js";
-import { initPinningMcpServer } from "./mcp-servers/pinning.js";
-import { initAnchorsMcpServer } from "./mcp-servers/anchors.js";
-import { initSpeechMcpServer } from "./mcp-servers/speech/server.js";
-import { initContactsMcpServer } from "./mcp-servers/contacts/server.js";
+import { initJMAPTools } from "./tools/servers/jmap/init.js";
+import { initTelegramTools } from './tools/servers/telegram/init.js';
+import { initShellTools } from "./tools/servers/shell.js";
+import { initProcessTools } from "./tools/servers/process.js";
+import { initTimeTools } from "./tools/servers/time.js";
+import { initSpeechTools } from "./tools/servers/speech.js";
+import { initContinuityTools } from "./tools/servers/continuity.js";
+import { initPinningTools } from "./tools/servers/pinning.js";
+import { initAnchorsTools } from "./tools/servers/anchors.js";
+import { initSessionTools } from "./tools/servers/session.js";
+import { initFilesTools } from "./tools/servers/files.js";
+import { initTerminalTools } from "./tools/servers/terminal/index.js";
 import { ContactsManager } from "./contacts/manager.js";
-import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
-import { HarnessMcpToolCallContext } from './types/tools.js';
+import { SpeechManager } from "./speech/manager.js";
+import { RootToolManager } from './tools/manager.js';
 
 const config = await getConfigFromProcessArgv();
 
@@ -90,8 +88,9 @@ const complete_context: CompleteContext = {
   },
   files: new FileManager(init_context),
   contacts: new ContactsManager(init_context),
+  speech: new SpeechManager(init_context),
   managers: {
-    mcp: new RootMcpManager(init_context),
+    tools: new RootToolManager(init_context),
     models: new ModelManager(init_context),
     prompts: new PromptManager(init_context),
     sessions: new SessionManager(init_context),
@@ -106,149 +105,41 @@ await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
 
 // ============================================================================
-//                          MCP SERVER REGISTRATION
+//                          TOOL SERVER REGISTRATION
 // ============================================================================
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'continuity',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initContinuityMcpServer(complete_context),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'pinning',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initPinningMcpServer(complete_context),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'anchors',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initAnchorsMcpServer(complete_context),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'process',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initProcessMcpServer(config),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'time',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTimeMcpServer(config),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'session',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initSessionMcpServer(complete_context),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'shell',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initShellMcpServer(config),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'files',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initFilesMcpServer(config),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'mail',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initJmapMcpServer(config.mail, complete_context),
-  ),
-});
-
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'terminal',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTerminalMcpServer(config, complete_context),
-  ),
-});
-
-// ────────────────────────────────────────────────────────────────────────
-// NOTIFICATION SUBSCRIBER REGISTRATION ORDER IS LOAD-BEARING.
 //
-// The bus is first-true-wins; 'high' priority UNSHIFTS, so among high
-// subscribers the LAST registered runs FIRST. Registration order here:
-//   1. telegram  (high)  — emits message/new; consumes message/outgoing
-//   2. speech    (high)  — transcribes inbound voice, synthesizes outbound
-//   3. contacts  (high)  — decorates inbound with standing
-// Runtime chain (reverse of registration among highs):
-//   message/new:     contacts → speech → telegram(pass) → session-manager
-//   message/outgoing: telegram → speech → session-manager(ignored)
-// The session-manager subscribes at default (low) priority during its
-// initialize() and is the TERMINAL consumer of message/new (injects and
-// stops the chain). Any subscriber that must transform an inbound
-// notification before injection MUST be high-priority and registered
-// BEFORE session-manager's initialize() runs — which registration order
-// above guarantees. See speech/server.ts for the full chain commentary.
-// ────────────────────────────────────────────────────────────────────────
+// All tools are harness-internal (2026-09-07, the beyond-MCP refactor):
+// each init registers typed handlers on the ToolManager and receives the
+// CompleteContext. Cross-tool interaction is direct function calls
+// (ctx.speech, ctx.contacts, ctx.files) — the notification bus is ONLY
+// the strategy for injecting asynchronous events into the weave
+// (notify_NEW → session manager). No transforms, no priorities, no
+// re-emits: notifiers emit COMPLETE events (standing at emission,
+// transcription at emission).
 
-complete_context.managers.mcp.register({
-  type: 'local',
-  name: 'telegram',
-  safe: false,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initTelegramMcpServer(config.telegram, complete_context, complete_context.contacts),
-  ),
-});
+initProcessTools(complete_context);
 
-complete_context.managers.mcp.register({
-  type: 'local' as const,
-  name: 'speech',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initSpeechMcpServer(complete_context),
-  ),
-});
+initTimeTools(complete_context);
 
-// Contacts server: subscriber-only MCP server (no tools). It enriches
-// inbound message/new notifications with contact standing BEFORE the
-// session manager sees them. Registered LAST among the high-priority
-// notification consumers so its 'high' bus priority places it FIRST in
-// the runtime chain (see the ordering block above).
-complete_context.managers.mcp.register({
-  type: 'local' as const,
-  name: 'contacts',
-  safe: true,
-  client: new McpLocalClient<HarnessMcpToolCallContext>(
-    initContactsMcpServer(complete_context),
-  ),
-});
+initSpeechTools(complete_context);
+
+initContinuityTools(complete_context);
+
+initPinningTools(complete_context);
+
+initAnchorsTools(complete_context);
+
+initSessionTools(complete_context);
+
+initShellTools(complete_context);
+
+initFilesTools(complete_context);
+
+initJMAPTools(complete_context);
+
+initTerminalTools(complete_context);
+
+initTelegramTools(complete_context);
 
 // ============================================================================
 //                        MAIN SESSION INITIALIZATION

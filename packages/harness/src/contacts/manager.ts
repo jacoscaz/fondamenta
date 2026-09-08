@@ -1,16 +1,7 @@
-import { type VerifiedContact, type UnverifiedContact } from "@fondamenta/mcp-core";
+
 import { type InitContext } from "../context.js";
 import { selectContactByUrl } from "../database/tables/contacts.js";
-
-/**
- * Standing of a sender, resolved against the contacts store. This is the
- * shape carried by message/new notifications' `contact` field and by the
- * tool-layer decoration (mail read/inbox): one semantics everywhere.
- *
- * `verified: false` is the resting state — absence from the contacts
- * store is not neutrality, it is absence of standing (rejection posture).
- */
-export type ContactStanding = VerifiedContact | UnverifiedContact;
+import { Contact, VerifiedContact, UnverifiedContact } from "../types/contacts.js";
 
 /**
  * The contacts store as harness infrastructure (2026-09-07, with Jacopo):
@@ -46,7 +37,7 @@ export class ContactsManager {
    * `verified: false` with explicit do-not-trust guidance — the same
    * resting state the notification path has always applied.
    */
-  async lookup(url: string): Promise<ContactStanding> {
+  async lookup(url: string): Promise<Contact> {
     try {
       const contact = await selectContactByUrl(this.#init.db, url);
       if (contact) {

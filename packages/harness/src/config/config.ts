@@ -154,8 +154,7 @@ export interface ConfigLogging {
 }
 
 /**
- * JMAP mail server configuration. Structurally identical to JmapConfig
- * in @fondamenta/mcp-jmap (which owns the semantic definition).
+ * JMAP tools configuration.
  *
  * NOTE: declared structurally, NOT as `interface ConfigMail extends
  * JmapConfig`. runtyped's runtime cast encodes cross-package type
@@ -177,9 +176,7 @@ export interface ConfigMail {
 }
 
 /**
- * Telegram server configuration. Structurally identical to
- * TelegramConfig in @fondamenta/mcp-telegram (which owns the semantic
- * definition). Declared structurally — cross-package type references
+ * Telegram server configuration. Declared structurally — cross-package type references
  * do not survive runtyped's compiled cast() and get silently stripped
  * (see ConfigMail's note; same trap).
  */
@@ -225,7 +222,7 @@ export interface Config {
     /**
      * Session models, in priority order. The FIRST entry is the default
      * every session starts on; sessions may switch to any other entry at
-     * runtime via the session MCP server's switch tool. Restarts reset to
+     * runtime via the session switch tool. Restarts reset to
      * the first entry (V1: switch state is not persisted).
      */
     session: ConfigSessionModel[];
@@ -238,9 +235,9 @@ export interface Config {
     compaction: ConfigSessionModel;
   };
   logging: ConfigLogging;
-  /** JMAP mail server configuration (owned by @fondamenta/mcp-jmap). */
+  /** JMAP mail server configuration. */
   mail: ConfigMail;
-  /** Telegram server configuration (owned by @fondamenta/mcp-telegram). */
+  /** Telegram server configuration. */
   telegram: ConfigTelegram;
   heartbeat: ConfigHeartbeat;
   /** Session runner limits. Optional — defaults apply when absent. */

@@ -127,12 +127,14 @@ composed of three registers:
 - **Monologue** — the agent's own text: thinking between tool calls, journal
   entries, notes to future-you. Model output defaults to the monologue.
 
-- **Utterances** — text addressed to someone.
+- **Tool calls** — the agent's way to interact with the world. When a tool call
+  is made to communicate with a user or another agent, the tool call becomes an
+  **Utterance**.
 
 Event markers are provenance, not commands: they tell the agent what happened
 and where content came from, leaving interpretation to the agent itself.
 
-Events and utterances are always tool-mediated: the agent interacts with the
+Events and tool calls are always tool-mediated: the agent interacts with the
 world through explicit tool calls and tools can proactively notify the agent
 of new events (user messages, terminal notifications, ...). 
 
@@ -162,12 +164,6 @@ continuity entries includes classification (embeddings) and consolidation.
 Every dependency is a deliberate choice. Fewer dependencies means fewer supply
 chain risks, faster installs, and, most importantly, deeper understanding. Run
 `npm ls -a -p | wc -l` to verify.
-
-- **Modularity through separation.** Each concern is isolated: the MCP protocol
-is separate from MCP transports; tools are separate servers; communication
-channels (mail, Telegram) are separate, package-owned MCP servers; utilities
-have no framework dependencies. This makes the codebase composable and
-independently testable.
 
 - **Type-driven tool contracts.** [Runtyped](https://github.com/runtyped/runtyped) 
 provides runtime type reflection. Tool inputs are plain TypeScript interfaces;
@@ -214,23 +210,8 @@ The codebase is organized as an npm monorepo. Packages live under `/packages` an
 
 - **[`@fondamenta/harness`](packages/harness/README.md)** — The main agent execution engine. Orchestrates sessions, manages MCP servers, persists state to the database, and drives the activation loop with LLMs.
 
-### Protocol & Transport
-
-- **[`@fondamenta/mcp-core`](packages/lib-mcp-core/README.md)** — Type definitions for the MCP (Model Context Protocol). No implementation—just the protocol contract.
-- **[`@fondamenta/mcp-local`](packages/lib-mcp-local/README.md)** — MCP client and server using a custom pass-through transport for in-process communication.
-- **[`@fondamenta/mcp-stdio-client`](packages/lib-mcp-stdio-client/README.md)** — MCP and JSON-RPC client over a child process's stdio.
-- **[`@fondamenta/mcp-stdio-server`](packages/lib-mcp-stdio-server/README.md)** — Serve any MCP server over stdio.
-- **[`@fondamenta/mcp-http-client`](packages/lib-mcp-http-client/README.md)** — MCP client using the Streaming HTTP transport (JSONRPC 2.0 over HTTP+SSE).
-- **[`@fondamenta/mcp-http-server`](packages/lib-mcp-http-server/README.md)** — MCP server using the Streaming HTTP transport (JSONRPC 2.0 over HTTP+SSE).
-
-### Communication Channels
-
-- **[`@fondamenta/mcp-jmap`](packages/lib-mcp-jmap/README.md)** — Mail via the JMAP protocol: inbox, read, send, and push-style `mail/arrived` notifications for allowlisted senders.
-- **[`@fondamenta/mcp-telegram`](packages/lib-mcp-telegram/README.md)** — Two-way Telegram Bot API integration: `send`/`photo` tools and inbound `telegram/message` events from an allowlisted user set.
-
 ### Testing & Utilities
 
-- **[`@fondamenta/mcp-integration-tests`](packages/lib-mcp-integration-tests/README.md)** — Transport-agnostic integration suite verifying behavioral equivalence across MCP transports.
 - **[`@fondamenta/utils`](packages/lib-utils/README.md)** — Common async utilities (queues, buffering, type guards).
 
 ## About

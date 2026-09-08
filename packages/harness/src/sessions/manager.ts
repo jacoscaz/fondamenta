@@ -3,11 +3,10 @@ import { type Logger } from "pinetto";
 import { type InitContext, WithContext } from "../context.js";
 import { SessionRunner } from "./runner.js";
 import { insertSession, selectSessionById } from "../database/tables/sessions.js";
-import { type UserMessage, type Message } from "../models/session/types/messages.js";
+import { type UserMessage, type Message } from "../types/messages.js";
+import { type UserNotification } from "../types/notifications.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import assert from "node:assert";
-import { type HarnessNotification } from "../notifications/types.js";
-import { formatNotification } from "../notifications/formatters.js";
 
 
 export interface SessionManagerEvents extends Record<string, any[]> {
@@ -145,6 +144,17 @@ export class SessionManager extends WithContext {
     await runner.injectEventMessage(event, text, run);
   }
 
+  /**
+   * Inject a structured UserNotification into a session. This is the
+   * consumer side of the NEW notification model: notifiers emit
+   * complete events (standing and transcriptions already decorated);
+   * this renders them for the weave in ONE place — the contact
+   * standing header plus the structured blocks.
+   */
+  async injectUserNotification(session_id: number, notification: UserNotification): Promise<void> {
+    await this.injectMessage(session_id, notification, true);
+  }
+
   async getHistory(session_id: number): Promise<Message[]> {
     return await this.#ensureRunner(session_id).getHistory();
   }
@@ -177,7 +187,11 @@ export class SessionManager extends WithContext {
       .select('id')
       .executeTakeFirst();
     this.#main_session_id = session?.id ?? await this.create();
-    this._ctx.buses.notifications.subscribe('session-manager', this.#onNotification);
+    // OLD-BUS SUBSCRIBER RETIRED (2026-09-07 switchover): the new
+    // notification model delivers events through notify_NEW →
+    // injectUserNotification directly. The old subscribe/transform/
+    // re-emit chain (contacts → speech → session-manager ordering) is
+    // gone; notifiers emit complete events.
   }
 
   async getById(id: number) {
@@ -192,33 +206,5 @@ export class SessionManager extends WithContext {
     });
     return id;
   }
-
-  #injectNotification = async (notification: HarnessNotification): Promise<void> => {
-    const { main_session_id } = this._ctx.managers.sessions;
-    const body = formatNotification(notification);
-    this.#logger.info('injecting event %s', notification.method);
-    this.injectEventMessage(main_session_id, notification.method, body, true).catch((err: unknown) => {
-      this.#logger.error('event injection failed (%s): %s', notification.method, err instanceof Error ? err.message : String(err));
-    });
-  };
-
-  #onNotification = async (notification: HarnessNotification): Promise<boolean> => {
-    switch (notification.method) {
-      case 'message/new':
-        await this.#injectNotification(notification);
-        return true;
-      case 'message/outgoing':
-        // Outgoing messages are dispatched by their transport subscriber —
-        // the session must NOT re-inject them as inbound events.
-        return false;
-      case 'todo/due':
-        await this.#injectNotification(notification);
-        return true;
-      default:
-        return false;
-    }
-  }
-
-
 
 }

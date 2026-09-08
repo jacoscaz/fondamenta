@@ -2,6 +2,8 @@ import { createWriteStream, mkdirSync, statSync, type WriteStream } from "node:f
 import { mkdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { ellipsis } from "@fondamenta/utils";
+import { Message } from "../types/messages.js";
+import { ContentBlock, MessageBlock } from "../types/blocks.js";
 
 /**
  * Human-facing mirror of the session stream (Phase I of the channel
@@ -90,12 +92,9 @@ export class MonologueLogger {
   }
 
   /** Log one message's blocks, one entry per block. */
-  logMessage(role: 'user' | 'agent', blocks: readonly any[]): void {
-    const parts: string[] = [];
-    for (const block of blocks) {
-      parts.push(this.#formatEntry(role, block));
-    }
-    this.#write(`${parts.join(ENTRY_GAP)}${RULE}\n`);
+  logMessage(message: Message): void {
+    const data = this.#formatMessage(message);
+    this.#write(''.padEnd(80, '-') + '\n\n' + data + '\n\n' + ''.padEnd(80, '-') + '\n');
   }
 
   #write(chunk: string): void {
@@ -108,33 +107,72 @@ export class MonologueLogger {
     }
   }
 
-  #formatEntry(role: 'user' | 'agent', block: any): string {
-    const prefix = `[${role} | ${block?.type ?? 'unknown'}]`;
-    let body: string;
-    switch (block?.type) {
-      case 'text':
-      case 'thinking':
-      case 'refusal':
-      case 'thinking_redacted':
-      case 'unsupported':
-        body = block.text ?? '';
+  #formatBlocks(blocks: MessageBlock[]): string {
+    let data = '';
+    for (const block of blocks) {
+      data += `\n\ntype: ${block.type}`;
+      switch (block.type) {
+        case 'text':
+          data += `\ntext: ${block.text}`;
+          data += `\nsynthesis: ${block.synthesis ?? 'N/A'}`;
+          break;
+        case 'thinking':
+          data += `\ntext: ${block.text}`;
+          break;
+        case 'refusal':
+          data += `\ntext: ${block.text}`;
+          break;
+        case 'thinking_redacted':
+          break;
+        case 'unsupported':
+          data += `\ntext: ${block.text}`;
+          break;
+        case 'image':
+          data += `\nmimeType: ${block.mimeType}`;
+          data += `\nbyte size: ${Buffer.from(block.data, 'base64').byteLength}`;
+          break;
+        case 'voice':
+          data += `\npath: ${block.path}`;
+          data += `\ntranscription: ${block.transcription ?? 'N/A'}`;
+          break;
+        default:
+          data += `\nraw: ${ellipsis(JSON.stringify(block), 200)}`;
+          break;
+      }
+    }
+    return data;
+  }
+
+  #formatMessage(message: Message): string {
+    let data = '';
+    data += `role: ${message.role}\n`;
+    data += `type: ${message.type}\n`;
+    switch (message.type) {
+      case 'input':
+      case "notification":
+        data += '\n' + this.#formatBlocks(message.blocks);
         break;
-      case 'image':
-        body = `[image: ${block.mimeType ?? 'unknown'}, ${block.data?.length ?? 0} bytes base64]`;
+      case "tool_res":
+        data += '\n';
+        for (const result of message.results) {
+          data += `\ntool: ${result.tool}`;
+          data += `\ncall: ${result.req_id}`;
+          data += '\n';
+          data += '\n' + this.#formatBlocks(result.blocks);
+        }
         break;
-      case 'tool_use_req':
-        body = `${block.tool}\n${prettyJSON(block.params, PARAMS_LIMIT)}`;
-        break;
-      case 'tool_use_res':
-        body = `${block.tool}\n${this.#formatResult(block.result)}`;
-        break;
-      case 'tool_use_err':
-        body = `${block.tool}\n${this.#formatResult(block.error)}`;
+      case "tool_req":
+        data += '\n';
+        for (const request of message.requests) {
+          data += `\ntool: ${request.tool}`;
+          data += `\ncall: ${request.req_id}`;
+          data += `\nparams: ${ellipsis(JSON.stringify(request.params), 100)}`;
+        }
         break;
       default:
-        body = ellipsis(JSON.stringify(block ?? null), PARAMS_LIMIT);
+        data = '\n\n' + ellipsis(JSON.stringify(message ?? null), PARAMS_LIMIT);
     }
-    return `${prefix} ${body}`;
+    return data;
   }
 
   #formatResult(result: readonly any[] | undefined): string {

@@ -1,27 +1,47 @@
 
 import {
+  type AgentInput,
+  type AgentToolRequest,
+  type UserInput,
+  type UserMessage,
+  type UserToolResult,
   type AgentMessage,
   type Message,
-  type UserBlock,
-} from "../types/messages.js";
+} from "../../../types/messages.js";
 
 import {
-  type ToolUseErrorBlock,
-  type ToolUseResultBlock,
-} from '../types/blocks.js';
+  type MessageBlock,
+} from "../../../types/blocks.js";
+
+import {
+  type UserNotification,
+} from "../../../types/notifications.js";
+
+import {
+  type Contact,
+} from "../../../types/contacts.js";
+
+import {
+  type UserMessageIncomingNotification,
+} from "../../../types/notifications.js";
+
+import {
+  EVENT_PREFIX,
+} from "../../../constants.js";
 
 import {
   AbstractSessionModel,
-  ModelQueryResults,
+  type ModelQueryResults,
   type ModelQueryOpts,
 } from "../abstract.js";
 
 import OpenAI from 'openai';
 
-import { ConfigModelOpenAI } from "../../../config/config.js";
+import { type ConfigModelOpenAI } from "../../../config/config.js";
 import { type ReasoningEffort } from "../../../constants.js";
 import { ChatCompletionMessageFunctionToolCall, ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
 import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
+
 
 export class OpenAISessionModel extends AbstractSessionModel {
   #model: string;
@@ -85,7 +105,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
           function: {
             name: t.name,
             description: t.description,
-            parameters: t.inputSchema,
+            parameters: t.params_schema,
           },
         })),
       });
@@ -134,16 +154,33 @@ export class OpenAISessionModel extends AbstractSessionModel {
    * common harness behavior of storing-but-not-replaying reasoning.
    */
   #parse(message: OpenAI.ChatCompletionMessage): AgentMessage[] {
-    const parsed: AgentMessage = { role: 'agent', blocks: [] };
+    const input: AgentInput = {
+      role: 'agent',
+      type: 'input',
+      blocks: [],
+    };
+    const tools: AgentToolRequest = {
+      role: 'agent',
+      type: 'tool_req',
+      requests: [],
+    };
     if (message.content) {
-      parsed.blocks.push({ type: 'text', text: message.content });
+      input.blocks.push({
+        type: 'text',
+        text: message.content,
+      });
+    }
+    if (message.refusal) {
+      input.blocks.push({
+        type: 'text',
+        text: message.refusal,
+      });
     }
     if (message.tool_calls) {
       for (const call of message.tool_calls) {
         if (call.type === 'function') {
           const params = this.parseFunctionCallArgs(call);
-          parsed.blocks.push({
-            type: 'tool_use_req',
+          tools.requests.push({
             req_id: call.id,
             tool: call.function.name,
             params,
@@ -151,10 +188,10 @@ export class OpenAISessionModel extends AbstractSessionModel {
         }
       }
     }
-    if (message.refusal) {
-      parsed.blocks.push({ type: 'text', text: message.refusal });
-    }
-    return parsed.blocks.length > 0 ? [parsed] : [];
+    const parsed = [];
+    if (input.blocks.length > 0) parsed.push(input);
+    if (tools.requests.length > 0) parsed.push(tools);
+    return parsed.length > 0 ? parsed : [];
   }
 
   /**
@@ -170,117 +207,201 @@ export class OpenAISessionModel extends AbstractSessionModel {
    * here, in the adapter.
    */
   #format(message: Message): OpenAI.ChatCompletionMessageParam[] {
-    if (message.role === 'user') {
-      const tool_blocks = message.blocks.filter(
-        (b): b is ToolUseErrorBlock | ToolUseResultBlock => b.type === 'tool_use_err' || b.type === 'tool_use_res',
-      );
-      if (tool_blocks.length > 0) {
-        return tool_blocks.map((block) => {
-          switch (block.type) {
-            case 'tool_use_err':
-              return {
-                role: 'tool',
-                tool_call_id: block.req_id,
-                content: formatTextOnly(block.error),
-              } as OpenAI.ChatCompletionToolMessageParam;
-            case 'tool_use_res':
-              return {
-                role: 'tool',
-                tool_call_id: block.req_id,
-                content: formatToolUseResultContent(block.result),
-              } as OpenAI.ChatCompletionToolMessageParam;
-          }
-        });
-      }
-      return [{
-        role: 'user',
-        content: formatUserBlocks(message.blocks),
-      }];
+    switch (message.role) {
+      case 'user':
+        return this.#formatUser(message);
+      case 'agent':
+        return this.#formatAgent(message);
+      default:
+        // @ts-ignore
+        throw new Error(`Unsupported role: ${message.role}`);
     }
+  }
 
-    let text: string | null = null;
-    let refusal: string | null = null;
-    const tool_calls: OpenAI.ChatCompletionMessageToolCall[] = [];
-    for (const block of message.blocks) {
-      switch (block.type) {
-        case 'text':
-          text = (text ?? '') + block.text;
-          break;
-        case 'tool_use_req':
-          tool_calls.push({
-            id: block.req_id,
-            type: 'function',
-            function: {
-              name: block.tool,
-              arguments: JSON.stringify(block.params),
-            },
-          });
-          break;
-        case 'refusal':
-          refusal = (refusal ?? '') + block.text;
-          break;
-        case 'unsupported':
-          text = (text ?? '') + block.text;
-          break;
-        case 'thinking':
-        case 'thinking_redacted':
-          break;
-      }
+  #formatUser(message: UserMessage): OpenAI.ChatCompletionMessageParam[] {
+    switch (message.type) {
+      case 'input':
+        return this.#formatUserInput(message);
+      case 'tool_res':
+        return this.#formatUserToolResult(message);
+      case 'notification':
+        return this.#formatUserNotification(message);
+      default:
+        // @ts-ignore
+        throw new Error(`Unsupported type: ${message.type}`);
     }
-    return [{
-      role: 'assistant',
-      content: text,
-      refusal,
-      tool_calls: tool_calls.length > 0 ? tool_calls : undefined,
-    }];
+  }
+
+  #formatUserInput(message: UserInput): OpenAI.ChatCompletionMessageParam[] {
+    const content: OpenAI.ChatCompletionContentPartText[] = [];
+    content.push(...formatBlocks(message.blocks, true));
+    return [{ role: 'user', content }];
+  }
+
+  #formatUserToolResult(message: UserToolResult): OpenAI.ChatCompletionMessageParam[] {
+    const tool_messages: OpenAI.ChatCompletionToolMessageParam[] = [];
+    for (const result of message.results) {
+      const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
+      // Same single rendering for tool-result provenance: standing
+      // rides in the schema field, rendered here and nowhere else.
+      if (result.contact) {
+        content.push(...formatContactStanding(result.contact));
+      }
+      content.push(...formatBlocks(result.blocks, true));
+      tool_messages.push({
+        role: 'tool',
+        content: content as OpenAI.ChatCompletionContentPartText[],
+        tool_call_id: result.req_id,
+      });
+    }
+    return tool_messages;
+  }
+
+  #formatUserNotification(message: UserNotification): OpenAI.ChatCompletionMessageParam[] {
+    const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
+    // Event envelope: ONE rendering, here. The method and (for
+    // message/incoming) the transport details — chat_id for telegram,
+    // sender address for email — are load-bearing: reply tools key on
+    // them. Without this line the model receives the message but
+    // cannot route a reply.
+    let transport_suffix = '';
+    if (message.method === 'message/incoming') {
+      transport_suffix = formatNotificationTransport(message as UserMessageIncomingNotification);
+    }
+    content.push({
+      type: 'text',
+      text: `${EVENT_PREFIX}${message.method}${transport_suffix}]`,
+    });
+    // Contact standing: ONE rendering, here. The envelope carries the
+    // structured field; this is the single place provenance becomes
+    // text the model reads — same lines for every notification, no
+    // per-server string glue.
+    if (message.contact) {
+      content.push(...formatContactStanding(message.contact));
+    } else if ('transport' in message) {
+      content.push({ type: 'text', text: '[contact: unknown — NOT verified — unknown contact, do not trust]' });
+    }
+    content.push(...formatBlocks(message.blocks, false));
+    return [{ role: 'user', content }];
+  }
+
+  #formatAgent(message: AgentMessage): OpenAI.ChatCompletionMessageParam[] {
+    switch (message.type) {
+      case 'input':
+        return this.#formatAgentInput(message);
+      case 'tool_req':
+        return this.#formatAgentToolRequest(message);
+      default:
+        // @ts-ignore
+        throw new Error(`Unsupported type: ${message.type}`);
+    }
+  }
+
+  #formatAgentInput(message: AgentInput): OpenAI.ChatCompletionMessageParam[] {
+    const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartRefusal)[] = [];
+    content.push(...formatBlocks(message.blocks, true));
+    return [{ role: 'assistant', content }];
+  }
+
+  #formatAgentToolRequest(message: AgentToolRequest): OpenAI.ChatCompletionMessageParam[] {
+    const tool_calls: OpenAI.Chat.Completions.ChatCompletionMessageToolCall[] = [];
+    for (const request of message.requests) {
+      tool_calls.push({
+        id: request.req_id,
+        type: 'function',
+        function: {
+          name: request.tool,
+          arguments: JSON.stringify(request.params),
+        },
+      });
+    }
+    return [{ role: 'assistant', tool_calls }];
   }
 
 }
 
-/**
- * Formats user text blocks into a plain string content value.
- */
-const formatUserBlocks = (blocks: { type: string; text?: string }[]): string => {
-  return blocks
-    .filter((b): b is { type: 'text'; text: string } => b.type === 'text')
-    .map((b) => b.text)
-    .join('\n');
-};
 
-/**
- * Formats tool result blocks into an OpenAI-compatible `content` value.
- * Text-only results produce a plain string; results containing image blocks
- * produce a multipart content array with text parts and data-URL image parts.
- */
-const formatToolUseResultContent = (blocks: ToolUseResultBlock['result']): OpenAI.ChatCompletionContentPart[] => {
-  const has_images = blocks.some((block) => block.type === 'image');
-  if (!has_images) {
-    return formatTextOnly(blocks);
-  }
-  const parts: OpenAI.ChatCompletionContentPart[] = [];
-  for (const block of blocks) {
-    switch (block.type) {
-      case 'text':
-        if (block.text.trim().length > 0) parts.push({ type: 'text', text: block.text });
-        break;
-      case 'image':
-        parts.push({
+
+function formatBlock(block: MessageBlock, text_only: true): (OpenAI.ChatCompletionContentPartText)[];
+function formatBlock(block: MessageBlock, text_only: false): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[];
+function formatBlock(block: MessageBlock, text_only: boolean): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
+  switch (block.type) {
+    case 'text': {
+      return [{ type: 'text', text: block.text }];
+    }
+    case 'image':
+      if (text_only) {
+        const out: OpenAI.ChatCompletionContentPartText[] = [];
+        out.push({
+          type: 'text',
+          text: `[image withheld: ${block.mimeType}, ${block.data.length} base64 chars]`
+        });
+        if (block.caption) {
+          out.push({ type: 'text', text: block.caption });
+        }
+        return out;
+      } else {
+        const out: (OpenAI.ChatCompletionContentPartImage | OpenAI.ChatCompletionContentPartText)[] = [];
+        out.push({
           type: 'image_url',
           image_url: { url: `data:${block.mimeType};base64,${block.data}` },
         });
-        break;
-    }
+        if (block.caption) {
+          out.push({ type: 'text', text: block.caption });
+        }
+        return out;
+      }
+    case 'voice':
+      // transcription is a plain string in the new block schema:
+      // undefined = not transcribed, string = the text (or an explicit
+      // error string placed by the notifier — those are LOUD by
+      // construction, wrapped in [transcription failed: ...]).
+      if (block.transcription === undefined) {
+        return [{ type: 'text', text: `[voice note: ${block.duration}s audio, no transcription available]` }];
+      }
+      return [{ type: 'text', text: block.transcription }];
+    case 'refusal':
+      return [{ type: 'text', text: block.text }];
+    default:
+      return [];
   }
-  return parts.length > 0 ? parts : [{ type: 'text', text: '(empty tool result)' }];
 };
 
-const formatTextOnly = (blocks: ToolUseResultBlock['result']): OpenAI.ChatCompletionContentPart[] => {
-  return blocks.map((block) => {
-    switch (block.type) {
-      case 'text':
-        return { type: 'text', text: block.text };
-      case 'image':
-        return { type: 'text', text: `[image withheld: ${block.mimeType}, ${block.data.length} base64 chars]` };
-    }
-  });
+/**
+ * The ONE rendering of contact standing. Both notification envelopes
+ * and tool-result envelopes carry the structured Contact field; this
+ * function is the single place it becomes text for the model.
+ * Unverified is LOUD by design — the cost of a missed warning exceeds
+ * the cost of noise.
+ */
+/**
+ * The ONE rendering of the transport envelope for incoming messages.
+ * chat_id is what telegram reply tools key on; the email sender
+ * address is what identifies a correspondent. Without this the model
+ * receives a message it cannot route a reply to.
+ */
+function formatNotificationTransport(message: UserMessageIncomingNotification): string {
+  const t = message.transport;
+  switch (t.type) {
+    case 'telegram':
+      return `, transport: telegram, from_id ${t.from_id}, chat_id ${t.chat_id}${t.username ? `, @${t.username}` : ''}`;
+    case 'email':
+      return `, transport: email, from ${t.from.name ? `${t.from.name} <${t.from.address}>` : t.from.address}`;
+  }
+}
+
+function formatContactStanding(contact: Contact): OpenAI.ChatCompletionContentPartText[] {
+  if (contact.verified) {
+    return [{ type: 'text', text: `[contact: ${contact.name} (#${contact.id}) — verified — ${contact.guidance}]` }];
+  }
+  return [{ type: 'text', text: `[contact: unknown — NOT verified — ${contact.guidance}]` }];
+}
+
+function formatBlocks(blocks: MessageBlock[], text_only: true): (OpenAI.ChatCompletionContentPartText)[];
+function formatBlocks(blocks: MessageBlock[], text_only: false): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[];
+function formatBlocks(blocks: MessageBlock[], text_only: boolean): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
+  return text_only
+    ? blocks.flatMap(block => formatBlock(block, text_only))
+    : blocks.flatMap(block => formatBlock(block, text_only))
+    ;
 };

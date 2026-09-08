@@ -1,15 +1,6 @@
 {
   "workspaces": [
     "packages/harness",
-    "packages/lib-mcp-core",
-    "packages/lib-mcp-http-client",
-    "packages/lib-mcp-http-server",
-    "packages/lib-mcp-integration-tests",
-    "packages/lib-mcp-jmap",
-    "packages/lib-mcp-telegram",
-    "packages/lib-mcp-stdio-client",
-    "packages/lib-mcp-stdio-server",
-    "packages/lib-mcp-local",
     "packages/lib-utils"
   ],
   "devDependencies": {

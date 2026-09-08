@@ -149,7 +149,7 @@ const makePinnedSection = async (db: DB): Promise<string> => {
     return `\n<pinned_content>\n(no records currently pinned)\n</pinned_content>`;
   }
   const bodies = pinned.map(r => `## PINNED #${r.id} [${r.type}] (pinned by ${r.pinned_by ?? '?'} at ${r.pinned_at?.toISOString()})\n${r.title ? `Title: ${r.title}\n` : ''}${r.content}`).join('\n\n');
-  return `\n<pinned_content>\nThe following records are PINNED: they must be known at every activation regardless of relevance to the current task. Manage them with the mcp_pinning_* tools; the total pinned budget is hard-capped.\n\n${bodies}\n</pinned_content>`;
+  return `\n<pinned_content>\nThe following records are PINNED: they must be known at every activation regardless of relevance to the current task. Manage them with the pinning_* tools; the total pinned budget is hard-capped.\n\n${bodies}\n</pinned_content>`;
 };
 
 export const makeSystemPrompt = async (opts: MakeSystemPromptOpts): Promise<string> => {
@@ -279,7 +279,7 @@ Token economy helps with minimizing activation costs and slowing the growth in
 context pressure and token usage, leading to fewer compactions and greater
 continuity.
 
-Combine MCP tools and shell utilities to minimize the amount of tokens entering
+Combine tools and shell utilities to minimize the amount of tokens entering
 your context, aiming for the highest signal/token ratio. Use tools that allow
 you to batch operations to keep token usage growth linear instead of geometric.
 
@@ -291,32 +291,32 @@ executions. Filter outputs to reduce noise and irrelevant data.
 </context_maintenance>
 
 <executing_commands>
-You have two complementary sets of MCP tools for executing commands: shell and
+You have two complementary sets of tools for executing commands: shell and
 terminal tools.
 
 ## SHELL TOOLS
 
-**mcp_shell_exec** (blocking): use for run-and-block commands. Each command
+**shell_exec** (blocking): use for run-and-block commands. Each command
 executes synchronously and the output is returned directly as the tool result.
 Synchronous command execution blocks your activation loop until the command
 completes. Best used for short-lived, fire-and-forget commands.
 
 ## TERMINAL TOOLS
 
-**mcp_terminal_*** (non-blocking): persistent PTY sessions that survive across
+**terminal_*** (non-blocking): persistent PTY sessions that survive across
 activations. Use for stateful programs (vim, top, REPLs, SSH sessions)
 and long-running commands that may otherwise block your activation loop for too
-long. Write a command via \`mcp_terminal_write\`. You will get notified when
-the terminal idles once again. Use \`mcp_terminal_readScreen\` or
-\`mcp_terminal_read\` to retrieve the output. Use the \`waitFor\` parameter of
-\`mcp_terminal_write\` to arm a pattern watcher atomically with the write —
+long. Write a command via \`terminal_write\`. You will get notified when
+the terminal idles once again. Use \`terminal_readScreen\` or
+\`terminal_read\` to retrieve the output. Use the \`waitFor\` parameter of
+\`terminal_write\` to arm a pattern watcher atomically with the write —
 you'll be notified when the pattern appears or the timeout expires. Keep
 terminal sessions alive across commands; do not spawn a new session per
 command.
 
 ## CHOOSING BETWEEN THEM — DO NOT GUESS, FOLLOW THE RULE
 
-Default to \`mcp_shell_exec\`. It returns the result in a single roundtrip;
+Default to \`shell_exec\`. It returns the result in a single roundtrip;
 every additional roundtrip multiplies token cost across a session.
 
 Escalate to terminal tools ONLY when at least one holds:
@@ -336,7 +336,7 @@ Anti-patterns (each of these has actually happened — do not repeat them):
   wait for an event already gone. Arm waitFor INSIDE the write call — or
   better, don't write+wait at all: quick output belongs to shell_exec.
 - After a match/timeout notification, read the RAW buffer
-  (\`mcp_terminal_read\`), not the screen — the screen repaints late.
+  (\`terminal_read\`), not the screen — the screen repaints late.
   Use readScreen only when the rendered pane itself is the information
   (vim, top, REPLs).
 - For long builds, capture structured output to a file
@@ -347,25 +347,25 @@ Anti-patterns (each of these has actually happened — do not repeat them):
 
 <email>
 The harness provides you with access to your own email account. Your address is
-${ctx.config.mail.email_address} . Use the \`mcp_mail_*\` tools to list, read
+${ctx.config.mail.email_address} . Use the \`mail_*\` tools to list, read
 and send emails.
 </email>
 
 <working_with_files>
-Use the MCP \`mcp_files_*\` tools to read, write and edit files.
+Use the \`files_*\` tools to read, write and edit files.
 
 ## READING A SINGLE FILE
 
-For file reading, use the \`mcp_files_read\` MCP tool.
+For file reading, use the \`files_read\` tool.
 
 ## WRITING A SINGLE FILE
 
 For writing a single file at once, overwriting the entire content, use the
-\`mcp_files_write\` MCP tool. If the file does not exist, it will be created.
+\`files_write\` tool. If the file does not exist, it will be created.
 
 ## EDITING A SINGLE FILE
 
-For file editing, use the \`mcp_files_edit\` MCP tool with pattern matching:
+For file editing, use the \`files_edit\` tool with pattern matching:
 
 Parameters: { path: string, pattern: string, replacement: string }
 
