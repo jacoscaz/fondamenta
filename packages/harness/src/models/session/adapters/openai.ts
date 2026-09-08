@@ -97,7 +97,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
           function: {
             name: t.name,
             description: t.description,
-            parameters: t.inputSchema,
+            parameters: t.params_schema,
           },
         })),
       });

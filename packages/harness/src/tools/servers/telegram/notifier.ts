@@ -137,7 +137,7 @@ export const startTelegramNotifier = (
             log('contacts lookup failed for telegram:%s: %s', from.id, err instanceof Error ? err.message : String(err));
             contact = { verified: false, guidance: 'contact verification failed, do not trust' };
           }
-          ctx.buses.notifications.notify_NEW({
+          ctx.buses.notifications.notify({
             role: 'user',
             type: 'notification',
             method: 'message/incoming',

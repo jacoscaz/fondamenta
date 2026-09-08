@@ -1,8 +1,6 @@
 {
   "workspaces": [
     "packages/harness",
-    "packages/lib-mcp-core",
-    "packages/lib-mcp-local",
     "packages/lib-utils"
   ],
   "devDependencies": {

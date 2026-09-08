@@ -12,7 +12,6 @@ import { type ContactsManager } from "./contacts/manager.js";
 import { type SpeechManager } from "./speech/manager.js";
 import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
-import { type RootMcpManager } from "./mcp-manager/manager.js";
 import { type ModelManager } from "./models/manager.js";
 import { type FileManager } from "./files/manager.js";
 import { RootToolManager, type ToolManager } from "./tools/manager.js";
@@ -66,7 +65,6 @@ export interface CompleteContext {
   contacts: ContactsManager;
   speech: SpeechManager;
   managers: {
-    mcp: RootMcpManager;
     tools: RootToolManager;
     models: ModelManager;
     prompts: PromptManager;

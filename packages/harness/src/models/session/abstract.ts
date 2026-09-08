@@ -1,12 +1,18 @@
 
-import { type McpToolDescriptor } from "@fondamenta/mcp-core";
 import { type ConfigModelBase, type ConfigModalities } from "../../config/config.js";
 
 import { AgentMessage, Message } from "../../types/messages.js";
 import { withTimeout } from "@fondamenta/utils";
 
+export interface ModelQueryTool {
+  name: string;
+  title: string;
+  description: string;
+  params_schema: any;
+}
+
 export interface ModelQueryOpts {
-  tools: McpToolDescriptor[];
+  tools: ModelQueryTool[];
   messages: Message[];
   session_id: string;
   system_prompt: string;

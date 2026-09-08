@@ -7,8 +7,6 @@ import { type UserMessage, type Message } from "../types/messages.js";
 import { type UserNotification } from "../types/notifications.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import assert from "node:assert";
-import { type HarnessNotification } from "../notifications/types.js";
-import { formatNotification } from "../notifications/formatters.js";
 
 
 export interface SessionManagerEvents extends Record<string, any[]> {
@@ -208,33 +206,5 @@ export class SessionManager extends WithContext {
     });
     return id;
   }
-
-  #injectNotification = async (notification: HarnessNotification): Promise<void> => {
-    const { main_session_id } = this._ctx.managers.sessions;
-    const body = formatNotification(notification);
-    this.#logger.info('injecting event %s', notification.method);
-    this.injectEventMessage(main_session_id, notification.method, body, true).catch((err: unknown) => {
-      this.#logger.error('event injection failed (%s): %s', notification.method, err instanceof Error ? err.message : String(err));
-    });
-  };
-
-  #onNotification = async (notification: HarnessNotification): Promise<boolean> => {
-    switch (notification.method) {
-      case 'message/new':
-        await this.#injectNotification(notification);
-        return true;
-      case 'message/outgoing':
-        // Outgoing messages are dispatched by their transport subscriber —
-        // the session must NOT re-inject them as inbound events.
-        return false;
-      case 'todo/due':
-        await this.#injectNotification(notification);
-        return true;
-      default:
-        return false;
-    }
-  }
-
-
 
 }

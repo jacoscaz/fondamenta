@@ -6,8 +6,7 @@ import { type TextBlock } from "../types/blocks.js";
 import { AgentMessage, AgentToolRequest, UserBlock, UserToolResult, type Message, type UserMessage } from "../types/messages.js";
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from 'pinetto';
-import { ToolCallContext, type HarnessMcpToolCallContext } from "../types/tools.js";
-import { type McpManager } from "../mcp-manager/manager.js";
+import { ToolCallContext } from "../types/tools.js";
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
 import { detectInjections } from "./injection-guardrails.js";
@@ -385,7 +384,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       name: descriptor.name,
       title: descriptor.title,
       description: descriptor.description,
-      inputSchema: descriptor.params_schema,
+      params_schema: descriptor.params_schema,
     }));
   }
 

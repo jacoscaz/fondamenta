@@ -1,5 +1,4 @@
-import { McpLocalServer } from "@fondamenta/mcp-local";
-import { type JmapConfig } from "./config.js";
+
 import { JMAPClient } from "./client.js";
 
 import {

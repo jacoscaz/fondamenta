@@ -19,7 +19,6 @@ import { Distiller } from './sessions/distiller.js';
 import { Embedder } from './sessions/embedder.js';
 import { InitContext, type CompleteContext } from './context.js';
 
-import { RootMcpManager } from './mcp-manager/manager.js';
 import { ModelManager } from './models/manager.js';
 import { FileManager } from './files/manager.js';
 import { MonologueLogger } from './sessions/monologue-logger.js';
@@ -38,8 +37,6 @@ import { initFilesTools } from "./tools/servers/files.js";
 import { initTerminalTools } from "./tools/servers/terminal/index.js";
 import { ContactsManager } from "./contacts/manager.js";
 import { SpeechManager } from "./speech/manager.js";
-import { McpLocalClient, McpLocalServer } from '@fondamenta/mcp-local';
-import { HarnessMcpToolCallContext } from './types/tools.js';
 import { RootToolManager } from './tools/manager.js';
 
 const config = await getConfigFromProcessArgv();
@@ -93,7 +90,6 @@ const complete_context: CompleteContext = {
   contacts: new ContactsManager(init_context),
   speech: new SpeechManager(init_context),
   managers: {
-    mcp: new RootMcpManager(init_context),
     tools: new RootToolManager(init_context),
     models: new ModelManager(init_context),
     prompts: new PromptManager(init_context),

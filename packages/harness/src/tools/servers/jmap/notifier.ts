@@ -45,7 +45,7 @@ export const startJmapNotifier = (
         e.from.some(addr => ctx.config.mail.allowlist.includes(addr.email))
       );
       for (const email of filtered) {
-        ctx.buses.notifications.notify_NEW({
+        ctx.buses.notifications.notify({
           role: 'user',
           type: 'notification',
           method: 'message/incoming',

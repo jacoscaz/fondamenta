@@ -2,14 +2,10 @@
   "extends": "./tsconfig.base.json",
   "references": [
     { "path": "packages/harness" },
-    { "path": "packages/lib-mcp-core" },
-    { "path": "packages/lib-mcp-local" },
     { "path": "packages/lib-utils" },
   ],
   "include": [
     "packages/harness/src/**/*.ts",
-    "packages/lib-mcp-core/src/**/*.ts",
-    "packages/lib-mcp-local/src/**/*.ts",
     "packages/lib-utils/src/**/*.ts",
   ]
 }

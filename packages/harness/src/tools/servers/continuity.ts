@@ -148,7 +148,7 @@ export const initContinuityTools = (ctx: CompleteContext) => {
         method: 'todo/due',
         blocks,
       };
-      await ctx.buses.notifications.notify_NEW(notification);
+      await ctx.buses.notifications.notify(notification);
       logger.info('injected %d todo reminder(s)', due.length);
     } catch (err) {
       logger.error('todo reminder error: %s', errToString(err));
