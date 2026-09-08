@@ -30,7 +30,7 @@ export class ToolManager extends WithContext {
   }
 
   list(): ToolDescriptor<any>[] {
-    return Array.from(Object.values(this.#tools));
+    return Array.from(this.#tools.values());
   }
 
   isSafe(name: string): boolean {
