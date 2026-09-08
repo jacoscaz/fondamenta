@@ -45,7 +45,9 @@ export const startJmapNotifier = (
         e.from.some(addr => ctx.config.mail.allowlist.includes(addr.email))
       );
       for (const email of filtered) {
-        ctx.buses.notifications.notify({
+        // Await: notify injects into the session and can run the model —
+        // fire-and-forget would make any failure an unhandled rejection.
+        await ctx.buses.notifications.notify({
           role: 'user',
           type: 'notification',
           method: 'message/incoming',
