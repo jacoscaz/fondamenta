@@ -30,6 +30,20 @@ virtual. Running it on your local machine is a bad idea for many reasons.
 Running it within a Docker container is exceedingly limiting. Run it on a
 dedicated machine and provide the agent with its own accounts.
 
+### Accounts
+
+In order for the agent to interact with the world, Fondamenta requires:
+
+- The API key for a Telegram bot account. See [@BotFather].
+- The API URL, session URL and API token for an email provider supporting
+  the [JMAP] protocol. [Fastmail] is a good option.
+
+[JMAP]: https://jmap.io
+[Fastmail]: https://www.fastmail.com/dev/
+[@BotFather]: https://telegram.me/BotFather
+
+Telegram and email features are surfaced to the agent as tools.
+
 ## Quick Start
 
 ```sh
