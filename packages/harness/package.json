@@ -21,12 +21,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@fondamenta/mcp-core": "^0.0.1",
-    "@fondamenta/mcp-http-client": "^0.0.1",
-    "@fondamenta/mcp-http-server": "^0.0.1",
-    "@fondamenta/mcp-local": "^0.0.1",
     "@fondamenta/utils": "^0.0.1",
-    "@fondamenta/mcp-jmap": "^0.0.1",
     "@runtyped/type": "^2.0.0",
     "@xterm/headless": "^6.0.0",
     "croner": "^10.0.1",
@@ -41,8 +36,7 @@
     "sharp": "^0.35.4",
     "uid": "^2.0.2",
     "ws": "^8.21.0",
-    "zigpty": "^0.2.1",
-    "@fondamenta/mcp-telegram": "^0.0.1"
+    "zigpty": "^0.2.1"
   },
   "files": [
     "dist/**/*.js",

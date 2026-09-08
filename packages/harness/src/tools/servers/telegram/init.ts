@@ -66,7 +66,6 @@ export const initTelegramTools = (ctx: CompleteContext) => {
 
   const client = new TelegramClient(ctx.config.telegram.api_token);
   const notifier = startTelegramNotifier(ctx, client);
-  const logger_outgoing = ctx ? ctx.logger.child('[mcp:telegram-outgoing]') : null;
 
   ctx.managers.tools.add<{ text: string, chat_id: number }>(
     'telegram_send_text',

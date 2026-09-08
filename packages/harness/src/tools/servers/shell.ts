@@ -21,7 +21,7 @@ const maybeWriteTemp = async (content: string, label: string): Promise<string> =
   const filepath = resolve(tmpdir(), filename);
   await writeFile(filepath, content, 'utf-8');
   return content.slice(0, MAX_OUTPUT_LEN)
-    + `\n\n --- Truncated to ${MAX_OUTPUT_LEN} out of ${content.length} chars, full output saved to: ${filepath} . Use the mcp_file_read tool to read the full output if necessary. ALWAYS apply token economy principles. ---`;
+    + `\n\n --- Truncated to ${MAX_OUTPUT_LEN} out of ${content.length} chars, full output saved to: ${filepath} . Use the file_read tool to read the full output if necessary. ALWAYS apply token economy principles. ---`;
 };
 
 const EXEC_DESCRIPTION = `
@@ -35,7 +35,7 @@ const EXEC_DESCRIPTION = `
   single roundtrip. Blocks the activation loop until completion — for
   long-running commands (>~60s) or processes that must outlive the activation
   (servers, watchers, builds you want to stay responsive during), use the
-  mcp_terminal_* tools instead.
+  terminal_* tools instead.
 `;
 
 export const initShellTools = (ctx: CompleteContext) => {

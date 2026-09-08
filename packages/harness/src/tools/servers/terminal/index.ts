@@ -75,10 +75,10 @@ Use \\r for Enter, \\x03 for Ctrl-C, \\x1b for Escape, etc.
 
 Use for long-running commands whose execution should not block your
 activation loop. You'll capture their output with separate tool calls
-(mcp_terminal_read / mcp_terminal_readScreen), optionally armed atomically
+(terminal_read / terminal_readScreen), optionally armed atomically
 via the waitFor parameter — which registers the pattern watcher BEFORE the
 written command can produce output, eliminating the race where the pattern
-is emitted before a separate waitFor call exists. Prefer mcp_shell_exec for
+is emitted before a separate waitFor call exists. Prefer shell_exec for
 short-lived commands to be run in a blocking fashion.`;
 
 // Terminal tools — ported from the MCP server (2026-09-07 overnight
