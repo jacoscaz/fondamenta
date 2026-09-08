@@ -3,8 +3,8 @@ import assert from 'node:assert';
 import { errToString, validationErrsToString } from "@fondamenta/utils";
 import { type InitContext, WithContext } from "../context.js";
 import { cast, ReceiveType, resolveReceiveType, toJsonSchema, Type, ValidationError } from "@runtyped/type";
-import { ToolCallContext } from '../types/tools.js';
-import { ContentBlock, ImageBlock, TextBlock, VoiceBlock } from '../types/blocks.js';
+import { type ToolCallContext } from '../types/tools.js';
+import { type ContentBlock } from '../types/blocks.js';
 
 export type ToolCallHandler<P> = (params: P, ctx: ToolCallContext) => Promise<ContentBlock[]>;
 
@@ -38,6 +38,10 @@ export class ToolManager extends WithContext {
     return desc?.safe ?? false;
   }
 
+  protected get _tools(): ToolRegistry {
+    return this.#tools;
+  }
+
   async call(name: string, params: any, ctx: ToolCallContext): Promise<ContentBlock[]> {
     const desc = this.#tools.get(name);
     if (!desc) {
@@ -59,18 +63,15 @@ export class ToolManager extends WithContext {
 
 export class RootToolManager extends ToolManager {
 
-  #tools: ToolRegistry;
-
   constructor(ctx: InitContext) {
     const tools: ToolRegistry = new Map();
     super(ctx, tools);
-    this.#tools = tools;
   }
 
   add<I = {}>(name: string, title: string, description: string, safe: boolean, handler: ToolCallHandler<I>, __type_I?: ReceiveType<I>) {
-    assert(!this.#tools.has(name), `Tool with name ${name} already exists`);
+    assert(!this._tools.has(name), `Tool with name ${name} already exists`);
     __type_I = resolveReceiveType(__type_I);
-    this.#tools.set(name, {
+    this._tools.set(name, {
       name,
       title,
       safe,
@@ -83,7 +84,7 @@ export class RootToolManager extends ToolManager {
 
   blacklist(blacklist: string[]): ToolManager {
     const filtered: ToolRegistry = new Map();
-    for (const tool of this.#tools.values()) {
+    for (const tool of this._tools.values()) {
       if (!blacklist.includes(tool.name)) {
         filtered.set(tool.name, tool);
       }
@@ -94,8 +95,8 @@ export class RootToolManager extends ToolManager {
   whitelist(whitelist: string[]): ToolManager {
     const filtered: ToolRegistry = new Map();
     for (const name of whitelist) {
-      if (this.#tools.has(name)) {
-        filtered.set(name, this.#tools.get(name)!);
+      if (this._tools.has(name)) {
+        filtered.set(name, this._tools.get(name)!);
       }
     }
     return new ToolManager(this._ctx.init, filtered);

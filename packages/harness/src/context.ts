@@ -14,7 +14,7 @@ import { type DB } from "./database/client.js";
 import { type Config } from "./config/config.js";
 import { type ModelManager } from "./models/manager.js";
 import { type FileManager } from "./files/manager.js";
-import { RootToolManager, type ToolManager } from "./tools/manager.js";
+import { type RootToolManager } from "./tools/manager.js";
 
 import EventEmitter from "node:events";
 
