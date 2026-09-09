@@ -62,7 +62,7 @@ export abstract class AbstractSessionModel {
     return this.#max_context_size
   }
 
-  get supportsImageInput(): boolean {
+  get supports_image_input(): boolean {
     return this.#modalities.images ?? false;
   }
 
