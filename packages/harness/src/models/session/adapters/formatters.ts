@@ -99,7 +99,7 @@ const formatUserNotification = (message: UserNotification, adapter: OpenAISessio
   const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
   content.push({
     type: 'text',
-    text: `[${EVENT_PREFIX}NOTIFICATION: ${message.method}]`,
+    text: `[${EVENT_PREFIX}${message.method}]`,
   });
   if (message.type === 'notification' && message.method === 'message/incoming') {
     content.push(...formatNotificationTransport(message));
