@@ -19,4 +19,4 @@ export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
  * also arrives as events now (the channels inject it); there is no
  * unmarked channel. See the <registers> section of the system prompt.
  */
-export const EVENT_PREFIX = '[event: ';
+export const EVENT_PREFIX = 'EVENT: ';

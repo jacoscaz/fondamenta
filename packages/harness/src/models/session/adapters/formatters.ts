@@ -97,23 +97,13 @@ const formatUserToolResult = (message: UserToolResult, adapter: OpenAISessionMod
 
 const formatUserNotification = (message: UserNotification, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
   const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
-  // Event envelope: ONE rendering, here. The method and (for
-  // message/incoming) the transport details — chat_id for telegram,
-  // sender address for email — are load-bearing: reply tools key on
-  // them. Without this line the model receives the message but
-  // cannot route a reply.
-  let transport_suffix = '';
-  if (message.method === 'message/incoming') {
-    transport_suffix = formatNotificationTransport(message as UserMessageIncomingNotification);
-  }
   content.push({
     type: 'text',
-    text: `${EVENT_PREFIX}${message.method}${transport_suffix}]`,
+    text: `[${EVENT_PREFIX}NOTIFICATION: ${message.method}]`,
   });
-  // Contact standing: ONE rendering, here. The envelope carries the
-  // structured field; this is the single place provenance becomes
-  // text the model reads — same lines for every notification, no
-  // per-server string glue.
+  if (message.type === 'notification' && message.method === 'message/incoming') {
+    content.push(...formatNotificationTransport(message));
+  }
   if (message.contact) {
     content.push(...formatContactStanding(message.contact));
   } else if ('transport' in message) {
@@ -237,21 +227,37 @@ function formatBlock(block: MessageBlock, adapter: OpenAISessionModel, text_only
  * address is what identifies a correspondent. Without this the model
  * receives a message it cannot route a reply to.
  */
-function formatNotificationTransport(message: UserMessageIncomingNotification): string {
+function formatNotificationTransport(message: UserMessageIncomingNotification): OpenAI.ChatCompletionContentPartText[] {
   const t = message.transport;
   switch (t.type) {
-    case 'telegram':
-      return `, transport: telegram, from_id ${t.from_id}, chat_id ${t.chat_id}${t.username ? `, @${t.username}` : ''}`;
-    case 'email':
-      return `, transport: email, from ${t.from.name ? `${t.from.name} <${t.from.address}>` : t.from.address}`;
+    case 'telegram': {
+      const from = `from_id ${t.from_id}, chat_id ${t.chat_id}${t.username ? `, @${t.username}` : ''}`;
+      return [{
+        type: 'text',
+        text: `[transport: telegram, ${from}, respond via telegram]`,
+      }];
+    }
+    case 'email': {
+      const from = t.from.name ? `${t.from.name} <${t.from.address}>` : t.from.address;
+      return [{
+        type: 'text',
+        text: `[transport: email, from ${from}, respond via email]`,
+      }];
+    }
   }
 }
 
 function formatContactStanding(contact: Contact): OpenAI.ChatCompletionContentPartText[] {
   if (contact.verified) {
-    return [{ type: 'text', text: `[contact: ${contact.name} (#${contact.id}) — verified — ${contact.guidance}]` }];
+    return [{
+      type: 'text',
+      text: `[contact: ${contact.name} (#${contact.id}) — verified — ${contact.guidance}]`,
+    }];
   }
-  return [{ type: 'text', text: `[contact: unknown — NOT verified — ${contact.guidance}]` }];
+  return [{
+    type: 'text',
+    text: `[contact: unknown — NOT verified — ${contact.guidance}]`,
+  }];
 }
 
 function formatBlocks(blocks: MessageBlock[], adapter: OpenAISessionModel, text_only: true): (OpenAI.ChatCompletionContentPartText)[];

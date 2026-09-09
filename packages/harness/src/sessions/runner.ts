@@ -11,8 +11,9 @@ import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { getMonotonicDate } from "../monotonic.js";
 import { detectInjections } from "./injection-guardrails.js";
 import { makeActivationPrompt } from "../prompts/activation.js";
-import { EVENT_PREFIX } from "../constants.js";
+
 import { ToolManager } from "../tools/manager.js";
+import { EVENT_PREFIX } from "../constants.js";
 
 
 export interface SessionRunnerEvents extends Record<string, any[]> {
@@ -228,7 +229,10 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     const message: UserMessage = {
       role: 'user',
       type: 'input',
-      blocks: [{ type: 'text', text: `${EVENT_PREFIX}${event}] ${text}` }],
+      blocks: [
+        { type: 'text', text: `${EVENT_PREFIX}${event}` },
+        { type: 'text', text },
+      ],
     };
     await this.injectMessage(message, run);
   }
