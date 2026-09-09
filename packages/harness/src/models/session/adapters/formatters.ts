@@ -128,14 +128,14 @@ const formatAgent = (message: AgentMessage, adapter: OpenAISessionModel): OpenAI
 const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
   const refusal: string[] = [];
   const content: string[] = [];
-  const reasoning_content: string[] = [];
   for (const block of message.blocks) {
     switch (block.type) {
       case 'text':
         content.push(block.text);
         break;
       case 'thinking':
-        reasoning_content.push(block.text);
+        // We purposedly ignore thinking blocks as reasoning content should not
+        // be replayed back to the model.
         break;
       case 'refusal':
         refusal.push(block.text);
@@ -149,8 +149,6 @@ const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): Ope
     role: 'assistant',
     refusal: refusal.length ? refusal.join(' ') : undefined,
     content: content.length ? content.join(' ') : undefined,
-    // @ts-ignore
-    reasoning_content: reasoning_content.length ? reasoning_content.join(' ') : undefined,
   }];
 };
 
