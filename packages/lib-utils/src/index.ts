@@ -25,10 +25,6 @@ export {
 } from './utils.js';
 
 export {
-  TempManager,
-} from './tempfilemanager.js';
-
-export {
   nonSafeRandom,
 } from './random.js';
 
