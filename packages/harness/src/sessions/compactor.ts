@@ -144,7 +144,16 @@ export class Compactor extends WithContext {
         }
       } else if (m.data.type === 'tool_res') {
         for (const result of m.data.results) {
-          parts.push(`↗ ${result.tool}(${JSON.stringify(result.blocks)})`);
+          const sanitizedBlocks = result.blocks.map((b: any) => {
+            if (b.type === 'image') {
+              return { type: 'image', text: '[image data omitted for compaction]' };
+            }
+            if (b.type === 'text' && b.text && b.text.length > 2000) {
+              return { type: 'text', text: b.text.slice(0, 1000) + '... [truncated for compaction]' };
+            }
+            return b;
+          });
+          parts.push(`↗ ${result.tool}(${JSON.stringify(sanitizedBlocks)})`);
         }
       } else {
         let data: string = '';
@@ -154,8 +163,14 @@ export class Compactor extends WithContext {
             case 'thinking':
               data = block.text || '';
               break;
+            case 'image':
+              data = '[image block omitted for compaction]';
+              break;
           }
           if (data) {
+            if (data.length > 2000) {
+              data = data.slice(0, 1000) + '... [truncated for compaction]';
+            }
             parts.push(data);
           }
         }
