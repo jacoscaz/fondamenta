@@ -90,7 +90,6 @@ export const formatMessagesForDistillation = (
     for (const block of m.data.blocks) {
       switch (block.type) {
         case 'text':
-        case 'thinking':
           formatted.push(`[${m.data.role}] ${block.text || ''}`);
           break;
       }

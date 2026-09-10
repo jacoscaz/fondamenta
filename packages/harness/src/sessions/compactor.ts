@@ -160,7 +160,6 @@ export class Compactor extends WithContext {
         for (const block of m.data.blocks) {
           switch (block.type) {
             case 'text':
-            case 'thinking':
               data = block.text || '';
               break;
             case 'image':
