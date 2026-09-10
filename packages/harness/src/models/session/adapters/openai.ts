@@ -89,7 +89,33 @@ export class OpenAISessionModel extends AbstractSessionModel {
           on_activity();
         });
       }
+      // The SDK's chunk accumulator only knows the standard Chat
+      // Completions fields; provider extensions such as DeepSeek-style
+      // `reasoning_content` (or OpenRouter's `reasoning`) fall through to
+      // an Object.assign that OVERWRITES instead of concatenating, so
+      // finalMessage() would keep only the LAST reasoning delta of the
+      // response (observed in production as one-word "thinking" tails).
+      // Accumulate them ourselves and reattach the full trace.
+      let reasoning = '';
+      let reasoningAlt = '';
+      stream.on('chunk', (chunk) => {
+        for (const choice of chunk.choices ?? []) {
+          const delta = choice.delta as Record<string, unknown> | undefined;
+          if (typeof delta?.reasoning_content === 'string') {
+            reasoning += delta.reasoning_content;
+          }
+          if (typeof delta?.reasoning === 'string') {
+            reasoningAlt += delta.reasoning;
+          }
+        }
+      });
       const response = await stream.finalMessage();
+      const fullReasoning = reasoning || reasoningAlt;
+      if (fullReasoning) {
+        // finalMessage() returns the assistant message directly, not a
+        // ChatCompletion — reattach the accumulated trace onto it.
+        (response as unknown as Record<string, unknown>).reasoning_content = fullReasoning;
+      }
       const usage = await stream.totalUsage();
       return {
         messages: parseMessage(response),
