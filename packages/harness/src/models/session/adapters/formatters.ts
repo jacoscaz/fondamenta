@@ -128,28 +128,26 @@ const formatAgent = (message: AgentMessage, adapter: OpenAISessionModel): OpenAI
 const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
   const refusal: string[] = [];
   const content: string[] = [];
+  const thinking: string[] = [];
   for (const block of message.blocks) {
     switch (block.type) {
       case 'text':
         content.push(block.text);
         break;
       case 'thinking':
-        // We purposedly ignore thinking blocks as reasoning content should not
-        // be replayed back to the model.
+        thinking.push(block.text);
         break;
       case 'refusal':
         refusal.push(block.text);
         break;
     }
   }
-  // TODO: replace true with adapter.supports_image_output once we have support
-  //       for images as output modality.
-  // content.push(...formatBlocks(message.blocks, adapter, true));
   return [{
     role: 'assistant',
     refusal: refusal.length ? refusal.join(' ') : undefined,
     content: content.length ? content.join(' ') : undefined,
-  }];
+    reasoning_content: thinking.length ? thinking.join(' ') : undefined,
+  } as OpenAI.ChatCompletionMessageParam];
 };
 
 const formatAgentToolRequest = (message: AgentToolRequest, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
