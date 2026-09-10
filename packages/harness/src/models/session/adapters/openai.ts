@@ -52,15 +52,14 @@ export class OpenAISessionModel extends AbstractSessionModel {
     return (this.#reasoning ?? 'none') as ReasoningEffort;
   }
 
-  async _query(opts: ModelQueryOpts, signal?: AbortSignal, on_activity?: () => void): Promise<ModelQueryResults> {
-    let stream: ChatCompletionStream<null> | undefined = undefined;
+  async _query(opts: ModelQueryOpts, signal?: AbortSignal, on_activity: () => void = () => { }): Promise<ModelQueryResults> {
     try {
       const messages: ChatCompletionMessageParam[] = opts.messages.flatMap(m => formatMessage(m, this));
       messages.unshift({
         role: 'system',
         content: opts.system_prompt,
       } satisfies ChatCompletionMessageParam);
-      stream = this.#client.chat.completions.stream({
+      const stream = this.#client.chat.completions.stream({
         ...this.#extras,
         messages,
         max_tokens: opts.max_output_size ?? this.max_ouput_size,
@@ -81,42 +80,7 @@ export class OpenAISessionModel extends AbstractSessionModel {
           },
         })),
       });
-      // Every received chunk re-arms the stall timeout: the model may think
-      // server-side (reasoning, slow generation) for long stretches, and
-      // that is health — silence is what indicates a hang.
-      if (on_activity) {
-        stream.on('chunk', (chunk) => {
-          on_activity();
-        });
-      }
-      // The SDK's chunk accumulator only knows the standard Chat
-      // Completions fields; provider extensions such as DeepSeek-style
-      // `reasoning_content` (or OpenRouter's `reasoning`) fall through to
-      // an Object.assign that OVERWRITES instead of concatenating, so
-      // finalMessage() would keep only the LAST reasoning delta of the
-      // response (observed in production as one-word "thinking" tails).
-      // Accumulate them ourselves and reattach the full trace.
-      let reasoning = '';
-      let reasoningAlt = '';
-      stream.on('chunk', (chunk) => {
-        for (const choice of chunk.choices ?? []) {
-          const delta = choice.delta as Record<string, unknown> | undefined;
-          if (typeof delta?.reasoning_content === 'string') {
-            reasoning += delta.reasoning_content;
-          }
-          if (typeof delta?.reasoning === 'string') {
-            reasoningAlt += delta.reasoning;
-          }
-        }
-      });
-      const response = await stream.finalMessage();
-      const fullReasoning = reasoning || reasoningAlt;
-      if (fullReasoning) {
-        // finalMessage() returns the assistant message directly, not a
-        // ChatCompletion — reattach the accumulated trace onto it.
-        (response as unknown as Record<string, unknown>).reasoning_content = fullReasoning;
-      }
-      const usage = await stream.totalUsage();
+      const [response, usage] = await this.#consumeStream(stream, on_activity);
       return {
         messages: parseMessage(response),
         input_size: usage.prompt_tokens,
@@ -125,11 +89,60 @@ export class OpenAISessionModel extends AbstractSessionModel {
       };
     } catch (e) {
       throw new Error(`Failed to query OpenAI model: ${e}`);
-    } finally {
-      if (on_activity) {
-        stream?.off('chunk', on_activity);
-      }
     }
+  }
+
+  async #consumeStream(stream: ChatCompletionStream, on_activity: () => void): Promise<[OpenAI.ChatCompletionMessage, OpenAI.CompletionUsage]> {
+    // The SDK's chunk accumulator only knows the standard Chat Completions
+    // fields; provider extensions such as DeepSeek-style `reasoning_content`
+    // (or OpenRouter's `reasoning`) fall through to an `Object.assign` that
+    // OVERWRITES instead of concatenating, so `finalMessage()` would keep
+    // only the LAST reasoning delta of the response (observed in production
+    // as one-word "thinking" tails). Accumulate them ourselves and reattach
+    // the full trace.
+    let reasoning = '';
+    let reasoning_alt = '';
+    // Per-chunk handler
+    const onChunk = (chunk: OpenAI.ChatCompletionChunk) => {
+      // Every received chunk re-arms the stall timeout: the model may think
+      // server-side (reasoning, slow generation) for long stretches, and
+      // that is health — silence is what indicates a hang.
+      on_activity();
+      // Accumulation of reasoning deltas to work around the SDK's overwrite
+      // behavior.
+      for (const choice of chunk.choices ?? []) {
+        const delta = choice.delta as Record<string, unknown> | undefined;
+        if (typeof delta?.reasoning_content === 'string') {
+          reasoning += delta.reasoning_content;
+        }
+        if (typeof delta?.reasoning === 'string') {
+          reasoning_alt += delta.reasoning;
+        }
+      }
+    };
+    // Cleanup handlers for chunk and end/abort events.
+    const onEndOrAbort = () => {
+      stream.off('chunk', onChunk);
+      stream.off('end', onEndOrAbort);
+      stream.off('abort', onEndOrAbort);
+    };
+    // Attach event handlers to the stream.
+    stream.on('chunk', onChunk);
+    stream.on('end', onEndOrAbort);
+    stream.on('abort', onEndOrAbort);
+    // Wait for the stream to complete and return the response.
+    const response = await stream.finalMessage();
+    // Attach the accumulated reasoning to the response.
+    const full_reasoning = reasoning || reasoning_alt;
+    if (full_reasoning) {
+      // `reasoning_content` is an unofficial extension to the OpenAI API
+      // response, thus not supported by the official SDK.
+      (response as unknown as Record<string, unknown>).reasoning_content = full_reasoning;
+    }
+    // Get the total usage from the stream.
+    const usage = await stream.totalUsage();
+    // Return the response and usage.
+    return [response, usage];
   }
 
 }
