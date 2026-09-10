@@ -43,6 +43,12 @@ export interface ConfigModelBase {
   max_output_size: number;
   max_context_size: number;
   modalities?: ConfigModalities;
+  /**
+   * Whether thinking blocks should be included in inference requests.
+   * Depends on the model. True for DeepSeek and Anthropic, false for
+   * most others.
+   */
+  replay_thinking?: boolean;
 }
 
 export interface ConfigEmbeddingsModelBase {

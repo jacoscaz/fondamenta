@@ -135,7 +135,9 @@ const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): Ope
         content.push(block.text);
         break;
       case 'thinking':
-        thinking.push(block.text);
+        if (adapter.replay_thinking) {
+          thinking.push(block.text);
+        }
         break;
       case 'refusal':
         refusal.push(block.text);

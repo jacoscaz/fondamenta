@@ -34,6 +34,7 @@ export abstract class AbstractSessionModel {
   readonly #max_output_size: number;
   readonly #max_context_size: number;
   readonly #modalities: ConfigModalities;
+  readonly #replay_thinking: boolean;
 
   constructor(opts: ConfigModelBase) {
     this.#id = opts.id;
@@ -42,6 +43,7 @@ export abstract class AbstractSessionModel {
     this.#max_output_size = opts.max_output_size;
     this.#max_context_size = opts.max_context_size;
     this.#modalities = opts.modalities ?? {};
+    this.#replay_thinking = opts.replay_thinking ?? false;
   }
 
   /** Harness-internal unique model identifier (e.g. 'z-ai/glm-5.3-flash'). */
@@ -64,6 +66,10 @@ export abstract class AbstractSessionModel {
 
   get supports_image_input(): boolean {
     return this.#modalities.images ?? false;
+  }
+
+  get replay_thinking(): boolean {
+    return this.#replay_thinking;
   }
 
   async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {
