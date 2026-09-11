@@ -82,7 +82,10 @@ export class Compactor extends WithContext {
         messages: [{
           role: 'user',
           type: 'input',
-          blocks: [{ type: 'text', text: serialized_messages }],
+          // pi-style outer wrapper: one tag pair marks the blob's
+          // boundary against the prompt template, so conversation text
+          // cannot blur into instructions.
+          blocks: [{ type: 'text', text: `<conversation>\n${serialized_messages}\n</conversation>` }],
         }],
         tools: [],
         session_id: `compactor-${session_id}`,

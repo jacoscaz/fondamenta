@@ -159,7 +159,8 @@ test('voice blocks: transcription survives as content, raw audio does not', () =
 
   const omitted = projectMessage(msg, PROJECT_DISTILLATION_OPTS);
   if (omitted === null || omitted.type !== 'input') throw new Error('user input must project to itself');
-  assert.equal(omitted.blocks.length, 0, 'voice omitted under omit policy');
+  assert.equal((omitted.blocks[0] as { type: string; text?: string }).text, 'hello from voice',
+    'voice transcription survives as content under placeholder policy');
 });
 
 test('unknown future block types pass through projection and render loudly', () => {

@@ -29,7 +29,10 @@ export const PROJECT_DISTILLATION_OPTS = {
   max_text_length: 2000,
   exclude_thinking: true,
   exclude_tool_traffic: true,
-  media_policy: 'omit',
+  // Visible markers over silent omission — the survey showed labeled
+  // placeholders are the norm (opencode, pi), and silence was the old
+  // defect class this layer exists to end.
+  media_policy: 'placeholder',
 } satisfies ProjectOptions;
 
 export const PROJECT_COMPACTION_OPTS = {
