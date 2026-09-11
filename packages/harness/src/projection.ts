@@ -152,3 +152,18 @@ const truncate = (text: string, max: number): string => {
   if (text.length <= max) return text;
   return `${text.slice(0, max)}\n[...truncated ${text.length - max} characters]`;
 };
+
+/**
+ * Neutralize the closing tag of a wrapper BEFORE the wrapper is applied.
+ * Content containing the literal closing tag would otherwise end the
+ * wrapped region early from the reader's point of view — tag forgery.
+ * Occurrences are escaped (<\/tag>): still readable as what they were,
+ * no longer a boundary.
+ *
+ * Applied consumer-side over the FULL serialized blob (block text and
+ * tool params alike), because projection deliberately leaves params
+ * untouched and the wrapper tag is chosen by the consumer's template.
+ */
+export const escapeClosingTag = (text: string, tag: string): string => {
+  return text.replaceAll(`</${tag}>`, `<\\/${tag}>`);
+};

@@ -1,6 +1,7 @@
 import { ellipsis } from "@fondamenta/utils";
 import { Message } from "./types/messages.js";
 import { MessageBlock } from "./types/blocks.js";
+import { escapeClosingTag } from "./projection.js";
 
 /**
  * Message serialization: the single rendering layer for projected
@@ -24,6 +25,14 @@ export interface SerializeOptions {
   pretty_params: boolean;
   /** Hard bound for rendered tool params, in characters. */
   max_params_length: number;
+  /**
+   * When set, serializeMessages wraps the whole blob in one XML tag pair
+   * (pi's outer-wrapper pattern) and neutralizes occurrences of the
+   * closing tag inside the content — a message containing the literal
+   * closing tag must not end the wrapped region early. Undefined = no
+   * wrapper (framing is the consumer's mechanical separator).
+   */
+  wrapper_tag?: string;
 }
 
 export const SERIALIZE_DISTILLATION_OPTS = {
@@ -32,6 +41,7 @@ export const SERIALIZE_DISTILLATION_OPTS = {
   block_tags: false,
   pretty_params: false,
   max_params_length: 2000,
+  wrapper_tag: 'undistilled_conversation',
 } satisfies SerializeOptions;
 
 export const SERIALIZE_COMPACTION_OPTS = {
@@ -40,6 +50,7 @@ export const SERIALIZE_COMPACTION_OPTS = {
   block_tags: false,
   pretty_params: false,
   max_params_length: 2000,
+  wrapper_tag: 'conversation',
 } satisfies SerializeOptions;
 
 export const SERIALIZE_MONOLOGUE_LOGGING_OPTS = {
@@ -51,7 +62,9 @@ export const SERIALIZE_MONOLOGUE_LOGGING_OPTS = {
 } satisfies SerializeOptions;
 
 export const serializeMessages = (messages: Message[], opts: SerializeOptions): string => {
-  return messages.map(message => serializeMessage(message, opts)).join(opts.message_separator);
+  const joined = messages.map(message => serializeMessage(message, opts)).join(opts.message_separator);
+  if (!opts.wrapper_tag) return joined;
+  return `<${opts.wrapper_tag}>\n${escapeClosingTag(joined, opts.wrapper_tag)}\n</${opts.wrapper_tag}>`;
 };
 
 export const serializeMessage = (message: Message, opts: SerializeOptions): string => {
