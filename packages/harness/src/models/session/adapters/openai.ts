@@ -12,7 +12,7 @@ import { type ReasoningEffort } from "../../../constants.js";
 import { ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
 import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
 import { formatMessage } from "./formatters.js";
-import { parseMessage } from "./parsers.js";
+import { parseMessage, warnOnTextualToolCalls } from "./parsers.js";
 
 
 export class OpenAISessionModel extends AbstractSessionModel {
@@ -81,8 +81,14 @@ export class OpenAISessionModel extends AbstractSessionModel {
         })),
       });
       const [response, usage] = await this.#consumeStream(stream, on_activity);
+      const parsed_messages = parseMessage(response);
+      // Loud, registry-bounded detection of tool calls the model emitted as
+      // text instead of natively (2026-09-10 distiller incident: a
+      // continuity_append arrived as malformed markup in a text block and
+      // the write was silently lost). A warning only — never an action.
+      warnOnTextualToolCalls(parsed_messages, opts.tools.map((t) => t.name), this.#model);
       return {
-        messages: parseMessage(response),
+        messages: parsed_messages,
         input_size: usage.prompt_tokens,
         cached_size: usage.prompt_tokens_details?.cached_tokens ?? 0,
         output_size: usage.completion_tokens,
