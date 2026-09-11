@@ -63,25 +63,3 @@ captures a real insight, preserve it.
 </distillation_task>
 `;
 };
-
-// export const formatMessagesForDistillation = (
-//   messages: ASelectableDBMessage[],
-// ): string => {
-//   const formatted: string[] = [];
-//   for (const m of messages) {
-//     if (m.data.type === 'tool_req') {
-//       continue;
-//     }
-//     if (m.data.type === 'tool_res') {
-//       continue;
-//     }
-//     for (const block of m.data.blocks) {
-//       switch (block.type) {
-//         case 'text':
-//           formatted.push(`[${m.data.role}] ${block.text || ''}`);
-//           break;
-//       }
-//     }
-//   }
-//   return formatted.join('\n\n');
-// };
