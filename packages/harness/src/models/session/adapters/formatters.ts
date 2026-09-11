@@ -40,7 +40,8 @@ import {
   * - user messages with tool results/errors expand to one tool message per
   *   block (the wire format requires one tool_call_id per message), while
   *   user messages with any other block type become one user message;
-  * - thinking blocks are NOT replayed (stored for continuity only).
+  * - thinking blocks are replayed or not depending on the per-model
+  *   `replay_thinking` setting (see OpenAISessionModel).
   * The canonical store models the conversation; provider wire quirks live
   * here, in the adapter.
   */
