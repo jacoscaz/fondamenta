@@ -6,8 +6,6 @@ import {
 import { type SelectableContinuityRecord } from "../database/tables/continuity_records.js";
 import {
   makeDistillationSystemPrompt,
-  formatExistingRecords,
-  formatMessagesForDistillation,
 } from "../prompts/distillation.js";
 import { insertSession, selectDistillableSessions } from "../database/tables/sessions.js";
 import { insertMessage } from "../database/tables/messages.js";
@@ -15,6 +13,8 @@ import { DB, ensureTrx } from "../database/client.js";
 import { Logger } from "pinetto";
 import { errToString } from "@fondamenta/utils";
 import { SessionRunner } from "./runner.js";
+import { PROJECT_DISTILLATION_OPTS, escapeClosingTag, projectMessages } from "../projection.js";
+import { SERIALIZE_DISTILLATION_OPTS, serializeMessages } from "../serialization.js";
 
 export class Distiller extends WithContext {
 
@@ -75,8 +75,16 @@ export class Distiller extends WithContext {
 
     // Build the distillation context
     const recordsContext = formatExistingRecords(existingRecords);
-    const conversationText = formatMessagesForDistillation(messages);
-    const contextText = `<existing_records>\n${recordsContext}\n</existing_records>\n\n<undistilled_conversation>\n${conversationText}\n</undistilled_conversation>`;
+
+    // const conversationText = formatMessagesForDistillation(messages);
+    const projected_messages = projectMessages(messages.map(m => m.data), PROJECT_DISTILLATION_OPTS);
+    const serialized_messages = serializeMessages(projected_messages, SERIALIZE_DISTILLATION_OPTS);
+
+    // The serialization layer wraps and forgery-escapes the conversation
+    // blob (wrapper_tag in SERIALIZE_DISTILLATION_OPTS); the records
+    // section gets the same closing-tag treatment here, since records are
+    // store content and the same hazard class.
+    const contextText = `<existing_records>\n${escapeClosingTag(recordsContext, 'existing_records')}\n</existing_records>\n\n${serialized_messages}`;
     // Create the distiller session and insert the context message within
     // a single transaction so we can get the session id before inserting.
     const origin_session_id = await ensureTrx(db, async (trx) => {
@@ -120,3 +128,15 @@ export class Distiller extends WithContext {
     ]), 30);
   }
 }
+
+const formatExistingRecords = (records: SelectableContinuityRecord[]): string => {
+  if (records.length === 0) {
+    return 'No existing continuity records for this session.';
+  }
+  return records.map(r => {
+    const preview = r.content.length > 300
+      ? r.content.slice(0, 300) + '...'
+      : r.content;
+    return `[#${r.id}] ${r.type.toUpperCase()}: ${r.title ?? '(untitled)'}\n${preview}`;
+  }).join('\n\n');
+};

@@ -41,7 +41,9 @@ import {
   *   block (the wire format requires one tool_call_id per message), while
   *   user messages with any other block type become one user message;
   * - thinking blocks are replayed or not depending on the per-model
-  *   `replay_thinking` setting (see OpenAISessionModel).
+  *   `replay_thinking` setting (see OpenAISessionModel);
+  * - unsupported blocks (content the adapter could not represent natively,
+  *   see parsers.ts) replay as loud marked text — never dropped.
   * The canonical store models the conversation; provider wire quirks live
   * here, in the adapter.
   */
@@ -143,6 +145,16 @@ const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): Ope
       case 'refusal':
         refusal.push(block.text);
         break;
+      case 'thinking_redacted':
+        // Redacted reasoning has no replayable content; mark its place
+        // so the replayed history stays visibly complete.
+        content.push('[thinking redacted]');
+        break;
+      case 'unsupported':
+        // Content the adapter could not represent natively (see
+        // parsers.ts) replays as loud marked text, never silently.
+        content.push(`[unsupported] ${block.text}`);
+        break;
     }
   }
   return [{
@@ -208,6 +220,10 @@ function formatBlock(block: MessageBlock, adapter: OpenAISessionModel, text_only
       return [{ type: 'text', text: block.transcription }];
     case 'refusal':
       return [{ type: 'text', text: block.text }];
+    case 'unsupported':
+      // Unknown content renders loudly; the default below stays silent
+      // only for block types that cannot legally appear here.
+      return [{ type: 'text', text: `[unsupported] ${block.text}` }];
     default:
       return [];
   }

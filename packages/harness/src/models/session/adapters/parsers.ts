@@ -6,6 +6,7 @@ import {
   type AgentToolRequest,
   type AgentMessage,
 } from "../../../types/messages.js";
+import { type UnsupportedBlock } from "../../../types/blocks.js";
 
 /**
   * One provider response maps to ONE canonical message whose `blocks` array
@@ -55,6 +56,15 @@ export const parseMessage = (message: OpenAI.ChatCompletionMessage): AgentMessag
       }
     }
   }
+  // Anything the response carries that this adapter cannot represent
+  // natively is captured as an unsupported block instead of dropped:
+  // continuity keeps it, and every downstream renderer shows it loudly.
+  if ('function_call' in message && message.function_call) {
+    input.blocks.push(asUnsupported('legacy function_call', message.function_call));
+  }
+  if (message.annotations && message.annotations.length > 0) {
+    input.blocks.push(asUnsupported('annotations', message.annotations));
+  }
   const parsed = [];
   if (input.blocks.length > 0) parsed.push(input);
   if (tools.requests.length > 0) parsed.push(tools);
@@ -67,6 +77,16 @@ export const parseMessage = (message: OpenAI.ChatCompletionMessage): AgentMessag
  * Examples seen while using this harness:
  * - DeepSeek V4 Pro (Tensorix) returned `{}""` for no params
  */
+const asUnsupported = (label: string, payload: unknown): UnsupportedBlock => {
+  let serialized: string;
+  try {
+    serialized = JSON.stringify(payload) ?? 'null';
+  } catch {
+    serialized = String(payload);
+  }
+  return { type: 'unsupported', text: `[${label}] ${serialized}` };
+};
+
 const parseFunctionCallArgs = (call: OpenAI.ChatCompletionMessageFunctionToolCall): Record <string, unknown> => {
   try {
     return JSON.parse(call.function.arguments);
