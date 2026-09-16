@@ -9,6 +9,7 @@ import {
   selectMessageWasInjected,
   selectOpenInjectedRecordIds,
 } from "../database/tables/session_injections.js";
+import { runExtractor } from "./extractor.js";
 
 /** Maximum facts injected in one strip. Conservative sizing: the defense
  *  against periphery pollution is what we DON'T inject. */
@@ -118,22 +119,72 @@ export class Recaller extends WithContext {
     }
     if (!trigger) return;
 
-    // ── 2. Message as query: hybrid retrieval over facts ──────────────
-    const embedded = await this._ctx.managers.models.embedding.embed(trigger.text);
-    const query_vec = embedded.embedding;
+    // ── 2. Gate + focus: extractor when configured ────────────────────
+    // Query units: (text, embedding) pairs to retrieve against. With an
+    // extraction model, units are the extracted subjects (focused, BM25-
+    // friendly); without one — or on extractor failure — the raw message
+    // remains the query (phase-I behavior).
+    type QueryUnit = { text: string; vec: number[] };
+    let units: QueryUnit[] = [];
 
-    const fused: SelectableContinuityRecord[] = await selectRecords(db, {
-      type: 'fact',
-      search: trigger.text,
-      embedding: query_vec,
-      limit: STRIP_CANDIDATES,
-    });
+    const extractor = this._ctx.managers.models.extraction;
+    if (extractor) {
+      const extraction = await runExtractor(extractor, trigger.text, this.#logger);
+      if (extraction && !extraction.query_worthy) {
+        // Role-gated: elaborations, acknowledgments, meta-discussion.
+        // Bookkeeping row keeps fire-once semantics and eval base rates.
+        await insertSessionInjection(db, {
+          session_id,
+          record_id: null,
+          message_id: trigger.id,
+          method: 'gated_out',
+          score: null,
+          rank: null,
+          injected_at: new Date(),
+        });
+        this.#logger.info('message %d: gated out (%s)', trigger.id,
+          extraction.subjects.join(', ') || 'no subjects');
+        return;
+      }
+      if (extraction && extraction.subjects.length > 0) {
+        for (const subject of extraction.subjects) {
+          const e = await this._ctx.managers.models.embedding.embed(subject);
+          units.push({ text: subject, vec: e.embedding });
+        }
+      }
+      // extraction === null (failed) or empty subjects with query_worthy
+      // true → units stay empty → raw-message fallback below.
+    }
 
-    // ── 3. Precision pass: cosine threshold on the vector leg ─────────
+    if (units.length === 0) {
+      const embedded = await this._ctx.managers.models.embedding.embed(trigger.text);
+      units = [{ text: trigger.text, vec: embedded.embedding }];
+    }
+
+    // ── 3. Hybrid retrieval per unit, fused ───────────────────────────
+    const fused_map = new Map<number, SelectableContinuityRecord>();
+    for (const unit of units) {
+      const recs: SelectableContinuityRecord[] = await selectRecords(db, {
+        type: 'fact',
+        search: unit.text,
+        embedding: unit.vec,
+        limit: STRIP_CANDIDATES,
+      });
+      for (const r of recs) {
+        if (!fused_map.has(r.id)) fused_map.set(r.id, r);
+      }
+    }
+    const fused = [...fused_map.values()];
+
+    // ── 4. Precision pass: cosine threshold on the vector leg ─────────
+    // A candidate's score is its best cosine against any query unit.
     const open_ids = await selectOpenInjectedRecordIds(db, session_id);
     const all_scored = fused
       .filter(r => !open_ids.has(r.id))
-      .map(r => ({ r, score: cosine(query_vec, parseEmbedding((r as any).embedding) ?? []) }))
+      .map(r => ({
+        r,
+        score: Math.max(...units.map(u => cosine(u.vec, parseEmbedding((r as any).embedding) ?? []))),
+      }))
       .filter(x => x.score >= STRIP_COSINE_THRESHOLD)
       .sort((a, b) => b.score - a.score);
     const top_score = all_scored[0]?.score ?? 0;
@@ -141,7 +192,7 @@ export class Recaller extends WithContext {
       .filter(x => x.score >= top_score - STRIP_SCORE_GAP)
       .slice(0, STRIP_MAX_FACTS);
 
-    // ── 4. Bookkeeping: fire-once, whatever the outcome ───────────────
+    // ── 5. Bookkeeping: fire-once, whatever the outcome ───────────────
     if (scored.length === 0) {
       await insertSessionInjection(db, {
         session_id,
@@ -156,7 +207,7 @@ export class Recaller extends WithContext {
       return;
     }
 
-    // ── 5. Inject the strip, provenance-marked ─────────────────────────
+    // ── 6. Inject the strip, provenance-marked ─────────────────────────
     const lines = scored.map((x, i) =>
       `· #${x.r.id} (${x.score.toFixed(2)}) — ${x.r.content.slice(0, STRIP_FACT_MAX_CHARS).replace(/\s+/g, ' ')}`);
     const text = [
