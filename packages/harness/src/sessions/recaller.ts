@@ -13,11 +13,18 @@ import {
 /** Maximum facts injected in one strip. Conservative sizing: the defense
  *  against periphery pollution is what we DON'T inject. */
 const STRIP_MAX_FACTS = 3;
-/** Cosine floor for a fact to enter the strip. Calibrated on the
- *  2026-09-15 store eval: on-topic facts scored 0.65-0.84 under
- *  gte-Qwen2-1.5B; the noise floor sits around 0.5-0.6. Phase-I value,
- *  to be tuned against live subjective signal. */
-const STRIP_COSINE_THRESHOLD = 0.58;
+/** Cosine floor for a fact to enter the strip. Raised from 0.58 after
+ *  the first two live tests (2026-09-16): 2/3 and 1.5/3 noise ratios.
+ *  The cost is asymmetric — a missed fact is recoverable by conscious
+ *  query, a noisy strip trains the reader to ignore the strip. Calibrated
+ *  against the 2026-09-15 store eval (on-topic 0.65-0.84, noise floor
+ *  0.50-0.6): 0.63 sits just under the on-topic band. Provisional —
+ *  strips now self-report scores, so tune against live distributions. */
+const STRIP_COSINE_THRESHOLD = 0.63;
+/** A fact this far below the best-scoring candidate does not ride along:
+ *  similarity is meaningful relative to the query's best match, and the
+ *  tail of a topic match is usually adjacency, not relevance. */
+const STRIP_SCORE_GAP = 0.08;
 /** Query text truncation — the message is the query, not a document. */
 const STRIP_QUERY_MAX_CHARS = 1200;
 /** Per-fact content truncation inside the strip. */
@@ -124,11 +131,14 @@ export class Recaller extends WithContext {
 
     // ── 3. Precision pass: cosine threshold on the vector leg ─────────
     const open_ids = await selectOpenInjectedRecordIds(db, session_id);
-    const scored = fused
+    const all_scored = fused
       .filter(r => !open_ids.has(r.id))
       .map(r => ({ r, score: cosine(query_vec, parseEmbedding((r as any).embedding) ?? []) }))
       .filter(x => x.score >= STRIP_COSINE_THRESHOLD)
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score);
+    const top_score = all_scored[0]?.score ?? 0;
+    const scored = all_scored
+      .filter(x => x.score >= top_score - STRIP_SCORE_GAP)
       .slice(0, STRIP_MAX_FACTS);
 
     // ── 4. Bookkeeping: fire-once, whatever the outcome ───────────────
@@ -148,7 +158,7 @@ export class Recaller extends WithContext {
 
     // ── 5. Inject the strip, provenance-marked ─────────────────────────
     const lines = scored.map((x, i) =>
-      `· #${x.r.id} — ${x.r.content.slice(0, STRIP_FACT_MAX_CHARS).replace(/\s+/g, ' ')}`);
+      `· #${x.r.id} (${x.score.toFixed(2)}) — ${x.r.content.slice(0, STRIP_FACT_MAX_CHARS).replace(/\s+/g, ' ')}`);
     const text = [
       'Facts recalled from the continuity store (auto-injected; each line cites its record id — read it before relying on the claim; ignore what is irrelevant):',
       ...lines,
