@@ -57,6 +57,27 @@ export const selectOpenInjectedRecordIds = async (
   return new Set(rows.map(r => r.record_id as number));
 };
 
+/** Soft-purge: mark this session's open injections as compacted up to a
+ *  temporal boundary. Rows are marked, never deleted — the history is the
+ *  future evaluation dataset. Called at compaction with the created_at of
+ *  the last summarized message: strips riding on summarized messages may
+ *  fire again, strips on the retained tail stay open. */
+export const softPurgeSessionInjections = async (
+  db: DB,
+  opts: {
+    session_id: number;
+    /** Rows injected at or before this instant are purged. */
+    before: Date;
+  },
+): Promise<void> => {
+  await db.updateTable('session_injections')
+    .set({ compacted_at: new Date() })
+    .where('session_id', '=', opts.session_id)
+    .where('compacted_at', 'is', null)
+    .where('injected_at', '<=', opts.before)
+    .execute();
+};
+
 /** Whether a triggering message has already been served a recollection
  *  strip (any method, including empty-result bookkeeping rows). */
 export const selectMessageWasInjected = async (

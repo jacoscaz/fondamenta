@@ -48,6 +48,28 @@ export const selectMessages = async (db: DB, opts: ADBSelectMessagesOpts): Promi
   return await query.selectAll().execute();
 };
 
+export interface ADBSelectLatestUserMessagesOpts {
+  session_id: number;
+  limit: number;
+}
+
+/** Latest user messages of a session, newest first. Used by consumers
+ *  that need to inspect the most recent inbound traffic (e.g. the
+ *  recaller looking for the triggering message). */
+export const selectLatestUserMessages = async (
+  db: DB,
+  opts: ADBSelectLatestUserMessagesOpts,
+): Promise<ASelectableDBMessage[]> => {
+  return await db.selectFrom('messages')
+    .where('session_id', '=', opts.session_id)
+    .where('role', '=', 'user')
+    .orderBy('created_at', 'desc')
+    .orderBy('id', 'desc')
+    .limit(opts.limit)
+    .selectAll()
+    .execute();
+};
+
 export interface ADBDeleteMessagesOpts {
   session_id: number;
   unprocessed?: 'include' | 'exclude';
