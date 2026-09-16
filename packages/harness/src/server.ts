@@ -15,6 +15,7 @@ import { NotificationBus } from "./notifications/bus.js";
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
 import { Emygdala } from './emygdala/emygdala.js';
+import { Recaller } from './sessions/recaller.js';
 import { Distiller } from './sessions/distiller.js';
 import { Embedder } from './sessions/embedder.js';
 import { InitContext, type CompleteContext } from './context.js';
@@ -89,6 +90,7 @@ const complete_context: CompleteContext = {
   files: new FileManager(init_context),
   contacts: new ContactsManager(init_context),
   speech: new SpeechManager(init_context),
+  recaller: new Recaller(init_context),
   managers: {
     tools: new RootToolManager(init_context),
     models: new ModelManager(init_context),
@@ -101,6 +103,7 @@ await complete_context.managers.models.initialize();
 await complete_context.files.start();
 await complete_context.managers.sessions.initialize();
 await complete_context.emygdala.initialize();
+await complete_context.recaller.initialize();
 await complete_context.distiller.initialize(300_000);
 await complete_context.embedder.initialize(60_000);
 
