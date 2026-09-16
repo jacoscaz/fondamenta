@@ -101,6 +101,22 @@ export class Compactor extends WithContext {
       this.#logger.info('compaction summary: %d chars, input %d tokens, output %d tokens',
         summary_text.length, input_size, output_size);
 
+      // Recollection soft purge: strips belonging to messages that are
+      // being summarized away can fire again — the context that held
+      // them is gone. Rows injected after the split boundary stay open:
+      // the retained tail still carries their content. Rows are marked,
+      // never deleted — the history is the future evaluation dataset.
+      const boundary = to_summarize[to_summarize.length - 1]?.created_at;
+      if (boundary) {
+        await trx
+          .updateTable('session_injections')
+          .set({ compacted_at: new Date() })
+          .where('session_id', '=', session_id)
+          .where('compacted_at', 'is', null)
+          .where('injected_at', '<=', boundary)
+          .execute();
+      }
+
       // Delete the summarized messages (by ID)
       const summarised_ids = to_summarize.map(m => m.id);
       await trx
