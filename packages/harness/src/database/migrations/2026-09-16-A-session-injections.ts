@@ -1,5 +1,7 @@
 import { Kysely, sql } from 'kysely';
 
+import type { Tables } from '../tables.js';
+
 /**
  * Session injections: bookkeeping for the automatic recollection strip.
  *
@@ -12,7 +14,7 @@ import { Kysely, sql } from 'kysely';
  * Compaction soft-purges (sets compacted_at) instead of deleting: dedup
  * reads only un-compacted rows; analysis reads the full history.
  */
-export async function up(trx: Kysely<any>): Promise<void> {
+export async function up(trx: Kysely<Tables>): Promise<void> {
   await trx.schema
     .createTable('session_injections')
     .addColumn('id', 'bigserial', (col) => col.primaryKey())
@@ -36,6 +38,6 @@ export async function up(trx: Kysely<any>): Promise<void> {
   await sql`CREATE INDEX session_injections_message_idx ON session_injections (message_id)`.execute(trx);
 }
 
-export async function down(trx: Kysely<any>): Promise<void> {
+export async function down(trx: Kysely<Tables>): Promise<void> {
   await trx.schema.dropTable('session_injections').execute();
 }
