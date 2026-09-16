@@ -1,8 +1,8 @@
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from "pinetto";
 import { errToString } from "@fondamenta/utils";
-import { type DB } from "../database/client.js";
 import { EVENT_PREFIX } from "../constants.js";
+import { selectLatestUserMessages } from "../database/tables/messages.js";
 import { selectRecords, type SelectableContinuityRecord } from "../database/tables/continuity_records.js";
 import {
   insertSessionInjection,
@@ -92,14 +92,10 @@ export class Recaller extends WithContext {
     // context, heartbeat, our own strips — all EVENT_PREFIX'd) and
     // (b) not already served a strip. A single user message is served
     // at most one strip per session lifetime.
-    const candidates = await db.selectFrom('messages')
-      .where('session_id', '=', session_id)
-      .where('role', '=', 'user')
-      .orderBy('created_at', 'desc')
-      .orderBy('id', 'desc')
-      .limit(10)
-      .selectAll()
-      .execute();
+    const candidates = await selectLatestUserMessages(db, {
+      session_id,
+      limit: 10,
+    });
 
     let trigger: { id: number; text: string } | undefined;
     for (const m of candidates) {

@@ -4,6 +4,7 @@ import { type InitContext, WithContext } from "../context.js";
 import { type DB, ensureTrx } from "../database/client.js";
 import { selectMessages, insertMessage, type ASelectableDBMessage } from "../database/tables/messages.js";
 import { updateSessionSystemPrompt } from "../database/tables/sessions.js";
+import { softPurgeSessionInjections } from "../database/tables/session_injections.js";
 import { makeCompactionPrompt } from "../prompts/compaction.js";
 import { type AgentBlock } from "../types/messages.js";
 import { type TextBlock } from "../types/blocks.js";
@@ -108,13 +109,10 @@ export class Compactor extends WithContext {
       // never deleted — the history is the future evaluation dataset.
       const boundary = to_summarize[to_summarize.length - 1]?.created_at;
       if (boundary) {
-        await trx
-          .updateTable('session_injections')
-          .set({ compacted_at: new Date() })
-          .where('session_id', '=', session_id)
-          .where('compacted_at', 'is', null)
-          .where('injected_at', '<=', boundary)
-          .execute();
+        await softPurgeSessionInjections(trx, {
+          session_id,
+          before: boundary,
+        });
       }
 
       // Delete the summarized messages (by ID)
