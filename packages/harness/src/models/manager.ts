@@ -30,6 +30,7 @@ export class ModelManager extends WithContext {
   #synthesis?: AbstractSynthesisModel;
   #distillation?: AbstractSessionModel;
   #compaction?: AbstractSessionModel;
+  #extraction?: AbstractSessionModel;
 
   constructor(init: InitContext) {
     super(init);
@@ -55,6 +56,11 @@ export class ModelManager extends WithContext {
     // and independent of whatever substrate a session has switched to.
     this.#distillation = await initializeSessionModel(this._ctx.config.models.distillation);
     this.#compaction = await initializeSessionModel(this._ctx.config.models.compaction);
+    // Recollection extractor (optional): gates and focuses recollection
+    // queries. Absent config = phase-I raw-message behavior.
+    if (this._ctx.config.models.extraction) {
+      this.#extraction = await initializeSessionModel(this._ctx.config.models.extraction);
+    }
   }
 
   /** Session model adapters by config id. Throws on unknown id. */
@@ -92,6 +98,11 @@ export class ModelManager extends WithContext {
   get compaction(): AbstractSessionModel {
     assert(this.#compaction);
     return this.#compaction;
+  }
+
+  /** undefined when no extraction model is configured. */
+  get extraction(): AbstractSessionModel | undefined {
+    return this.#extraction;
   }
 
 }

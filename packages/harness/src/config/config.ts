@@ -230,6 +230,10 @@ export interface Config {
     distillation: ConfigSessionModel;
     /** Dedicated model for compaction. Static — not switchable. */
     compaction: ConfigSessionModel;
+    /** Dedicated model for recollection query gating/subject extraction.
+     *  Optional: when absent, the recaller falls back to raw-message
+     *  querying (phase-I behavior). */
+    extraction?: ConfigSessionModel;
   };
   logging: ConfigLogging;
   /** JMAP mail server configuration. */
