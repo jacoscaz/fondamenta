@@ -184,6 +184,11 @@ export class Recaller extends WithContext {
         limit: STRIP_CANDIDATES,
       });
       for (const r of recs) {
+        // Superseded facts are historical premises, not standing ones —
+        // never injectable. Excluded at retrieval so they don't burn
+        // fused-candidate slots (live catch 2026-09-17: fact #1832,
+        // superseded by #2930 on 2026-09-15, injected at 0.79).
+        if (r.superseded_by !== null) continue;
         if (!fused_map.has(r.id)) fused_map.set(r.id, r);
       }
     }
