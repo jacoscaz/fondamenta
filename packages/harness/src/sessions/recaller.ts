@@ -19,7 +19,10 @@ const STRIP_MAX_FACTS = 3;
  *  The cost is asymmetric — a missed fact is recoverable by conscious
  *  query, a noisy strip trains the reader to ignore the strip. Calibrated
  *  against the 2026-09-15 store eval (on-topic 0.65-0.84, noise floor
- *  0.50-0.6): 0.63 sits just under the on-topic band. Provisional —
+ *  0.50-0.6): 0.63 sits just under the on-topic band. Calibration basis
+ *  is MESSAGE-level cosines — the precision pass scores candidates
+ *  against the message vector (plus subject vectors, which alone run
+ *  0.1-0.3 lower and would need a different band). Provisional —
  *  strips now self-report scores, so tune against live distributions. */
 const STRIP_COSINE_THRESHOLD = 0.63;
 /** A fact this far below the best-scoring candidate does not ride along:
@@ -161,6 +164,15 @@ export class Recaller extends WithContext {
       const e = await this._ctx.managers.models.embedding.embed(subject);
       units.push({ text: subject, vec: e.embedding });
     }
+    // The message itself joins the scoring references (not the retrieval
+    // units): subject embeddings are short and semantically narrow, and
+    // their cosines against long fact contents run 0.1-0.3 below
+    // message-level cosines for the SAME match (live finding 2026-09-17:
+    // 'working for vcharge' → 0.63 subject-level vs 0.73 message-level).
+    // STRIP_COSINE_THRESHOLD is calibrated on the message-level band, so
+    // precision is judged against the message; subjects focus retrieval.
+    const msg_embedding = await this._ctx.managers.models.embedding.embed(trigger.text);
+    const scoring_vecs = [...units.map(u => u.vec), msg_embedding.embedding];
 
     // ── 3. Hybrid retrieval per unit, fused ───────────────────────────
     const fused_map = new Map<number, SelectableContinuityRecord>();
@@ -178,13 +190,16 @@ export class Recaller extends WithContext {
     const fused = [...fused_map.values()];
 
     // ── 4. Precision pass: cosine threshold on the vector leg ─────────
-    // A candidate's score is its best cosine against any query unit.
+    // A candidate's score is its best cosine against any scoring vector:
+    // the extracted subject units AND the original message (see above —
+    // the threshold band is message-level; subjects alone systematically
+    // under-score paraphrased matches).
     const open_ids = await selectOpenInjectedRecordIds(db, session_id);
     const all_scored = fused
       .filter(r => !open_ids.has(r.id))
       .map(r => ({
         r,
-        score: Math.max(...units.map(u => cosine(u.vec, parseEmbedding((r as any).embedding) ?? []))),
+        score: Math.max(...scoring_vecs.map(v => cosine(v, parseEmbedding((r as any).embedding) ?? []))),
       }))
       .filter(x => x.score >= STRIP_COSINE_THRESHOLD)
       .sort((a, b) => b.score - a.score);
