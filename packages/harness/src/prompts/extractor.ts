@@ -14,7 +14,7 @@ Respond with ONLY a JSON object, no other text:
 Rules:
 - query_worthy=true when the message asks a question, introduces a new person, organization, project or topic, or shifts to a topic where past knowledge could matter.
 - query_worthy=false for elaborations, acknowledgments, meta-discussion about the conversation itself, greetings, and generic statements — even when they mention subjects. If searching the memory store could not change what happens next, it is not query-worthy.
-- subjects: 0-3 short phrases — people's names, organizations, projects, technical topics — phrased as they would appear in stored records.
+- subjects: 0-3 short phrases — people's names, organizations, projects, technical topics, and also conceptual or relational phrases central to the message (shared traditions, ongoing practices, theses, working relationships). Prefer the specific phrase over a generic paraphrase. — phrased as they would appear in stored records.
 - When query_worthy=false, subjects must be [].
 
 Examples:
