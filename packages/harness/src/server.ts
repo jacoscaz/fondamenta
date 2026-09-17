@@ -14,6 +14,7 @@ import { NotificationBus } from "./notifications/bus.js";
 
 import { Compactor } from "./sessions/compactor.js";
 import { migrateToLatest } from './database/migrator.js';
+import { alignEmbeddingDimensions } from './database/embedding-alignment.js';
 import { Emygdala } from './emygdala/emygdala.js';
 import { Recaller } from './sessions/recaller.js';
 import { Distiller } from './sessions/distiller.js';
@@ -65,6 +66,10 @@ const db = getDB(config);
 
 // Run migrations before anything else
 await migrateToLatest(db, logger.child('[db:migrations]'));
+
+// Reconcile the embedding column with the configured embedding model's
+// dimensionality (retype + null-on-mismatch; see embedding-alignment.ts).
+await alignEmbeddingDimensions(db, config.models.embedding.options.dimensions ?? 1536, logger.child('[db:embedding-alignment]'));
 
 const init_context: InitContext = {
   db,

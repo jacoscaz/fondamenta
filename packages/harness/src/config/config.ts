@@ -53,7 +53,13 @@ export interface ConfigModelBase {
 
 export interface ConfigEmbeddingsModelBase {
   adapter: string;
-  options: Record<string, any>;
+  options: Record<string, any> & {
+    /** Vector dimensionality produced by this model. The continuity
+     *  store's embedding column is aligned to this at every boot:
+     *  retyped to vector(dimensions), nulled entirely on content
+     *  mismatch (the embedder loop then re-embeds in the background). */
+    dimensions?: number;
+  };
 }
 
 export interface ConfigModelOpenAI extends ConfigModelBase {
@@ -83,6 +89,11 @@ export interface ConfigEmbeddingsModelOpenAI extends ConfigEmbeddingsModelBase {
     model: string;
     api_key: string;
     base_url?: string;
+    /** Vector dimensionality produced by this model. The continuity
+     *  store's embedding column is aligned to this at every boot:
+     *  retyped to vector(dimensions), nulled entirely on content
+     *  mismatch (the embedder loop then re-embeds in the background). */
+    dimensions?: number;
     extras?: Record<string, any>;
   };
 }
@@ -207,8 +218,9 @@ export interface Config {
     /** Dedicated model for compaction. Static — not switchable. */
     compaction: ConfigSessionModel;
     /** Dedicated model for recollection query gating/subject extraction.
-     *  Optional: when absent, the recaller falls back to raw-message
-     *  querying (phase-I behavior). */
+     *  Optional: when absent, the recaller performs no automatic
+     *  recollection at all (zero injections) — grounding remains the
+     *  agent's conscious work via continuity queries. */
     extraction?: ConfigSessionModel;
   };
   logging: ConfigLogging;

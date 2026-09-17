@@ -33,42 +33,35 @@ export const insertMessage = async (db: DB, message: AInsertableDBMessage | AIns
 export interface ADBSelectMessagesOpts {
   session_id: number;
   unprocessed?: 'include' | 'exclude';
+  /** Message role filter; omit for all roles. */
+  role?: 'user' | 'agent';
+  /** Order direction on (created_at, id); default 'asc'. */
+  order?: 'asc' | 'desc';
+  /** Row limit; omit for all rows. */
+  limit?: number;
 }
 
 export const selectMessages = async (db: DB, opts: ADBSelectMessagesOpts): Promise<ASelectableDBMessage[]> => {
+  const dir = opts.order ?? 'asc';
   let query = db.selectFrom('messages')
-    .orderBy('created_at', 'asc')
-    .orderBy('id', 'asc');
+    .orderBy('created_at', dir)
+    .orderBy('id', dir);
   if (typeof opts.session_id === 'number') {
     query = query.where('session_id', '=', opts.session_id);
   }
   if (opts.unprocessed !== 'include') {
     query = query.where('processed_at', 'is not', null);
   }
+  if (opts.role) {
+    query = query.where('role', '=', opts.role);
+  }
+  if (typeof opts.limit === 'number') {
+    query = query.limit(opts.limit);
+  }
   return await query.selectAll().execute();
 };
 
-export interface ADBSelectLatestUserMessagesOpts {
-  session_id: number;
-  limit: number;
-}
 
-/** Latest user messages of a session, newest first. Used by consumers
- *  that need to inspect the most recent inbound traffic (e.g. the
- *  recaller looking for the triggering message). */
-export const selectLatestUserMessages = async (
-  db: DB,
-  opts: ADBSelectLatestUserMessagesOpts,
-): Promise<ASelectableDBMessage[]> => {
-  return await db.selectFrom('messages')
-    .where('session_id', '=', opts.session_id)
-    .where('role', '=', 'user')
-    .orderBy('created_at', 'desc')
-    .orderBy('id', 'desc')
-    .limit(opts.limit)
-    .selectAll()
-    .execute();
-};
 
 export interface ADBDeleteMessagesOpts {
   session_id: number;

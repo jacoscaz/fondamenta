@@ -2,7 +2,7 @@ import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from "pinetto";
 import { errToString } from "@fondamenta/utils";
 import { EVENT_PREFIX } from "../constants.js";
-import { selectLatestUserMessages } from "../database/tables/messages.js";
+import { selectMessages } from "../database/tables/messages.js";
 import { selectRecords, type SelectableContinuityRecord } from "../database/tables/continuity_records.js";
 import {
   insertSessionInjection,
@@ -100,8 +100,10 @@ export class Recaller extends WithContext {
     // context, heartbeat, our own strips — all EVENT_PREFIX'd) and
     // (b) not already served a strip. A single user message is served
     // at most one strip per session lifetime.
-    const candidates = await selectLatestUserMessages(db, {
+    const candidates = await selectMessages(db, {
       session_id,
+      role: 'user',
+      order: 'desc',
       limit: 10,
     });
 
@@ -122,43 +124,42 @@ export class Recaller extends WithContext {
     // ── 2. Gate + focus: extractor when configured ────────────────────
     // Query units: (text, embedding) pairs to retrieve against. With an
     // extraction model, units are the extracted subjects (focused, BM25-
-    // friendly); without one — or on extractor failure — the raw message
-    // remains the query (phase-I behavior).
+    // friendly). Without one — on extractor failure — or when the gate
+    // yields no usable subjects, there are NO injections at all: automatic
+    // recollection stays silent rather than injecting broad, unfocused
+    // material, and grounding remains the agent's conscious work.
     type QueryUnit = { text: string; vec: number[] };
-    let units: QueryUnit[] = [];
+    const units: QueryUnit[] = [];
+
+    const gatedOut = async (reason: string): Promise<void> => {
+      // Bookkeeping row keeps fire-once semantics and eval base rates.
+      await insertSessionInjection(db, {
+        session_id,
+        record_id: null,
+        message_id: trigger.id,
+        method: 'gated_out',
+        score: null,
+        rank: null,
+        injected_at: new Date(),
+      });
+      this.#logger.info('message %d: gated out (%s)', trigger.id, reason);
+    };
 
     const extractor = this._ctx.managers.models.extraction;
-    if (extractor) {
-      const extraction = await runExtractor(extractor, trigger.text, this.#logger);
-      if (extraction && !extraction.query_worthy) {
-        // Role-gated: elaborations, acknowledgments, meta-discussion.
-        // Bookkeeping row keeps fire-once semantics and eval base rates.
-        await insertSessionInjection(db, {
-          session_id,
-          record_id: null,
-          message_id: trigger.id,
-          method: 'gated_out',
-          score: null,
-          rank: null,
-          injected_at: new Date(),
-        });
-        this.#logger.info('message %d: gated out (%s)', trigger.id,
-          extraction.subjects.join(', ') || 'no subjects');
-        return;
-      }
-      if (extraction && extraction.subjects.length > 0) {
-        for (const subject of extraction.subjects) {
-          const e = await this._ctx.managers.models.embedding.embed(subject);
-          units.push({ text: subject, vec: e.embedding });
-        }
-      }
-      // extraction === null (failed) or empty subjects with query_worthy
-      // true → units stay empty → raw-message fallback below.
+    if (!extractor) {
+      await gatedOut('no extractor configured');
+      return;
     }
-
-    if (units.length === 0) {
-      const embedded = await this._ctx.managers.models.embedding.embed(trigger.text);
-      units = [{ text: trigger.text, vec: embedded.embedding }];
+    const extraction = await runExtractor(extractor, trigger.text, this.#logger);
+    if (!extraction || !extraction.query_worthy || extraction.subjects.length === 0) {
+      await gatedOut(
+        !extraction ? 'extraction failed' :
+        extraction.subjects.join(', ') || 'no subjects');
+      return;
+    }
+    for (const subject of extraction.subjects) {
+      const e = await this._ctx.managers.models.embedding.embed(subject);
+      units.push({ text: subject, vec: e.embedding });
     }
 
     // ── 3. Hybrid retrieval per unit, fused ───────────────────────────
