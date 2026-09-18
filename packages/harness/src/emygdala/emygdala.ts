@@ -178,7 +178,16 @@ export class Emygdala extends WithContext {
         const gap_str = formatDistanceStrict(now.valueOf(), last.valueOf());
         injected_messages.push(`It is ${now.toISOString()}. It has been ${gap_str} since your last activation.`);
       }
-    } else if (!last) {
+    } else if (!last && this.#last_time_event_at === undefined) {
+      // Fire once per process start. The runner's #last_activation_at is
+      // only set in run()'s finally, so it is undefined for the WHOLE
+      // first run — including every query iteration of it. Without this
+      // guard the boot branch injected on every iteration (each injected
+      // event fed the next loop pass): a self-sustaining activation loop
+      // inside a single run (observed 2026-09-18, live, ~40 boot events).
+      // Boot and time-passage branches are mutually exclusive (boot needs
+      // last undefined; time-passage needs it defined), so an unset
+      // #last_time_event_at here means exactly "no event yet this process".
       // Boot event carries substrate STATE (Jacopo, 2026-09-03): a restart
       // is the only unintentional substrate change — intentional switches
       // are known by definition to the agent who made them. Future-me must
