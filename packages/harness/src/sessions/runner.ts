@@ -36,7 +36,14 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
   /** Whether this runner mirrors the session stream to the monologue log. */
   #monologue_enabled: boolean;
   #last_heartbeat_activation_at?: Date;
+  /** Last REAL activation — a run whose loop actually processed messages.
+   *  Empty heartbeat drains do NOT update this (see run()'s finally): they
+   *  would re-arm the quiet period every tick and permanently suppress
+   *  synthetic activations (bug found 2026-09-18: zero heartbeat
+   *  activations since the quiet period landed on 2026-08-30). */
   #last_activation_at?: Date;
+  /** Whether the current run() loop processed at least one message batch. */
+  #loop_did_work = false;
   /** Maximum activations (query loop iterations) per run() invocation.
    *  Set per-run by the caller; every caller must pass a limit. */
   #max_queries_per_run!: number;
@@ -179,6 +186,13 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     return this.#last_idle_at;
   }
 
+  /** Timestamp of the last REAL activation (messages actually processed),
+   *  or undefined if none since process start. The emygdala reads this for
+   *  time-passage salience; the heartbeat quiet period re-arms on it. */
+  get lastActivationAt(): Date | undefined {
+    return this.#last_activation_at;
+  }
+
   addPreQueryListener(listener: () => Promise<void>) {
     this.#pre_query_listeners.push(listener);
   }
@@ -257,6 +271,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     this.#running = true;
     this.#max_queries_per_run = max_queries_per_run;
     this.#query_count = 0;
+    this.#loop_did_work = false;
     db = db ?? this._ctx.db;
     tool_manager = tool_manager ?? this._ctx.managers.tools;
     this.#logger.debug('running (max_queries_per_run: %d)', max_queries_per_run);
@@ -284,20 +299,27 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     } finally {
       this.#running = false;
       this.#last_idle_at = new Date();
-      // Track the end of ANY activation loop, regardless of trigger source
-      // (user message, mail injection, heartbeat...). The heartbeat quiet
-      // period measures "time since I was last active", not "time since the
-      // last heartbeat-driven activation": an ongoing conversation — with a
-      // human or with ourselves — IS presence, and synthetic check-ins
-      // should not fragment it. Consequence: the activation rhythm is
-      // effectively "X minutes of quiet", not "X minutes of clock time".
-      this.#last_activation_at = this.#last_idle_at;
+      // Track the end of a real activation only — a loop that actually
+      // processed messages. The heartbeat quiet period measures "time since
+      // I was last truly active": an ongoing conversation — with a human or
+      // with ourselves — IS presence, and synthetic check-ins should not
+      // fragment it. But empty drain runs (the quiet branch calls run() on
+      // every tick to flush pending messages) must NOT count: they made
+      // this timestamp refresh every 30s, so the quiet period never expired
+      // and synthetic heartbeat activations never fired (bug lived
+      // 2026-08-30 → 2026-09-18, found via the missing time-passage event).
+      if (this.#loop_did_work) {
+        this.#last_activation_at = this.#last_idle_at;
+      }
       this.#logger.debug('idle');
       this.emit('idle', this.#prompt_size);
     }
   }
 
   async #query(db_req_messages: ASelectableDBMessage[], db: DB, tool_manager: ToolManager): Promise<AInsertableDBMessage[]> {
+    // Only called from the activation fetch's callback — i.e. only when
+    // there are messages to actually process. Marks this run as real.
+    this.#loop_did_work = true;
     const session = await selectSessionById(db, this.#origin_session_id);
     // Translate the canonical representation to the provider format on
     // every query — never cache it. The canonical `data` column is the
