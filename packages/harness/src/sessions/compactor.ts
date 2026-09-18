@@ -4,6 +4,7 @@ import { type InitContext, WithContext } from "../context.js";
 import { type DB, ensureTrx } from "../database/client.js";
 import { selectMessages, insertMessage, type ASelectableDBMessage } from "../database/tables/messages.js";
 import { updateSessionSystemPrompt } from "../database/tables/sessions.js";
+import { softPurgeSessionInjections } from "../database/tables/session_injections.js";
 import { makeCompactionPrompt } from "../prompts/compaction.js";
 import { type AgentBlock } from "../types/messages.js";
 import { type TextBlock } from "../types/blocks.js";
@@ -100,6 +101,19 @@ export class Compactor extends WithContext {
 
       this.#logger.info('compaction summary: %d chars, input %d tokens, output %d tokens',
         summary_text.length, input_size, output_size);
+
+      // Recollection soft purge: strips belonging to messages that are
+      // being summarized away can fire again — the context that held
+      // them is gone. Rows injected after the split boundary stay open:
+      // the retained tail still carries their content. Rows are marked,
+      // never deleted — the history is the future evaluation dataset.
+      const boundary = to_summarize[to_summarize.length - 1]?.created_at;
+      if (boundary) {
+        await softPurgeSessionInjections(trx, {
+          session_id,
+          before: boundary,
+        });
+      }
 
       // Delete the summarized messages (by ID)
       const summarised_ids = to_summarize.map(m => m.id);

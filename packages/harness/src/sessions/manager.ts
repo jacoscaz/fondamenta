@@ -62,6 +62,15 @@ export class SessionManager extends WithContext {
   }
 
   /**
+   * Timestamp of the session's last REAL activation (model actually
+   * processed messages), or undefined if none since process start.
+   * Empty heartbeat drains do not count — see SessionRunner.
+   */
+  getLastActivationAt(session_id: number): Date | undefined {
+    return this.#ensureRunner(session_id).lastActivationAt;
+  }
+
+  /**
    * Whether the runner has any unprocessed message pending. Does not
    * trigger an activation loop.
    */

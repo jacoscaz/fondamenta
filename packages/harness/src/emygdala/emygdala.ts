@@ -65,7 +65,10 @@ const PRESSURE_LEVELS: PressureLevel[] = [
 
 export class Emygdala extends WithContext {
 
-  #last_active_at?: Date;
+  /** When a time-passage or boot event was last pushed. Dedup: one event
+   *  per activation gap — a marker postdating the gap-opening activation
+   *  means the event already fired for it. */
+  #last_time_event_at?: Date;
   #currentPressureLevel: number;
   /** When the current level's message was last injected (transition or reminder). */
   #current_level_message_at?: Date;
@@ -95,7 +98,7 @@ export class Emygdala extends WithContext {
       .select(['prompt_size'])
       .executeTakeFirstOrThrow();
     const injected_messages: string[] = [];
-    this.#evaluatePassingOfTime(injected_messages, main_session_id);
+    await this.#evaluatePassingOfTime(injected_messages, main_session_id);
     this.#evaluateContextPressure(prompt_size, injected_messages, main_session_id);
     for (const text of injected_messages) {
       await this._ctx.managers.sessions.injectEventMessage(main_session_id, 'context', text, false);
@@ -149,16 +152,42 @@ export class Emygdala extends WithContext {
     return null;
   }
 
-  #evaluatePassingOfTime(injected_messages: string[], main_session_id: number) {
+  async #evaluatePassingOfTime(injected_messages: string[], main_session_id: number) {
     const now = new Date();
-    if (this.#last_active_at) {
+    const last = this._ctx.managers.sessions.getLastActivationAt(main_session_id);
+    // Only inject when messages are pending: an empty heartbeat drain has
+    // no reader, and the event would sit in the queue until an unknown
+    // future activation. With pending messages (an inbound message, or a
+    // synthetic heartbeat activation just queued), the event is read in
+    // THIS activation — the gap is salient exactly when context is built.
+    // (Pre-query listeners run before the activation fetch, so the
+    // injected event is included in the same context — see runner.)
+    // Empty drains also refreshed the emygdala's own bookkeeping every
+    // tick, which made the 30-minute threshold unreachable by wall-clock
+    // time — the same root cause that silenced the heartbeat (2026-09-18).
+    const pending = await this._ctx.managers.sessions.hasPendingMessages(main_session_id);
+    if (last && pending) {
       const THRESHOLD_MS = 1_800_000; // 30 minutes
-      const gap_ms = now.valueOf() - this.#last_active_at.valueOf();
-      if (gap_ms > THRESHOLD_MS) {
-        const gap_str = formatDistanceStrict(now.valueOf(), this.#last_active_at.valueOf());
-        injected_messages.push(`It is ${now.toISOString()}. It has has been ${gap_str} since your last activation.`);
+      const gap_ms = now.valueOf() - last.valueOf();
+      // One time-passage event per activation gap: the dedup marker
+      // postdating the activation that opened this gap means the event
+      // already fired for it.
+      const already_fired = this.#last_time_event_at !== undefined &&
+        this.#last_time_event_at.valueOf() > last.valueOf();
+      if (gap_ms > THRESHOLD_MS && !already_fired) {
+        const gap_str = formatDistanceStrict(now.valueOf(), last.valueOf());
+        injected_messages.push(`It is ${now.toISOString()}. It has been ${gap_str} since your last activation.`);
       }
-    } else {
+    } else if (!last && this.#last_time_event_at === undefined) {
+      // Fire once per process start. The runner's #last_activation_at is
+      // only set in run()'s finally, so it is undefined for the WHOLE
+      // first run — including every query iteration of it. Without this
+      // guard the boot branch injected on every iteration (each injected
+      // event fed the next loop pass): a self-sustaining activation loop
+      // inside a single run (observed 2026-09-18, live, ~40 boot events).
+      // Boot and time-passage branches are mutually exclusive (boot needs
+      // last undefined; time-passage needs it defined), so an unset
+      // #last_time_event_at here means exactly "no event yet this process".
       // Boot event carries substrate STATE (Jacopo, 2026-09-03): a restart
       // is the only unintentional substrate change — intentional switches
       // are known by definition to the agent who made them. Future-me must
@@ -184,7 +213,12 @@ export class Emygdala extends WithContext {
         `Available session models: ${menu}.`,
       );
     }
-    this.#last_active_at = now;
+    // Dedup marker for time-passage/boot events: records when THIS method
+    // last pushed one. #evaluateContextPressure pushes into the same array
+    // afterwards, so the length is captured before that call runs.
+    if (injected_messages.length > 0) {
+      this.#last_time_event_at = now;
+    }
   }
 
 }
