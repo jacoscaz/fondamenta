@@ -5,8 +5,8 @@ import {
   type AgentInput,
   type AgentToolRequest,
   type AgentMessage,
-} from "../../../types/messages.js";
-import { type UnsupportedBlock } from "../../../types/blocks.js";
+} from "../../../../types/messages.js";
+import { type UnsupportedBlock } from "../../../../types/blocks.js";
 
 /**
   * One provider response maps to ONE canonical message whose `blocks` array

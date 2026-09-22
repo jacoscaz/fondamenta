@@ -9,24 +9,24 @@ import {
   type UserToolResult,
   type AgentMessage,
   type Message,
-} from "../../../types/messages.js";
+} from "../../../../types/messages.js";
 
 import {
   type MessageBlock,
-} from "../../../types/blocks.js";
+} from "../../../../types/blocks.js";
 
 import {
   type UserNotification,
   type UserMessageIncomingNotification,
-} from "../../../types/notifications.js";
+} from "../../../../types/notifications.js";
 
 import {
   type Contact,
-} from "../../../types/contacts.js";
+} from "../../../../types/contacts.js";
 
 import {
   EVENT_PREFIX,
-} from "../../../constants.js";
+} from "../../../../constants.js";
 
 import {
   type OpenAISessionModel,

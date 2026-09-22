@@ -67,7 +67,24 @@ export interface ConfigModelOpenAI extends ConfigModelBase {
   };
 };
 
-export type ConfigSessionModel = ConfigModelOpenAI;
+export interface ConfigModelAnthropic extends ConfigModelBase {
+  adapter: 'anthropic';
+  options: {
+    model: string;
+    api_key: string;
+    base_url?: string;
+    /**
+     * Prompt-caching breakpoint TTL for the stable prefix (system +
+     * conversation tail). 'off' disables cache_control markers
+     * entirely. Default '1h' — the 5m default expires across this
+     * harness's heartbeat-spaced activations.
+     */
+    prompt_cache_ttl?: '5m' | '1h' | 'off';
+    extras?: Record<string, any>;
+  };
+};
+
+export type ConfigSessionModel = ConfigModelOpenAI | ConfigModelAnthropic;
 
 /**
  * Reasoning-effort vocabulary: the harness's common language for how hard

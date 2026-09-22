@@ -3,12 +3,12 @@ import {
   AbstractSessionModel,
   type ModelQueryResults,
   type ModelQueryOpts,
-} from "../abstract.js";
+} from "../../abstract.js";
 
 import OpenAI from 'openai';
 
-import { type ConfigModelOpenAI } from "../../../config/config.js";
-import { type ReasoningEffort } from "../../../constants.js";
+import { type ConfigModelOpenAI } from "../../../../config/config.js";
+import { type ReasoningEffort } from "../../../../constants.js";
 import { ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
 import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
 import { formatMessage } from "./formatters.js";
