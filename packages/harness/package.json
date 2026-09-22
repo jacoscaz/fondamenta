@@ -21,6 +21,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "0.127.0",
     "@fondamenta/utils": "^0.0.1",
     "@runtyped/type": "^2.0.0",
     "@xterm/headless": "^6.0.0",

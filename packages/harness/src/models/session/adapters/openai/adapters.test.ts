@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { parseMessage } from "./parsers.js";
 import { formatMessage } from "./formatters.js";
 import { type OpenAISessionModel } from "./openai.js";
-import { type AgentInput, type Message } from "../../../types/messages.js";
+import { type AgentInput, type Message } from "../../../../types/messages.js";
 
 /**
  * Adapter-level guarantees for unsupported blocks: whatever a provider
