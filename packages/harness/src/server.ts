@@ -18,6 +18,7 @@ import { Emygdala } from './emygdala/emygdala.js';
 import { Distiller } from './sessions/distiller.js';
 import { Embedder } from './sessions/embedder.js';
 import { InitContext, type CompleteContext } from './context.js';
+import { acquirePidFile, releasePidFile, defaultPidFilePath } from './pid-file.js';
 
 import { ModelManager } from './models/manager.js';
 import { FileManager } from './files/manager.js';
@@ -40,6 +41,32 @@ import { SpeechManager } from "./speech/manager.js";
 import { RootToolManager } from './tools/manager.js';
 
 const config = await getConfigFromProcessArgv();
+
+// ---------------------------------------------------------------------------
+// Single-instance guard (pid file). This must happen before anything else:
+// two concurrent harness instances racing for the database, the notification
+// bus and the continuity store is the one failure this guard must make
+// impossible (2026-09-22, Jacopo, after the watchdog incident). Runs before
+// the logger is set up, so its messages go to the console directly.
+// ---------------------------------------------------------------------------
+const pid_file_path = config.pid_file ?? defaultPidFilePath();
+const pid_file_acquisition = acquirePidFile(pid_file_path);
+if (!pid_file_acquisition.acquired) {
+  console.error(
+    `Refusing to start: another harness instance (pid ${pid_file_acquisition.conflict_pid}) ` +
+    `holds the pid file at ${pid_file_acquisition.path}. Exiting.`,
+  );
+  process.exit(0);
+}
+if (pid_file_acquisition.reclaimed) {
+  const { pid, reason } = pid_file_acquisition.reclaimed;
+  console.warn(
+    reason === 'dead-pid'
+      ? `Stale pid file at ${pid_file_path} (pid ${pid} is gone) — reclaimed.`
+      : `Corrupt pid file at ${pid_file_path} — reclaimed.`,
+  );
+}
+const releasePidFileOnShutdown = () => releasePidFile(pid_file_acquisition.path);
 
 // Main (ops) logger. Everything that is not a formatted block
 // representation of the session stream goes to stderr: stdout is
@@ -159,6 +186,7 @@ const onProcessExit = (signal: 'SIGTERM' | 'SIGINT') => {
   process.removeListener('SIGTERM', onProcessExit);
   process.removeListener('SIGINT', onProcessExit);
   logger.warn('Received signal %s, shutting down...', signal);
+  releasePidFileOnShutdown();
   db.destroy();
   setTimeout(() => process.exit(0), 1000);
 };

@@ -22,6 +22,16 @@
         // monologue_dir: "/var/log/fondamenta",
     },
 
+    // Optional. Pid file backing the single-instance guard: the first thing
+    // the harness does at boot is check this file. A second instance finding
+    // a live pid file exits immediately instead of racing the first for the
+    // database and the continuity store. A stale file (recorded pid dead, or
+    // corrupt contents — e.g. after a hard kill or power loss) is reclaimed
+    // with a warning, so a crash can never wedge subsequent boots.
+    // Defaults to harness.pid at the level of the harness package.json.
+    // pid_file: "/root/fondamenta/packages/harness/harness.pid",
+
+
     // JMAP mail access (owned by @fondamenta/mcp-jmap). Inbound mail from
     // allowlisted senders arrives as `mail/arrived` events that activate
     // the agent.
