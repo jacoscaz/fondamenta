@@ -9,7 +9,7 @@ import {
   type SelectableContinuityRecord,
 } from "../../database/tables/continuity_records.js";
 import { type CompleteContext } from "../../context.js";
-import { ellipsis, errToString } from "@fondamenta/utils";
+import { ellipsis, errToString } from "@loom/utils";
 import { type UserNotification } from "../../types/notifications.js";
 import { type TextBlock } from "../../types/blocks.js";
 

@@ -80,12 +80,12 @@ const logger = pinetto({
 
 
 logger.info('PID %s', process.pid);
-process.title = 'fondamenta';
+process.title = 'loom';
 
 // Human-facing mirror of the session stream, one entry per block,
 // written to its own rotating file. Stdout/stderr stay ops-only.
 const monologue = new MonologueLogger({
-  dir: config.logging.monologue_dir ?? '/var/log/fondamenta',
+  dir: config.logging.monologue_dir ?? '/var/log/loom',
 });
 
 // Shared database client

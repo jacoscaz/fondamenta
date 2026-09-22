@@ -11,7 +11,7 @@ import { insertSession, selectDistillableSessions } from "../database/tables/ses
 import { insertMessage } from "../database/tables/messages.js";
 import { DB, ensureTrx } from "../database/client.js";
 import { Logger } from "pinetto";
-import { errToString } from "@fondamenta/utils";
+import { errToString } from "@loom/utils";
 import { SessionRunner } from "./runner.js";
 import { PROJECT_DISTILLATION_OPTS, escapeClosingTag, projectMessages } from "../projection.js";
 import { SERIALIZE_DISTILLATION_OPTS, serializeMessages } from "../serialization.js";

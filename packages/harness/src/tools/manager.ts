@@ -1,6 +1,6 @@
 
 import assert from 'node:assert';
-import { errToString, validationErrsToString } from "@fondamenta/utils";
+import { errToString, validationErrsToString } from "@loom/utils";
 import { type InitContext, WithContext } from "../context.js";
 import { cast, ReceiveType, resolveReceiveType, toJsonSchema, Type, ValidationError } from "@runtyped/type";
 import { type ToolCallContext } from '../types/tools.js';

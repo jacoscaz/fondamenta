@@ -1,6 +1,6 @@
 import { type AbstractSessionModel } from "../models/session/abstract.js";
 import { type Logger } from "pinetto";
-import { errToString } from "@fondamenta/utils";
+import { errToString } from "@loom/utils";
 import { EXTRACTION_SYSTEM_PROMPT } from "../prompts/extractor.js";
 
 /**

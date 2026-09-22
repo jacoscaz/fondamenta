@@ -1,5 +1,5 @@
 {
-  "name": "@fondamenta/harness",
+  "name": "@loom/harness",
   "version": "0.0.1",
   "description": "Framework for building agents",
   "main": "dist/index.js",
@@ -12,7 +12,7 @@
     "test": "node --enable-source-maps --test dist/**/*.test.js"
   },
   "author": "Jacopo Scazzosi <jacopo@scazzosi.com>",
-  "homepage": "https://github.com/fondamenta/fondamenta",
+  "homepage": "https://github.com/jacoscaz/loom",
   "license": "MIT",
   "devDependencies": {
     "@runtyped/type-compiler": "^2.0.0",
@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.127.0",
-    "@fondamenta/utils": "^0.0.1",
+    "@loom/utils": "^0.0.1",
     "@runtyped/type": "^2.0.0",
     "@xterm/headless": "^6.0.0",
     "croner": "^10.0.1",

@@ -1,4 +1,4 @@
-# @fondamenta/harness
+# @loom/harness
 
 The core agent execution framework: session management, tool orchestration, database persistence, and the activation loop that drives conversations with language models.
 

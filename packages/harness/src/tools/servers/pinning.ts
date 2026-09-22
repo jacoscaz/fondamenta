@@ -4,7 +4,7 @@
 // mechanical feedback, pinned_by carries provenance ('agent' or
 // 'distiller').
 
-import { ellipsis } from "@fondamenta/utils";
+import { ellipsis } from "@loom/utils";
 import { type DB } from "../../database/client.js";
 import {
   selectRecords,

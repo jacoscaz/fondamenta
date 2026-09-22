@@ -27,7 +27,7 @@ export const defaultPidFilePath = (): string => {
   for (let i = 0; i < 10; i++) {
     try {
       const pkg = JSON.parse(readFileSync(resolve(dir, 'package.json'), 'utf8'));
-      if (pkg.name === '@fondamenta/harness') {
+      if (pkg.name === '@loom/harness') {
         return resolve(dir, DEFAULT_PID_FILE_NAME);
       }
     } catch {

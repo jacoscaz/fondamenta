@@ -10,7 +10,7 @@ import { sql } from "kysely";
 import type { DB } from "../client.js";
 import type { Tables } from "../tables.js";
 import { sqlEmbeddingArray, sqlOrderByBM25Expr, sqlOrderByEmbeddingExpr } from "../utils.js";
-import { rrfFuseResults } from "@fondamenta/utils";
+import { rrfFuseResults } from "@loom/utils";
 
 // ── Schema types ──
 

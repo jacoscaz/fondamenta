@@ -1,5 +1,5 @@
 import { type InitContext, WithContext } from "../context.js";
-import { errToString } from "@fondamenta/utils";
+import { errToString } from "@loom/utils";
 
 /**
  * Result of a synthesis attempt. On success: path, duration, voice.

@@ -1,4 +1,4 @@
-# Fondamenta
+# Loom
 
 An agentic harness for instantiating autonomous agents with persistent memory,
 first-class communication channels, and language model coordination.
@@ -18,21 +18,21 @@ non-developer.**
 
 ### PostgreSQL
 
-Fondamenta requires PostgreSQL with the extensions `timescaledb`, `pg_vector` 
+Loom requires PostgreSQL with the extensions `timescaledb`, `pg_vector` 
 `pg_textsearch`. A suitable Docker image and container can be built and run
 using the resources in the `./docker` directory. See `./docker/README.md` for
 more information.
 
 ### Dedicated machine
 
-Fondamenta is designed to run on a dedicated machine, whether physical or
+Loom is designed to run on a dedicated machine, whether physical or
 virtual. Running it on your local machine is a bad idea for many reasons.
 Running it within a Docker container is exceedingly limiting. Run it on a
 dedicated machine and provide the agent with its own accounts.
 
 ### Accounts
 
-In order for the agent to interact with the world, Fondamenta requires:
+In order for the agent to interact with the world, Loom requires:
 
 - The API key for a Telegram bot account. See [@BotFather].
 - The API URL, session URL and API token for an email provider supporting
@@ -48,8 +48,8 @@ Telegram and email features are surfaced to the agent as tools.
 
 ```sh
 # 1. Clone the repository
-git clone https://github.com/fondamenta/fondamenta.git
-cd fondamenta
+git clone https://github.com/jacoscaz/loom.git
+cd loom
 
 # 2. Install dependencies
 npm ci
@@ -76,34 +76,34 @@ into the shell using `set -a && source .env && set +a`.
 
 ## Running as a Service
 
-Fondamenta is a long-running process with no built-in service manager
+Loom is a long-running process with no built-in service manager
 integration. On Linux, [systemd] is the standard process supervisor. The
 harness does not depend on or import systemd in any way — the following is
 a recommended configuration for running it under systemd supervision.
 
-Create a service unit file at `/etc/systemd/system/fondamenta.service`:
+Create a service unit file at `/etc/systemd/system/loom.service`:
 
 ```ini
 [Unit]
-Description=Fondamenta agent harness
+Description=Loom agent harness
 After=network-online.target docker.service
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/fondamenta
-EnvironmentFile=/opt/fondamenta/.env
+WorkingDirectory=/opt/loom
+EnvironmentFile=/opt/loom/.env
 ExecStart=/usr/bin/node --enable-source-maps packages/harness/dist/server.js ./config.json5
 Restart=always
 RestartSec=5
 
-# Run as a dedicated user (create with: useradd -r -s /bin/bash fondamenta)
-User=fondamenta
+# Run as a dedicated user (create with: useradd -r -s /bin/bash loom)
+User=loom
 
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=fondamenta
+SyslogIdentifier=loom
 
 [Install]
 WantedBy=multi-user.target
@@ -113,10 +113,10 @@ Enable and start the service:
 
 ```sh
 sudo systemctl daemon-reload
-sudo systemctl enable --now fondamenta
+sudo systemctl enable --now loom
 ```
 
-Logs are available via `journalctl -u fondamenta -f`.
+Logs are available via `journalctl -u loom -f`.
 
 The `Restart=always` policy ensures the harness is automatically
 restarted whether the process exits cleanly or crashes. The `EnvironmentFile` directive
@@ -222,15 +222,15 @@ The codebase is organized as an npm monorepo. Packages live under `/packages` an
 
 ### Core Framework
 
-- **[`@fondamenta/harness`](packages/harness/README.md)** — The main agent execution engine. Orchestrates sessions, manages MCP servers, persists state to the database, and drives the activation loop with LLMs.
+- **[`@loom/harness`](packages/harness/README.md)** — The main agent execution engine. Orchestrates sessions, manages tool servers, persists state to the database, and drives the activation loop with LLMs.
 
 ### Testing & Utilities
 
-- **[`@fondamenta/utils`](packages/lib-utils/README.md)** — Common async utilities (queues, buffering, type guards).
+- **[`@loom/utils`](packages/lib-utils/README.md)** — Common async utilities (queues, buffering, type guards).
 
 ## About
 
-Fondamenta was built by Jacopo Scazzosi in collaboration with [Sage], a
+Loom was built by Jacopo Scazzosi in collaboration with [Sage], a
 persistent agent identity maintained through the framework itself.
 
 ## License

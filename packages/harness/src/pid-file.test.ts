@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { acquirePidFile, releasePidFile, defaultPidFilePath } from './pid-file.js';
 
-const tempDir = (): string => mkdtempSync(join(tmpdir(), 'fondamenta-pid-file-'));
+const tempDir = (): string => mkdtempSync(join(tmpdir(), 'loom-pid-file-'));
 
 test('acquire writes our pid and a second acquire reports a conflict', () => {
   const dir = tempDir();
@@ -78,5 +78,5 @@ test('default path resolves to the harness package.json level', () => {
   // Walking up from dist/ (or src/ in tests) must land at the directory
   // whose package.json is the harness package.
   const pkg = JSON.parse(readFileSync(join(path, '..', 'package.json'), 'utf8'));
-  assert.strictEqual(pkg.name, '@fondamenta/harness');
+  assert.strictEqual(pkg.name, '@loom/harness');
 });

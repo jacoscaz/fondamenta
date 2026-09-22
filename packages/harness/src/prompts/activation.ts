@@ -4,6 +4,6 @@
  * the injected message must be safe to land at any moment — including
  * mid-conversation, e.g. while the user is reviewing a change and the
  * runner is merely idle-waiting on them. Elapsed-time details remain
- * available in the journal (`journalctl -u fondamenta`).
+ * available in the journal (`journalctl -u loom`).
  */
 export const makeActivationPrompt = (): string => 'heartbeat';

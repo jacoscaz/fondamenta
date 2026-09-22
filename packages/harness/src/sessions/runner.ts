@@ -1,4 +1,4 @@
-import { ellipsis, errToString } from "@fondamenta/utils";
+import { ellipsis, errToString } from "@loom/utils";
 import { type DB } from "../database/client.js";
 import { selectSessionById, updateSessionTokens } from "../database/tables/sessions.js";
 import { type ASelectableDBMessage, selectMessagesForActivation, type AInsertableDBMessage, insertMessage, selectMessages } from "../database/tables/messages.js";
@@ -341,7 +341,7 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
     const { messages: res_messages, input_size, cached_size, output_size } = await this.#model.query({
       messages: req_messages,
       tools: await this.#listTools(tool_manager),
-      session_id: `fondamenta-${this.#origin_session_id}`,
+      session_id: `loom-${this.#origin_session_id}`,
       system_prompt: session.system_prompt,
     });
     // Prompt-caching visibility: log the effective prompt size and the

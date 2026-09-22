@@ -4,7 +4,7 @@
 import { TerminalSession, type TerminalSessionOptions, type SessionInfo } from "./session.js";
 import { type IdleEvent } from "zigpty/idle";
 import { type CompleteContext } from "../../../context.js";
-import { errToString } from "@fondamenta/utils";
+import { errToString } from "@loom/utils";
 
 interface SpawnParams {
   command?: string;

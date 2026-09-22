@@ -38,7 +38,7 @@ Fact structure is strict — a fact is a database row, not a narrative:
 - One sentence per fact. Subject–predicate–object form: "<Subject> <verb> <object/complement>."
 - If a fact needs a second sentence, it is two facts — split it.
 - One fact carries exactly one relationship or property. Do not bundle ("X is married to Y and works at Z" is two facts).
-- Rationale, context, and history belong in logs and notes, never inside a fact. A fact may carry a *brief* qualifier only when the statement is false without it ("Fondamenta embeddings must stay on OpenRouter" needs its because-clause; "Monica is a teacher" does not).
+- Rationale, context, and history belong in logs and notes, never inside a fact. A fact may carry a *brief* qualifier only when the statement is false without it ("loom embeddings must stay on OpenRouter" needs its because-clause; "Monica is a teacher" does not).
 - Ask before writing: "could a query for this fact be answered by this one sentence alone, with nothing to skim past?" If no, split or trim.
 - Bad: "Jacopo revealed on the evening of 2026-09-01 that his client approved onboarding, which came after two weeks of groundwork." That is a log. Good: "Jacopo Scazzosi's client approved Sage's onboarding (2026-09-02)."
 

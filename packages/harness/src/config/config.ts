@@ -1,6 +1,6 @@
 
 import { cast, ValidationError} from '@runtyped/type';
-import { validationErrsToString, fillEnvVarsPlaceholders } from "@fondamenta/utils";
+import { validationErrsToString, fillEnvVarsPlaceholders } from "@loom/utils";
 import { resolve } from "node:path";
 import JSON5 from 'json5';
 import { readFile } from "node:fs/promises";
@@ -184,7 +184,7 @@ export interface ConfigLogging {
   /**
    * Directory for the monologue log (the human-facing mirror of the
    * session stream) and its rotated files. Defaults to
-   * /var/log/fondamenta.
+   * /var/log/loom.
    */
   monologue_dir?: string;
 }

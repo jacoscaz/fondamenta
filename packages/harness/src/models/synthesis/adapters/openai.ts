@@ -67,7 +67,7 @@ export class OpenAISynthesisModel extends AbstractSynthesisModel {
   }
 
   #defaultPath(format: string): string {
-    return `/tmp/fondamenta-synthesis-${Date.now()}.${format}`;
+    return `/tmp/loom-synthesis-${Date.now()}.${format}`;
   }
 
   /**

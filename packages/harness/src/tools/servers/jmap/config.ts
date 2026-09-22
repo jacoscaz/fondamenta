@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import JSON5 from "json5";
 import { cast, ValidationError } from "@runtyped/type";
-import { validationErrsToString, fillEnvVarsPlaceholders } from "@fondamenta/utils";
+import { validationErrsToString, fillEnvVarsPlaceholders } from "@loom/utils";
 
 /**
  * Configuration of the JMAP mail server. Owned by this package — the

@@ -1,4 +1,4 @@
-import { ellipsis } from "@fondamenta/utils";
+import { ellipsis } from "@loom/utils";
 import { Message } from "./types/messages.js";
 import { MessageBlock } from "./types/blocks.js";
 import { escapeClosingTag } from "./projection.js";

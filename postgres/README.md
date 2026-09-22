@@ -1,8 +1,8 @@
 
-# Fondamenta: PostgreSQL / TimescaleDB via Docker
+# Loom: PostgreSQL / TimescaleDB via Docker
 
 This directory contains the assets required to build and run a Docker container
-for Fondamenta's PostgreSQL / TimescaleDB database.
+for Loom's PostgreSQL / TimescaleDB database.
 
 The Docker image built from this directory is based on the official TimescaleDB
 Docker image and extends it with the `pg_textsearch` extension.

@@ -1,6 +1,6 @@
 
 import { type JMAPClient, type EmailSummary } from "./client.js";
-import { ellipsis } from "@fondamenta/utils";
+import { ellipsis } from "@loom/utils";
 import { CompleteContext } from "../../../context.js";
 import { Logger } from "pinetto";
 import { UserMessageIncomingNotification } from "../../../types/notifications.js";

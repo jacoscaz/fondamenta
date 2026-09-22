@@ -1,4 +1,4 @@
-# @fondamenta/utils
+# @loom/utils
 
 Lightweight utilities for the agent harness infrastructure.
 
@@ -15,7 +15,7 @@ Common utility functions and data structures used across the agent framework.
 ## Usage
 
 ```typescript
-import { wait } from '@fondamenta/utils';
+import { wait } from '@loom/utils';
 
 await wait(1000); // Wait 1 second
 ```

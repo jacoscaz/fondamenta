@@ -1,6 +1,6 @@
 import { type InitContext, WithContext } from "../context.js";
 import { type Logger } from "pinetto";
-import { errToString } from "@fondamenta/utils";
+import { errToString } from "@loom/utils";
 import { type DB } from "../database/client.js";
 import { selectRecords, updateRecord } from "../database/tables/continuity_records.js";
 

@@ -1,11 +1,11 @@
-// Example configuration for Fondamenta.
+// Example configuration for loom.
 //
 // String values using the "${VAR}" placeholder syntax will be replaced with
 // the referenced environment variable (from .env or the process environment).
 //
 // Structure notes:
-// - The `mail` and `telegram` blocks are OWNED by the @fondamenta/mcp-jmap
-//   and @fondamenta/mcp-telegram packages respectively: their semantics are
+// - The `mail` and `telegram` blocks are OWNED by the @loom/mcp-jmap
+//   and @loom/mcp-telegram packages respectively: their semantics are
 //   defined in those packages' config modules. Runtyped's cast() silently
 //   strips unrecognized keys, so typos in these blocks fail silently —
 //   verify parsed output when debugging.
@@ -18,8 +18,8 @@
         level: "info",
         // Optional. Directory for the monologue log — the human-facing
         // mirror of the session stream — and its rotated files.
-        // Defaults to /var/log/fondamenta.
-        // monologue_dir: "/var/log/fondamenta",
+        // Defaults to /var/log/loom.
+        // monologue_dir: "/var/log/loom",
     },
 
     // Optional. Pid file backing the single-instance guard: the first thing
@@ -29,10 +29,10 @@
     // corrupt contents — e.g. after a hard kill or power loss) is reclaimed
     // with a warning, so a crash can never wedge subsequent boots.
     // Defaults to harness.pid at the level of the harness package.json.
-    // pid_file: "/root/fondamenta/packages/harness/harness.pid",
+    // pid_file: "/root/loom/packages/harness/harness.pid",
 
 
-    // JMAP mail access (owned by @fondamenta/mcp-jmap). Inbound mail from
+    // JMAP mail access (owned by @loom/mcp-jmap). Inbound mail from
     // allowlisted senders arrives as `mail/arrived` events that activate
     // the agent.
     mail: {
@@ -46,7 +46,7 @@
         poll_interval_ms: 120000,
     },
 
-    // Telegram Bot API integration (owned by @fondamenta/mcp-telegram).
+    // Telegram Bot API integration (owned by @loom/mcp-telegram).
     // Inbound messages from allowlisted users arrive as `telegram/message`
     // events that activate the agent. A bot token is obtained from @BotFather.
     telegram: {
@@ -55,7 +55,7 @@
         poll_timeout_seconds: 30,
         // Optional. Directory where downloaded media (photos) are stored.
         // Defaults to <cwd>/media/telegram.
-        // media_dir: "/var/lib/fondamenta/media/telegram",
+        // media_dir: "/var/lib/loom/media/telegram",
     },
 
     // Heartbeat: keeps the agent present between prompts. The harness ticks

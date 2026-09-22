@@ -1,7 +1,7 @@
 import { createWriteStream, mkdirSync, statSync, type WriteStream } from "node:fs";
 import { mkdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { ellipsis } from "@fondamenta/utils";
+import { ellipsis } from "@loom/utils";
 import { Message } from "../types/messages.js";
 import { ContentBlock, MessageBlock } from "../types/blocks.js";
 import { PROJECT_MONOLOGUE_LOGGING_OPTS, projectMessage } from "../projection.js";
