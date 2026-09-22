@@ -316,12 +316,22 @@ export class SessionRunner extends WithContext<SessionRunnerEvents> {
       }
       return message.data;
     }).flat(1);
-    const { messages: res_messages, input_size, output_size } = await this.#model.query({
+    const { messages: res_messages, input_size, cached_size, output_size } = await this.#model.query({
       messages: req_messages,
       tools: await this.#listTools(tool_manager),
       session_id: `fondamenta-${this.#origin_session_id}`,
       system_prompt: session.system_prompt,
     });
+    // Prompt-caching visibility: log the effective prompt size and the
+    // cached share of it (adapters that don't cache report cached_size 0).
+    // Without this line the harness is blind to its own cache performance
+    // — the cached/prompt ratio is the ground-truth caching signal, more
+    // immediate and precise than any provider dashboard.
+    const cached_pct = input_size > 0 ? Math.round((cached_size / input_size) * 100) : 0;
+    this.#logger.info(
+      'usage: prompt %d tokens (%d cached, %d%%), output %d tokens',
+      input_size, cached_size, cached_pct, output_size,
+    );
     await updateSessionTokens(db, this.#origin_session_id, {
       prompt_size: input_size,
       input_tokens_delta: input_size,
