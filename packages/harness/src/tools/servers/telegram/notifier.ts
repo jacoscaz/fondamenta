@@ -143,10 +143,58 @@ async function handleUpdate(
 }
 
 /**
+ * Process one update with bounded retries. At-least-once delivery
+ * (2026-09-22, Jacopo): the polling loop confirms an update's offset
+ * only AFTER this resolves — success means the notification is durably
+ * in the database; exhaustion means the update is dead-lettered with a
+ * loud log rather than redelivered forever. A crash before confirmation
+ * redelivers the update on the next boot.
+ */
+export const processUpdateWithRetry = async (
+  deps: {
+    handleUpdate: (update: TelegramUpdate) => Promise<void>;
+    log: Logger;
+    max_attempts?: number;
+    sleep?: (ms: number) => Promise<void>;
+  },
+  update: TelegramUpdate,
+): Promise<'processed' | 'dead-lettered'> => {
+  const { handleUpdate, log } = deps;
+  const max_attempts = deps.max_attempts ?? 3;
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
+  for (let attempt = 1; ; attempt++) {
+    try {
+      await handleUpdate(update);
+      return 'processed';
+    } catch (err) {
+      log.error(
+        'telegram update processing error (attempt %d/%d): %s',
+        attempt, max_attempts, err instanceof Error ? err.message : String(err),
+      );
+      if (attempt >= max_attempts) {
+        log.error(
+          'telegram update %s DEAD-LETTERED after %d failed attempts — confirming to avoid an infinite redelivery loop',
+          update.update_id, max_attempts,
+        );
+        return 'dead-lettered';
+      }
+      await sleep(2_000 * attempt);
+    }
+  }
+};
+
+/**
  * Start the long-polling loop for incoming updates. Each allowlisted
  * user's message emits a message/incoming notification through the
  * notification bus — notifiers emit complete events, decorated at
  * emission.
+ *
+ * Delivery semantics: at-least-once. Updates are fetched WITHOUT
+ * advancing the offset and confirmed only after processing has durably
+ * persisted the notification (handleUpdate awaits the DB write). A
+ * crash before confirmation redelivers; bounded retries (see
+ * processUpdateWithRetry) turn a permanently poisoned update into a
+ * loud dead-letter instead of an infinite loop.
  *
  * Security: updates from users not in allowed_user_ids are silently
  * dropped (fail closed). The drop is logged.
@@ -162,18 +210,20 @@ export const startTelegramNotifier = (
     while (!stopped) {
       let updates: TelegramUpdate[];
       try {
-        updates = await client.getUpdates(config.poll_timeout_seconds ?? 30);
+        updates = await client.fetchUpdates(config.poll_timeout_seconds ?? 30);
       } catch (err) {
         log.error('telegram poll error: %s', err instanceof Error ? err.message : String(err));
         await new Promise((resolve) => setTimeout(resolve, 5_000));
         continue;
       }
       for (const update of updates) {
-        try {
-          await handleUpdate(ctx, client, log, update);
-        } catch (err) {
-          log.error('telegram update processing error: %s', err instanceof Error ? err.message : String(err));
-        }
+        await processUpdateWithRetry(
+          { handleUpdate: (u) => handleUpdate(ctx, client, log, u), log },
+          update,
+        );
+        // Confirm only here — after the notification is durably in the
+        // database (or the update is a designed no-op / dead-letter).
+        client.confirmUpdates(update.update_id);
       }
     }
   };
@@ -183,7 +233,7 @@ export const startTelegramNotifier = (
   return {
     stop(): void {
       stopped = true;
-      // The in-flight getUpdates call resolves within its timeout; no
+      // The in-flight fetchUpdates call resolves within its timeout; no
       // need to await — process shutdown tolerates it.
     },
   };

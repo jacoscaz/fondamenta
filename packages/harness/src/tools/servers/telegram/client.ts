@@ -1,8 +1,10 @@
 /**
  * Telegram Bot API client — thin, typed wrapper over the HTTP API.
- * Long-polling getUpdates with offset bookkeeping; sendMessage for
- * outbound. No state beyond the update offset. Photos are resolved
- * via getFile and downloaded as raw bytes on demand.
+ * Long-polling getUpdates with explicit, caller-driven offset
+ * bookkeeping (fetch without advancing, confirm after durable
+ * processing — at-least-once delivery); sendMessage for outbound.
+ * No state beyond the update offset. Photos are resolved via getFile
+ * and downloaded as raw bytes on demand.
  */
 import { writeFile, readFile } from "node:fs/promises";
 
@@ -38,10 +40,14 @@ export class TelegramClient {
   }
 
   /**
-   * Fetch pending updates via long polling. Advances the internal
-   * offset: each returned update is confirmed on the next call.
+   * Fetch pending updates via long polling WITHOUT advancing the offset:
+   * returned updates stay unconfirmed and will be redelivered on the next
+   * call unless confirmUpdates() records them as processed. At-least-once
+   * delivery (2026-09-22, Jacopo): the caller confirms only AFTER the
+   * resulting notification has durably reached the database — a crash
+   * before that point redelivers instead of silently losing the message.
    */
-  async getUpdates(timeoutSeconds: number = 30): Promise<TelegramUpdate[]> {
+  async fetchUpdates(timeoutSeconds: number = 30): Promise<TelegramUpdate[]> {
     const params: Record<string, unknown> = {
       timeout: timeoutSeconds,
       allowed_updates: ['message', 'edited_message'],
@@ -49,11 +55,16 @@ export class TelegramClient {
     if (this.#offset !== null) {
       params.offset = this.#offset;
     }
-    const updates = await this.#call<TelegramUpdate[]>('getUpdates', params);
-    if (updates.length > 0) {
-      this.#offset = updates[updates.length - 1].update_id + 1;
-    }
-    return updates;
+    return await this.#call<TelegramUpdate[]>('getUpdates', params);
+  }
+
+  /**
+   * Confirm all updates up to and including updateId (Telegram's offset
+   * semantics: the next fetchUpdates will only return later updates).
+   * Call only once the update's notification is durably persisted.
+   */
+  confirmUpdates(updateId: number): void {
+    this.#offset = updateId + 1;
   }
 
   async sendMessage(chatId: number, text: string): Promise<TelegramMessage> {
