@@ -3,6 +3,8 @@ node_modules
 .env
 .keys_file
 packages/*/dist
+*.pid
+
 *.tsbuildinfo
 .DS_Store
 dumps

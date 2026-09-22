@@ -191,6 +191,13 @@ export interface ConfigSession {
 
 export interface Config {
   tz: string;
+  /**
+   * Path of the pid file backing the single-instance guard. Defaults to
+   * harness.pid at the level of the harness package.json (see
+   * src/pid-file.ts). A second harness instance finding a live pid file
+   * exits immediately instead of racing the first.
+   */
+  pid_file?: string;
   models: {
     /**
      * Session models, in priority order. The FIRST entry is the default
