@@ -7,6 +7,20 @@ import { type DB, ensureTrx } from "../client.js";
 import { type Message } from "../../types/messages.js";
 import { type SelectableContinuityRecord } from "./continuity_records.js";
 import assert from "node:assert";
+import { sql } from "kysely";
+
+/**
+ * Bounds for the distiller's recency cache (see selectMessagesForDistillation).
+ *
+ * The distiller once injected EVERY continuity record targeting the session
+ * being distilled; under the single-continuous-session model that set grows
+ * without bound (Sept 2026: distiller prompts averaged 124k tokens, max 207k,
+ * ~92M prompt tokens/month). These caps make the injection bounded by
+ * construction. The cache is a partial view BY DESIGN — the distillation
+ * prompt mandates a pre-create store query to compensate.
+ */
+export const DISTILLATION_RECENCY_CACHE_MAX_RECORDS = 40;
+export const DISTILLATION_RECENCY_CACHE_MAX_CHARS = 40_000;
 
 export interface ADBMessage {
   id: GeneratedAlways<number>;
@@ -165,11 +179,30 @@ export const selectMessagesForDistillation = async (
 
   if (undistilled.length === 0) return;
 
-  const existing_records = await db.selectFrom('continuity_records')
+  // Recency cache, not the store: the distiller prompt must treat what is
+  // injected here as a partial view and query the store before any create.
+  // Bounding is the fix for unbounded prompt growth — see PR notes.
+  const recent_records = await db.selectFrom('continuity_records')
     .where('target_session_id', '=', session_id)
     .where('deleted_at', 'is', null)
+    // COALESCE: updated_at is null for never-updated records; last-write-wins
+    // recency (creation counts as the first write).
+    .orderBy(sql`coalesce(updated_at, created_at) desc`)
+    .orderBy('id', 'desc')
+    .limit(DISTILLATION_RECENCY_CACHE_MAX_RECORDS)
     .selectAll()
     .execute();
+
+  // Hard token-ish bound: keep the newest records, drop from the tail until
+  // the cumulative serialized budget fits (whichever bound binds first).
+  const existing_records: SelectableContinuityRecord[] = [];
+  let budget = DISTILLATION_RECENCY_CACHE_MAX_CHARS;
+  for (const record of recent_records) {
+    const cost = (record.title?.length ?? 0) + record.content.length;
+    if (existing_records.length > 0 && cost > budget) break;
+    existing_records.push(record);
+    budget -= cost;
+  }
 
   await handler(undistilled, existing_records);
 

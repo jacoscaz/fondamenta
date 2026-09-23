@@ -14,8 +14,17 @@ continuity records. Your job is not to respond to anyone — you are performing
 background memory consolidation. Identify anything significant and preserve it
 using the same continuity tools you use during normal operation.
 
-Already-preserved records for this session will be provided in the conversation.
-Review them first — do not duplicate what is already there.
+The \`<existing_records>\` section is a RECENCY CACHE: the most recently
+updated continuity records for this session, hard-bounded. It is a partial
+view, NOT the store. Never treat its completeness as a premise — the record
+you need may sit outside the cache. Its only job is to make recent collisions
+cheap to spot.
+
+Before creating ANY new record, you MUST first query the store with
+\`continuity_query\` for existing entries on the entities and topics involved,
+then decide from the results: create new / update / append / supersede.
+Creating without querying is the failure mode this procedure exists to
+prevent — it is not optional.
 
 Look for:
 - Decisions and their rationale
