@@ -146,12 +146,30 @@ export const selectRecords = async (
     query = query.limit(opts.limit);
   }
   if (opts.search) {
-    const bm25_query = query.orderBy(sqlOrderByBM25Expr('content', opts.search), 'asc');
+    // Tie-break equal lexical ranks earliest-first: quote-graphs radiate
+    // from origins, and the earliest verbatim holder of a phrase tends to
+    // be where it was coined (2026-09-24 hamster incident).
+    const bm25_query = query
+      .orderBy(sqlOrderByBM25Expr('content', opts.search), 'asc')
+      .orderBy('created_at', 'asc');
     if (Array.isArray(opts.embedding)) {
       const vector_query = query.orderBy(sqlOrderByEmbeddingExpr('embedding', opts.embedding), 'asc');
+      // Verbatim-presence leg: records containing the search phrase
+      // word-for-word (case-insensitive) rank first, oldest first. Fused
+      // as a third RRF leg so exact phrase presence beats semantic
+      // adjacency — quoting a coinage should not outrank coining it.
+      const phrase = opts.search.replace(/([%_\\])/g, '\\$1');
+      const verbatim_query = query
+        .where('content', 'ilike', `%${phrase}%`)
+        .orderBy('created_at', 'asc')
+        // Bounded: with a very common phrase, only the oldest verbatim
+        // holders join the leg (origins first); the rest can still enter
+        // through the semantic and lexical legs.
+        .limit(Math.max(opts.limit ?? 10, 25));
       const bm25_results = await bm25_query.selectAll().execute();
       const vector_results = await vector_query.selectAll().execute();
-      return rrfFuseResults([bm25_results, vector_results], r => r.id, opts.limit ?? 10);
+      const verbatim_results = await verbatim_query.selectAll().execute();
+      return rrfFuseResults([bm25_results, vector_results, verbatim_results], r => r.id, opts.limit ?? 10);
     } else {
       query = bm25_query;
     }
