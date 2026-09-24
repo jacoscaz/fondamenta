@@ -129,13 +129,20 @@ export const selectMessagesForActivation = async (db: DB, session_id: number, ha
   // We pass the conversation to the handler, which will query the model and
   // return new messages.
   const new_messages = await handler(old_messages);
-  // The handler returned without errors. We now flag all non-processed
-  // messages already in the database as processed.
-  await db.updateTable('messages')
-    .set({ processed_at: new Date() })
-    .where('session_id', '=', session_id)
-    .where('processed_at', 'is', null)
-    .execute();
+  // The handler returned without errors. We now flag the non-processed
+  // messages that were fetched above — and only those — as processed.
+  // Messages inserted while the handler was running (e.g. notifications
+  // injected mid-generation) must keep processed_at NULL so that the next
+  // iteration of the processing loop fetches and delivers them.
+  const fetchedUnprocessedIds = old_messages
+    .filter(m => m.processed_at === null)
+    .map(m => m.id);
+  if (fetchedUnprocessedIds.length > 0) {
+    await db.updateTable('messages')
+      .set({ processed_at: new Date() })
+      .where('id', 'in', fetchedUnprocessedIds)
+      .execute();
+  }
   // Insert new messages returned by the handler.
   if (new_messages.length > 0) {
     await db.insertInto('messages').values(new_messages).execute();
