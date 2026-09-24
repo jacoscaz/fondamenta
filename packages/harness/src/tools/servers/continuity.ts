@@ -9,7 +9,7 @@ import {
   type SelectableContinuityRecord,
 } from "../../database/tables/continuity_records.js";
 import { type CompleteContext } from "../../context.js";
-import { ellipsis, errToString } from "@loom/utils";
+import { ellipsis, ellipsisAround, errToString } from "@loom/utils";
 import { type UserNotification } from "../../types/notifications.js";
 import { type TextBlock } from "../../types/blocks.js";
 
@@ -36,7 +36,8 @@ const resolveTypes = (type?: string): ContinuityRecordType[] | ContinuityRecordT
 const previewText = (kind: string) =>
   `...\n\nThis is a preview. Use the \`continuity_read\` tool to see the full content.`;
 
-const formatFact = (fact: SelectableContinuityRecord, preview: boolean): string => {
+const formatFact = (fact: SelectableContinuityRecord, preview: boolean, highlight?: string): string => {
+  const body = preview && highlight ? ellipsisAround(fact.content, highlight, 300) : fact.content;
   const lines = [
     `## Fact #${fact.id}`,
     ``,
@@ -47,7 +48,7 @@ const formatFact = (fact: SelectableContinuityRecord, preview: boolean): string 
       : `- status: current`,
     `- created: ${fact.created_at.toISOString()}`,
     ``,
-    fact.content,
+    body,
   ];
   return lines.join('\n');
 };
@@ -55,14 +56,15 @@ const formatFact = (fact: SelectableContinuityRecord, preview: boolean): string 
 const formatRecord = (
   record: SelectableContinuityRecord,
   preview: boolean,
+  highlight?: string,
 ): string => {
-  if (record.entities !== null && record.type === 'fact') return formatFact(record, preview);
-  if (record.due_at !== null) return formatTodo(record, preview);
-  if (record.type === 'log') return formatLog(record, preview);
-  return formatNote(record, preview);
+  if (record.entities !== null && record.type === 'fact') return formatFact(record, preview, highlight);
+  if (record.due_at !== null) return formatTodo(record, preview, highlight);
+  if (record.type === 'log') return formatLog(record, preview, highlight);
+  return formatNote(record, preview, highlight);
 };
 
-const formatTodo = (todo: SelectableContinuityRecord, preview: boolean): string => {
+const formatTodo = (todo: SelectableContinuityRecord, preview: boolean, highlight?: string): string => {
   const lines = [
     `## Todo #${todo.id} — ${todo.title ?? '(untitled)'}`,
     ``,
@@ -72,18 +74,24 @@ const formatTodo = (todo: SelectableContinuityRecord, preview: boolean): string 
     `- created: ${todo.created_at.toISOString()}`,
   ];
   if (todo.content) {
-    lines.push(``, preview ? ellipsis(todo.content, 300, previewText('todo')) : todo.content);
+    lines.push(``, preview
+      ? (highlight ? ellipsisAround(todo.content, highlight, 300, 150, previewText('todo')) : ellipsis(todo.content, 300, previewText('todo')))
+      : todo.content);
   }
   return lines.join('\n');
 };
 
-const formatLog = (log: SelectableContinuityRecord, preview: boolean): string => {
-  const body = preview ? ellipsis(log.content, 100, previewText('log')) : log.content;
+const formatLog = (log: SelectableContinuityRecord, preview: boolean, highlight?: string): string => {
+  const body = preview
+    ? (highlight ? ellipsisAround(log.content, highlight, 100, 150, previewText('log')) : ellipsis(log.content, 100, previewText('log')))
+    : log.content;
   return `## Log #${log.id}\n\nCreated_at: ${log.created_at.toISOString()}\n\n${body}`;
 };
 
-const formatNote = (note: SelectableContinuityRecord, preview: boolean): string => {
-  const body = preview ? ellipsis(note.content, 100, previewText('note')) : note.content;
+const formatNote = (note: SelectableContinuityRecord, preview: boolean, highlight?: string): string => {
+  const body = preview
+    ? (highlight ? ellipsisAround(note.content, highlight, 100, 150, previewText('note')) : ellipsis(note.content, 100, previewText('note')))
+    : note.content;
   return `## Note #${note.id} - ${note.title ?? '(untitled)'}\n\nCreated_at: ${note.created_at.toISOString()}\n\n${body}`;
 };
 
@@ -91,8 +99,9 @@ const formatQueryResults = (
   records: SelectableContinuityRecord[],
   count: number,
   typeLabel: string,
+  highlight?: string,
 ): string => {
-  return `# Continuity records (${typeLabel})\n\nRetrieved ${records.length} of ${count} matching.\n\n${records.map(r => formatRecord(r, true)).join('\n\n')}`;
+  return `# Continuity records (${typeLabel})\n\nRetrieved ${records.length} of ${count} matching.\n\n${records.map(r => formatRecord(r, true, highlight)).join('\n\n')}`;
 };
 
 const text = (s: string): TextBlock[] => [{ type: 'text', text: s }];
@@ -234,7 +243,15 @@ export const initContinuityTools = (ctx: CompleteContext) => {
       }
 
       const label = params.type ?? 'all types';
-      return text(formatQueryResults(filtered, count, label));
+      // Match-aware previews: window the preview around where the query
+      // actually matched, instead of a head cut that hides the match
+      // (2026-09-24 hamster incident: exact-phrase match at char 767 of
+      // the origin record, invisible in every 100-char head preview).
+      // Prefer the lexical `match` term; fall back to the semantic
+      // `search` phrase (exact-occurrence, so long semantic queries that
+      // don't appear verbatim fall back to head cuts inside the helper).
+      const highlight = params.match ?? params.search;
+      return text(formatQueryResults(filtered, count, label, highlight));
     },
   );
 

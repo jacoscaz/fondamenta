@@ -19,6 +19,7 @@ export {
   execAsync,
   wait,
   ellipsis,
+  ellipsisAround,
   setMap,
   addressInfoToString,
   pick,

@@ -74,6 +74,32 @@ export const ellipsis = (str: string, length: number, suffix: string = '...'): s
   return str.length > length ? str.substring(0, length) + suffix : str;
 };
 
+/**
+ * Builds a preview windowed around the first case-insensitive occurrence
+ * of `term` in `str`, with the match wrapped in `mark`. Falls back to a
+ * head `ellipsis(str, fallbackLength)` when the term is not present.
+ * Designed for search previews: the interesting content of a long record
+ * is wherever the query matched, not at char 0.
+ */
+export const ellipsisAround = (
+  str: string,
+  term: string,
+  fallbackLength: number,
+  window: number = 150,
+  suffix: string = '...',
+  mark: [string, string] = ['**', '**'],
+): string => {
+  const trimmed = term.trim();
+  if (trimmed.length === 0) return ellipsis(str, fallbackLength, suffix);
+  const idx = str.toLowerCase().indexOf(trimmed.toLowerCase());
+  if (idx === -1) return ellipsis(str, fallbackLength, suffix);
+  const start = Math.max(0, idx - window);
+  const end = Math.min(str.length, idx + trimmed.length + window);
+  const prefix = start > 0 ? suffix : '';
+  const postfix = end < str.length ? suffix : '';
+  return `${prefix}${str.substring(start, idx)}${mark[0]}${str.substring(idx, idx + trimmed.length)}${mark[1]}${str.substring(idx + trimmed.length, end)}${postfix}`;
+};
+
 // AddressInfo
 // string | AddressInfo
 //
