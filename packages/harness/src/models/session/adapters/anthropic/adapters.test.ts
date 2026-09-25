@@ -3,6 +3,7 @@ import assert from "node:assert";
 import type Anthropic from '@anthropic-ai/sdk';
 import { parseMessage } from "./parsers.js";
 import { formatMessages } from "./formatters.js";
+import { projectMessages } from "../../../../projection.js";
 import { type AnthropicSessionModel } from "./anthropic.js";
 import { type AgentInput, type AgentToolRequest, type Message } from "../../../../types/messages.js";
 
@@ -21,6 +22,15 @@ const FAKE_ADAPTER = {
   replay_thinking: false,
   supports_image_input: false,
   prompt_cache_ttl: '1h',
+  // The adapter's content decisions now come from its projection profile.
+  projection: {
+    max_text_length: Infinity,
+    exclude_thinking: true,
+    thinking_redacted_policy: 'placeholder',
+    exclude_tool_traffic: false,
+    image_policy: 'placeholder',
+    voice_policy: 'placeholder',
+  },
 } as unknown as AnthropicSessionModel;
 
 const asMessage = (m: Anthropic.Message): Anthropic.Message => m;
@@ -104,7 +114,7 @@ test('formatMessages: an agent turn (input + tool_req) merges into ONE assistant
     },
   ];
 
-  const wire = formatMessages(history, FAKE_ADAPTER);
+  const wire = formatMessages(projectMessages(history, FAKE_ADAPTER.projection), FAKE_ADAPTER);
   assert.equal(wire.length, 2, 'user + ONE merged assistant message');
   assert.equal(wire[1].role, 'assistant');
   const content = wire[1].content as Anthropic.ContentBlockParam[];
@@ -127,7 +137,7 @@ test('formatMessages: consecutive user messages merge, preserving block order', 
     { role: 'user', type: 'input', blocks: [{ type: 'text', text: 'there' }] },
   ];
 
-  const wire = formatMessages(history, FAKE_ADAPTER);
+  const wire = formatMessages(projectMessages(history, FAKE_ADAPTER.projection), FAKE_ADAPTER);
   assert.equal(wire.length, 1);
   assert.equal(wire[0].role, 'user');
   const texts = (wire[0].content as any[]).filter(b => b.type === 'text').map(b => b.text);
@@ -146,7 +156,7 @@ test('formatMessages: tool results become tool_result blocks, ordered first', ()
     },
   ];
 
-  const wire = formatMessages(history, FAKE_ADAPTER);
+  const wire = formatMessages(projectMessages(history, FAKE_ADAPTER.projection), FAKE_ADAPTER);
   assert.equal(wire.length, 3);
   assert.equal(wire[2].role, 'user');
   const first = wire[2].content[0] as any;
@@ -166,7 +176,7 @@ test('formatMessages: cache breakpoint lands on the tail, never on a tool_result
     },
   ];
 
-  const wire = formatMessages(history, ttl_adapter);
+  const wire = formatMessages(projectMessages(history, ttl_adapter.projection), ttl_adapter);
   const content = wire[2].content as any[];
   // The tail (a tool_result) carries the rolling breakpoint — cache
   // markers are metadata and make the tool round-trip itself cacheable.
@@ -181,6 +191,14 @@ test('formatMessages: unsigned thinking is stripped even with replay enabled', (
     replay_thinking: true,
     supports_image_input: false,
     prompt_cache_ttl: 'off',
+    projection: {
+      max_text_length: Infinity,
+      exclude_thinking: false,
+      thinking_redacted_policy: 'placeholder',
+      exclude_tool_traffic: false,
+      image_policy: 'placeholder',
+      voice_policy: 'placeholder',
+    },
   } as unknown as AnthropicSessionModel;
   const history: Message[] = [
     { role: 'user', type: 'input', blocks: [{ type: 'text', text: 'go' }] },
@@ -193,7 +211,7 @@ test('formatMessages: unsigned thinking is stripped even with replay enabled', (
     },
   ];
 
-  const wire = formatMessages(history, replay_adapter);
+  const wire = formatMessages(projectMessages(history, replay_adapter.projection), replay_adapter);
   const content = wire[1].content as any[];
   assert.ok(!content.some(b => b.type === 'thinking'), 'unsigned thinking must never replay');
   assert.ok(content.some(b => b.type === 'text' && b.text === 'the answer'));
@@ -204,6 +222,14 @@ test('formatMessages: signed thinking replays when replay is enabled', () => {
     replay_thinking: true,
     supports_image_input: false,
     prompt_cache_ttl: 'off',
+    projection: {
+      max_text_length: Infinity,
+      exclude_thinking: false,
+      thinking_redacted_policy: 'placeholder',
+      exclude_tool_traffic: false,
+      image_policy: 'placeholder',
+      voice_policy: 'placeholder',
+    },
   } as unknown as AnthropicSessionModel;
   const history: Message[] = [
     { role: 'user', type: 'input', blocks: [{ type: 'text', text: 'go' }] },
@@ -216,7 +242,7 @@ test('formatMessages: signed thinking replays when replay is enabled', () => {
     },
   ];
 
-  const wire = formatMessages(history, replay_adapter);
+  const wire = formatMessages(projectMessages(history, replay_adapter.projection), replay_adapter);
   const content = wire[1].content as any[];
   const thinking = content.find(b => b.type === 'thinking');
   assert.ok(thinking);
@@ -235,9 +261,10 @@ test('formatMessages: images are withheld as marked text when vision is unsuppor
     },
   ];
 
-  const wire = formatMessages(history, FAKE_ADAPTER);
+  const wire = formatMessages(projectMessages(history, FAKE_ADAPTER.projection), FAKE_ADAPTER);
   const content = wire[0].content as any[];
   assert.ok(!content.some(b => b.type === 'image'));
-  assert.ok(content.some(b => b.type === 'text' && b.text.includes('[image withheld')));
-  assert.ok(content.some(b => b.type === 'text' && b.text === 'a photo'));
+  // Unified projection wording; the caption (content) survives with it.
+  assert.ok(content.some(b => b.type === 'text' && b.text.includes('[image omitted: image/png]')));
+  assert.ok(content.some(b => b.type === 'text' && b.text.includes('a photo')));
 });

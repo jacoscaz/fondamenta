@@ -146,21 +146,23 @@ test('truncation marker is content-level and bounded by profile', () => {
   assert.equal(block.text, 'yyyyy\n[...truncated 5 characters]');
 });
 
-test('voice blocks: transcription survives as content, raw audio does not', () => {
+test('voice blocks: transcription survives as marked content, raw audio does not', () => {
   const msg: Message = {
     role: 'user',
     type: 'input',
     blocks: [{ type: 'voice', path: '/media/v.ogg', mimeType: 'audio/ogg', duration: 12, transcription: 'hello from voice' }],
   };
+  const expected = '[voice note transcript, 12s]: hello from voice';
 
   const kept = projectMessage(msg, PROJECT_COMPACTION_OPTS);
   if (kept === null || kept.type !== 'input') throw new Error('user input must project to itself');
-  assert.equal((kept.blocks[0] as { type: string; text?: string }).text, 'hello from voice');
+  assert.equal((kept.blocks[0] as { type: string; text?: string }).text, expected,
+    'transcription carries a provenance marker: spoken notes must stay distinguishable from typed text');
 
   const omitted = projectMessage(msg, PROJECT_DISTILLATION_OPTS);
   if (omitted === null || omitted.type !== 'input') throw new Error('user input must project to itself');
-  assert.equal((omitted.blocks[0] as { type: string; text?: string }).text, 'hello from voice',
-    'voice transcription survives as content under placeholder policy');
+  assert.equal((omitted.blocks[0] as { type: string; text?: string }).text, expected,
+    'voice transcription survives as marked content under placeholder policy');
 });
 
 test('unknown future block types pass through projection and render loudly', () => {

@@ -11,7 +11,8 @@ import { type ConfigModelOpenAI } from "../../../../config/config.js";
 import { type ReasoningEffort } from "../../../../constants.js";
 import { ChatCompletionMessageParam, ReasoningEffort as OpenAIReasoningEffort } from "openai/resources/index.mjs";
 import { ChatCompletionStream } from "openai/lib/ChatCompletionStream.mjs";
-import { formatMessage } from "./formatters.js";
+import { formatMessages } from "./formatters.js";
+import { projectMessages } from "../../../../projection.js";
 import { parseMessage, warnOnTextualToolCalls } from "./parsers.js";
 
 
@@ -54,7 +55,14 @@ export class OpenAISessionModel extends AbstractSessionModel {
 
   async _query(opts: ModelQueryOpts, signal?: AbortSignal, on_activity: () => void = () => { }): Promise<ModelQueryResults> {
     try {
-      const messages: ChatCompletionMessageParam[] = opts.messages.flatMap(m => formatMessage(m, this));
+      // Projection runs here, in request composition: content decisions
+      // happen before serialization. The image policy is uniform across
+      // message types: tool messages DO carry image parts on the wire
+      // (empirically verified; the openai-node types excluding them are
+      // stale — the formatter's cast bridges them). Formatters receive
+      // only blocks they support and hard-crash otherwise.
+      const projected = projectMessages(opts.messages, this.projection);
+      const messages: ChatCompletionMessageParam[] = formatMessages(projected, this);
       messages.unshift({
         role: 'system',
         content: opts.system_prompt,

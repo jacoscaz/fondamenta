@@ -17,36 +17,57 @@ import { MessageBlock } from "./types/blocks.js";
 export interface ProjectOptions {
   /** Text (and refusal/unsupported) blocks longer than this are truncated. */
   max_text_length: number;
-  /** Drop thinking/thinking_redacted blocks entirely. */
+  /** Drop thinking blocks entirely (the reasoning itself). */
   exclude_thinking: boolean;
+  /**
+   * Redacted reasoning carries no replayable content, but its PLACE may
+   * matter: adapters mark the hole ('placeholder') so the replayed history
+   * stays visibly complete; readers omit ('omit') or keep the raw block
+   * ('keep') according to their profile.
+   */
+  thinking_redacted_policy: 'omit' | 'placeholder' | 'keep';
   /** Drop tool_req/tool_res messages entirely. */
   exclude_tool_traffic: boolean;
-  /** How media blocks (image, voice) are represented. */
-  media_policy: 'placeholder' | 'omit';
+  /**
+   * How media blocks are represented. Per-medium, not uniform: image and
+   * voice differ in what every audience can do with them (a visual-model
+   * wire keeps images but no current wire carries native audio).
+   * - 'keep': pass through untouched (visual model wire, mirrors);
+   * - 'placeholder': replace with a visible text marker;
+   * - 'omit': drop entirely.
+   */
+  image_policy: 'keep' | 'placeholder' | 'omit';
+  voice_policy: 'keep' | 'placeholder' | 'omit';
 }
 
 export const PROJECT_DISTILLATION_OPTS = {
   max_text_length: 2000,
   exclude_thinking: true,
+  thinking_redacted_policy: 'omit',
   exclude_tool_traffic: true,
   // Visible markers over silent omission — the survey showed labeled
   // placeholders are the norm (opencode, pi), and silence was the old
   // defect class this layer exists to end.
-  media_policy: 'placeholder',
+  image_policy: 'placeholder',
+  voice_policy: 'placeholder',
 } satisfies ProjectOptions;
 
 export const PROJECT_COMPACTION_OPTS = {
   max_text_length: 2000,
   exclude_thinking: true,
+  thinking_redacted_policy: 'omit',
   exclude_tool_traffic: false,
-  media_policy: 'placeholder',
+  image_policy: 'placeholder',
+  voice_policy: 'placeholder',
 } satisfies ProjectOptions;
 
 export const PROJECT_MONOLOGUE_LOGGING_OPTS = {
   max_text_length: 2000,
   exclude_thinking: false,
+  thinking_redacted_policy: 'keep',
   exclude_tool_traffic: false,
-  media_policy: 'placeholder',
+  image_policy: 'placeholder',
+  voice_policy: 'placeholder',
 } satisfies ProjectOptions;
 
 /**
@@ -105,7 +126,7 @@ export const projectMessage = (message: Message, opts: ProjectOptions): Message 
  * TextBlock (a member of both UserBlock and AgentBlock). The internal
  * cast below only bridges the generic parameter, not the type space.
  */
-const projectBlocks = <B extends MessageBlock>(blocks: readonly B[], opts: ProjectOptions): B[] => {
+export const projectBlocks = <B extends MessageBlock>(blocks: readonly B[], opts: ProjectOptions): B[] => {
   const projected: B[] = [];
   for (const block of blocks) {
     const mapped = projectBlock(block as MessageBlock, opts);
@@ -123,17 +144,32 @@ const projectBlock = (block: MessageBlock, opts: ProjectOptions): MessageBlock |
       return { ...block, text: truncate(block.text || '', opts.max_text_length) };
 
     case 'thinking':
-    case 'thinking_redacted':
       return opts.exclude_thinking ? null : block;
 
+    case 'thinking_redacted':
+      if (opts.thinking_redacted_policy === 'omit') return null;
+      if (opts.thinking_redacted_policy === 'placeholder') {
+        // No replayable content, but the place is declared so the history
+        // stays visibly complete.
+        return { type: 'text', text: '[thinking redacted]' };
+      }
+      return block;
+
     case 'image':
-      if (opts.media_policy === 'omit') return null;
-      return { type: 'text', text: `[image omitted: ${block.mimeType}]` };
+      if (opts.image_policy === 'omit') return null;
+      if (opts.image_policy === 'keep') return block;
+      // The caption is content: it survives with the marker (a caption
+      // dropped silently would be the exact defect class this layer ends).
+      return { type: 'text', text: block.caption ? `[image omitted: ${block.mimeType}] ${block.caption}` : `[image omitted: ${block.mimeType}]` };
 
     case 'voice':
-      if (opts.media_policy === 'omit') return null;
-      // A transcription is content: when present it survives as text.
-      if (block.transcription) return { type: 'text', text: truncate(block.transcription, opts.max_text_length) };
+      if (opts.voice_policy === 'omit') return null;
+      if (opts.voice_policy === 'keep') return block;
+      // A transcription is content: when present it survives as text,
+      // wrapped in a provenance marker — the reader must be able to tell
+      // a spoken note from a typed message, and the no-transcription
+      // placeholder above already declares the convention.
+      if (block.transcription) return { type: 'text', text: truncate(`[voice note transcript, ${block.duration}s]: ${block.transcription}`, opts.max_text_length) };
       return { type: 'text', text: `[voice note omitted: ${block.path}, ${block.duration}s]` };
 
     case 'unsupported':

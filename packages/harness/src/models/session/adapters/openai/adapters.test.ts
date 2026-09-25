@@ -3,6 +3,7 @@ import assert from "node:assert";
 import OpenAI from "openai";
 import { parseMessage } from "./parsers.js";
 import { formatMessage } from "./formatters.js";
+import { projectMessage } from "../../../../projection.js";
 import { type OpenAISessionModel } from "./openai.js";
 import { type AgentInput, type Message } from "../../../../types/messages.js";
 
@@ -16,6 +17,15 @@ import { type AgentInput, type Message } from "../../../../types/messages.js";
 const FAKE_ADAPTER = {
   replay_thinking: false,
   supports_image_input: false,
+  // The adapter's content decisions now come from its projection profile.
+  projection: {
+    max_text_length: Infinity,
+    exclude_thinking: true,
+    thinking_redacted_policy: 'placeholder',
+    exclude_tool_traffic: false,
+    image_policy: 'placeholder',
+    voice_policy: 'placeholder',
+  },
 } as unknown as OpenAISessionModel;
 
 test('parseMessage: annotations are captured as an unsupported block', () => {
@@ -73,7 +83,7 @@ test('formatMessage: unsupported and thinking_redacted replay as loud marked tex
     ],
   };
 
-  const wire = formatMessage(message, FAKE_ADAPTER);
+  const wire = formatMessage(projectMessage(message, FAKE_ADAPTER.projection)!, FAKE_ADAPTER);
   assert.equal(wire.length, 1);
   const assistant = wire[0] as { role: string; content?: string; reasoning_content?: string };
   assert.equal(assistant.role, 'assistant');
