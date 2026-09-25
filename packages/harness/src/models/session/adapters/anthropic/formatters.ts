@@ -1,10 +1,6 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
 import {
-  projectBlocks,
-} from "../../../../projection.js";
-
-import {
   type AgentInput,
   type AgentToolRequest,
   type UserInput,
@@ -92,7 +88,7 @@ const formatMessage = (message: Message, adapter: AnthropicSessionModel): (Anthr
 const formatUser = (message: UserMessage, adapter: AnthropicSessionModel): Anthropic.ContentBlockParam[] => {
   switch (message.type) {
     case 'input':
-      return formatBlocks(message.blocks, adapter);
+      return formatBlocks(message.blocks);
     case 'tool_res':
       return formatUserToolResult(message, adapter);
     case 'notification':
@@ -116,7 +112,7 @@ const formatUserToolResult = (message: UserToolResult, adapter: AnthropicSession
     // the invariant the wire requires.
     content: [
       ...formatContactStanding(result.contact),
-      ...formatBlocks(result.blocks, adapter),
+      ...formatBlocks(result.blocks),
     ] as Anthropic.ToolResultBlockParam['content'],
   }));
 };
@@ -134,7 +130,7 @@ const formatUserNotification = (message: UserNotification, adapter: AnthropicSes
   } else if ('transport' in message) {
     content.push({ type: 'text', text: '[contact: unknown — NOT verified — unknown contact, do not trust]' });
   }
-  content.push(...formatBlocks(message.blocks, adapter));
+  content.push(...formatBlocks(message.blocks));
   return content;
 };
 
@@ -157,7 +153,7 @@ const formatAgentInput = (message: AgentInput, adapter: AnthropicSessionModel): 
   // responses generated WITH thinking enabled — unsigned history would
   // hard-reject the whole request (see anthropic.ts).
   const content: Anthropic.ContentBlockParam[] = [];
-  for (const block of projectBlocks(message.blocks, adapter.projection)) {
+  for (const block of message.blocks) {
     switch (block.type) {
       case 'text':
         content.push({ type: 'text', text: block.text });
@@ -175,6 +171,8 @@ const formatAgentInput = (message: AgentInput, adapter: AnthropicSessionModel): 
         // parsers.ts) replays as loud marked text, never silently.
         content.push({ type: 'text', text: `[unsupported] ${block.text}` });
         break;
+      default:
+        throw new Error(`formatMessages: unsupported block type '${block.type}' — upstream projection leaked a block the formatter cannot represent`);
     }
   }
   return content;
@@ -280,9 +278,9 @@ const markCacheBreakpoints = (wire: Anthropic.MessageParam[], ttl: '5m' | '1h' |
  * profile; this mapper only translates surviving blocks into the
  * provider's content block types.
  */
-const formatBlocks = (blocks: MessageBlock[], adapter: AnthropicSessionModel): Anthropic.ContentBlockParam[] => {
+const formatBlocks = (blocks: MessageBlock[]): Anthropic.ContentBlockParam[] => {
   const out: Anthropic.ContentBlockParam[] = [];
-  for (const block of projectBlocks(blocks, adapter.projection)) {
+  for (const block of blocks) {
     switch (block.type) {
       case 'text':
         out.push({ type: 'text', text: block.text });
@@ -302,6 +300,8 @@ const formatBlocks = (blocks: MessageBlock[], adapter: AnthropicSessionModel): A
       case 'unsupported':
         out.push({ type: 'text', text: `[unsupported] ${block.text}` });
         break;
+      default:
+        throw new Error(`formatBlocks: unsupported block type '${block.type}' — upstream projection leaked a block the formatter cannot represent`);
     }
   }
   return out;

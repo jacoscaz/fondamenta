@@ -32,11 +32,6 @@ import {
   type OpenAISessionModel,
 } from './openai.js';
 
-import {
-  projectBlocks,
-  type ProjectOptions,
-} from "../../../../projection.js";
-
 /**
   * Formats one canonical message into ZERO OR MORE provider messages:
   * - agent messages become one assistant message carrying text, tool_calls
@@ -80,7 +75,7 @@ const formatUser = (message: UserMessage, adapter: OpenAISessionModel): OpenAI.C
 
 const formatUserInput = (message: UserInput, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
   const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
-  content.push(...formatBlocks(message.blocks, adapter, 'message'));
+  content.push(...formatBlocks(message.blocks));
   return [{ role: 'user', content }];
 };
 
@@ -93,7 +88,7 @@ const formatUserToolResult = (message: UserToolResult, adapter: OpenAISessionMod
     if (result.contact) {
       content.push(...formatContactStanding(result.contact));
     }
-    content.push(...formatBlocks(result.blocks, adapter, 'tool_result'));
+    content.push(...formatBlocks(result.blocks));
     tool_messages.push({
       role: 'tool',
       content: content as OpenAI.ChatCompletionContentPartText[],
@@ -117,7 +112,7 @@ const formatUserNotification = (message: UserNotification, adapter: OpenAISessio
   } else if ('transport' in message) {
     content.push({ type: 'text', text: '[contact: unknown — NOT verified — unknown contact, do not trust]' });
   }
-  content.push(...formatBlocks(message.blocks, adapter, 'message'));
+  content.push(...formatBlocks(message.blocks));
   return [{ role: 'user', content }];
 };
 
@@ -140,7 +135,7 @@ const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): Ope
   const refusal: string[] = [];
   const content: string[] = [];
   const thinking: string[] = [];
-  for (const block of projectBlocks(message.blocks, adapter.projection)) {
+  for (const block of message.blocks) {
     switch (block.type) {
       case 'text':
         content.push(block.text);
@@ -158,6 +153,8 @@ const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): Ope
         // parsers.ts) replays as loud marked text, never silently.
         content.push(`[unsupported] ${block.text}`);
         break;
+      default:
+        throw new Error(`formatAgentInput: unsupported block type '${block.type}' — upstream projection leaked a block the formatter cannot represent`);
     }
   }
   return [{
@@ -230,25 +227,22 @@ function formatNotificationTransport(message: UserMessageIncomingNotification): 
 }
 
 /**
- * Projected blocks -> provider parts. The block decisions (what survives,
- * how loss is marked) were made by the model's projection profile; this
- * mapper only translates surviving blocks into the provider's part types.
- * The tool-result variant overrides image policy because the provider's
- * tool messages cannot carry image parts (schema constraint, not policy).
+ * Serialized blocks -> provider parts. Content decisions (what survives,
+ * how loss is marked) were made upstream, in the adapter's request
+ * composition; this mapper only translates surviving blocks into the
+ * provider's part types, and hard-crashes on any block it does not
+ * support — a violation means the upstream projection was wrong.
  */
-function formatBlocks(blocks: MessageBlock[], adapter: OpenAISessionModel, variant: 'message' | 'tool_result'): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
-  const profile: ProjectOptions = variant === 'tool_result'
-    ? { ...adapter.projection, image_policy: 'placeholder' }
-    : adapter.projection;
+function formatBlocks(blocks: MessageBlock[]): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
   const out: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
-  for (const block of projectBlocks(blocks, profile)) {
+  for (const block of blocks) {
     switch (block.type) {
       case 'text':
         out.push({ type: 'text', text: block.text });
         break;
       case 'image':
-        // Kept only when the profile allowed it (vision models, message
-        // variant). The caption rides as its own text part.
+        // Kept only when the profile allowed it (vision models). The
+        // caption rides as its own text part.
         out.push({
           type: 'image_url',
           image_url: { url: `data:${block.mimeType};base64,${block.data}` },
@@ -259,10 +253,11 @@ function formatBlocks(blocks: MessageBlock[], adapter: OpenAISessionModel, varia
         out.push({ type: 'text', text: block.text });
         break;
       case 'unsupported':
-        // Unknown content renders loudly; the default below stays silent
-        // only for block types that cannot legally appear here.
+        // Unknown content renders loudly, never silently.
         out.push({ type: 'text', text: `[unsupported] ${block.text}` });
         break;
+      default:
+        throw new Error(`formatBlocks: unsupported block type '${block.type}' — upstream projection leaked a block the formatter cannot represent`);
     }
   }
   return out;
