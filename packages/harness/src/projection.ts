@@ -165,8 +165,11 @@ const projectBlock = (block: MessageBlock, opts: ProjectOptions): MessageBlock |
     case 'voice':
       if (opts.voice_policy === 'omit') return null;
       if (opts.voice_policy === 'keep') return block;
-      // A transcription is content: when present it survives as text.
-      if (block.transcription) return { type: 'text', text: truncate(block.transcription, opts.max_text_length) };
+      // A transcription is content: when present it survives as text,
+      // wrapped in a provenance marker — the reader must be able to tell
+      // a spoken note from a typed message, and the no-transcription
+      // placeholder above already declares the convention.
+      if (block.transcription) return { type: 'text', text: truncate(`[voice note transcript, ${block.duration}s]: ${block.transcription}`, opts.max_text_length) };
       return { type: 'text', text: `[voice note omitted: ${block.path}, ${block.duration}s]` };
 
     case 'unsupported':
