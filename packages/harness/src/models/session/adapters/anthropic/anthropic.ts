@@ -9,7 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { type ConfigModelAnthropic } from "../../../../config/config.js";
 import { type ReasoningEffort } from "../../../../constants.js";
 import { formatMessages } from "./formatters.js";
-import { projectMessage } from "../../../../projection.js";
+import { projectMessages } from "../../../../projection.js";
 import { parseMessage, warnOnTextualToolCalls } from "./parsers.js";
 
 
@@ -60,10 +60,7 @@ export class AnthropicSessionModel extends AbstractSessionModel {
       // Projection runs here, in request composition — content decisions
       // before serialization; formatters only map and hard-crash on any
       // block they do not support.
-      const projected = opts.messages.flatMap(m => {
-        const p = projectMessage(m, this.projection);
-        return p === null ? [] : [p];
-      });
+      const projected = projectMessages(opts.messages, this.projection);
       const messages = formatMessages(projected, this);
       // The cache prefix is tools -> system -> messages: marking the
       // system block caches tools + system together (the heavy, fully

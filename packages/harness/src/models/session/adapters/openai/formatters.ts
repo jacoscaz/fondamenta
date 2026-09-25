@@ -47,6 +47,10 @@ import {
   * The canonical store models the conversation; provider wire quirks live
   * here, in the adapter.
   */
+export const formatMessages = (messages: Message[], adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
+  return messages.flatMap(m => formatMessage(m, adapter));
+};
+
 export const formatMessage = (message: Message, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
   switch (message.role) {
     case 'user':
