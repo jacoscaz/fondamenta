@@ -2,6 +2,7 @@
 import { type ConfigModelBase, type ConfigModalities } from "../../config/config.js";
 
 import { AgentMessage, Message } from "../../types/messages.js";
+import { type ProjectOptions } from "../../projection.js";
 import { withTimeout } from "@loom/utils";
 
 export interface ModelQueryTool {
@@ -70,6 +71,29 @@ export abstract class AbstractSessionModel {
 
   get replay_thinking(): boolean {
     return this.#replay_thinking;
+  }
+
+  /**
+   * The model's projection profile: full ProjectOptions derived from the
+   * session options, so adapters consume the SAME content-decision layer
+   * as every non-wire consumer. Wire semantics declared here, once:
+   * - wire content is never truncated (max_text_length: Infinity);
+   * - thinking survives projection iff replay_thinking (the adapter then
+   *   routes it to provider fields / applies validity gates);
+   * - redacted reasoning marks its place;
+   * - images are kept iff the model supports vision, voice never survives
+   *   raw (no current wire carries native audio; projection extracts the
+   *   transcription or emits the marker).
+   */
+  get projection(): ProjectOptions {
+    return {
+      max_text_length: Infinity,
+      exclude_thinking: !this.#replay_thinking,
+      thinking_redacted_policy: 'placeholder',
+      exclude_tool_traffic: false,
+      image_policy: (this.#modalities.images ?? false) ? 'keep' : 'placeholder',
+      voice_policy: 'placeholder',
+    };
   }
 
   async query(opts: ModelQueryOpts): Promise<ModelQueryResults> {

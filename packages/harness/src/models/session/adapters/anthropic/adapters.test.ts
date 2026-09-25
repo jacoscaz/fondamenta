@@ -21,6 +21,15 @@ const FAKE_ADAPTER = {
   replay_thinking: false,
   supports_image_input: false,
   prompt_cache_ttl: '1h',
+  // The adapter's content decisions now come from its projection profile.
+  projection: {
+    max_text_length: Infinity,
+    exclude_thinking: true,
+    thinking_redacted_policy: 'placeholder',
+    exclude_tool_traffic: false,
+    image_policy: 'placeholder',
+    voice_policy: 'placeholder',
+  },
 } as unknown as AnthropicSessionModel;
 
 const asMessage = (m: Anthropic.Message): Anthropic.Message => m;
@@ -181,6 +190,14 @@ test('formatMessages: unsigned thinking is stripped even with replay enabled', (
     replay_thinking: true,
     supports_image_input: false,
     prompt_cache_ttl: 'off',
+    projection: {
+      max_text_length: Infinity,
+      exclude_thinking: false,
+      thinking_redacted_policy: 'placeholder',
+      exclude_tool_traffic: false,
+      image_policy: 'placeholder',
+      voice_policy: 'placeholder',
+    },
   } as unknown as AnthropicSessionModel;
   const history: Message[] = [
     { role: 'user', type: 'input', blocks: [{ type: 'text', text: 'go' }] },
@@ -204,6 +221,14 @@ test('formatMessages: signed thinking replays when replay is enabled', () => {
     replay_thinking: true,
     supports_image_input: false,
     prompt_cache_ttl: 'off',
+    projection: {
+      max_text_length: Infinity,
+      exclude_thinking: false,
+      thinking_redacted_policy: 'placeholder',
+      exclude_tool_traffic: false,
+      image_policy: 'placeholder',
+      voice_policy: 'placeholder',
+    },
   } as unknown as AnthropicSessionModel;
   const history: Message[] = [
     { role: 'user', type: 'input', blocks: [{ type: 'text', text: 'go' }] },
@@ -238,6 +263,7 @@ test('formatMessages: images are withheld as marked text when vision is unsuppor
   const wire = formatMessages(history, FAKE_ADAPTER);
   const content = wire[0].content as any[];
   assert.ok(!content.some(b => b.type === 'image'));
-  assert.ok(content.some(b => b.type === 'text' && b.text.includes('[image withheld')));
-  assert.ok(content.some(b => b.type === 'text' && b.text === 'a photo'));
+  // Unified projection wording; the caption (content) survives with it.
+  assert.ok(content.some(b => b.type === 'text' && b.text.includes('[image omitted: image/png]')));
+  assert.ok(content.some(b => b.type === 'text' && b.text.includes('a photo')));
 });

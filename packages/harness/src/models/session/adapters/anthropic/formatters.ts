@@ -1,6 +1,10 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
 import {
+  projectBlocks,
+} from "../../../../projection.js";
+
+import {
   type AgentInput,
   type AgentToolRequest,
   type UserInput,
@@ -147,30 +151,24 @@ const formatAgent = (message: (AgentInput | AgentToolRequest), adapter: Anthropi
 };
 
 const formatAgentInput = (message: AgentInput, adapter: AnthropicSessionModel): Anthropic.ContentBlockParam[] => {
+  // Content decisions belong to the model's projection profile (shared
+  // with every non-wire consumer). The validity gate stays here: replaying
+  // thinking requires the per-block signature, which only exists for
+  // responses generated WITH thinking enabled — unsigned history would
+  // hard-reject the whole request (see anthropic.ts).
   const content: Anthropic.ContentBlockParam[] = [];
-  for (const block of message.blocks) {
+  for (const block of projectBlocks(message.blocks, adapter.projection)) {
     switch (block.type) {
       case 'text':
         content.push({ type: 'text', text: block.text });
         break;
       case 'thinking':
-        // Extended thinking is not requested in v1 (see anthropic.ts):
-        // thinking blocks are stripped rather than replayed. Replaying
-        // requires the per-block signature, which only exists for
-        // responses generated WITH thinking enabled — unsigned history
-        // would hard-reject the whole request. The parser keeps
-        // signatures so a future version can replay safely.
-        if (adapter.replay_thinking && block.anthropic_signature) {
+        if (block.anthropic_signature) {
           content.push({ type: 'thinking', thinking: block.text, signature: block.anthropic_signature });
         }
         break;
       case 'refusal':
         content.push({ type: 'text', text: block.text });
-        break;
-      case 'thinking_redacted':
-        // Redacted reasoning has no replayable content; mark its place
-        // so the replayed history stays visibly complete.
-        content.push({ type: 'text', text: '[thinking redacted]' });
         break;
       case 'unsupported':
         // Content the adapter could not represent natively (see
@@ -189,48 +187,6 @@ const formatAgentToolRequest = (message: AgentToolRequest): Anthropic.ToolUseBlo
     name: request.tool,
     input: request.params,
   }));
-};
-
-function formatBlock(block: MessageBlock, adapter: AnthropicSessionModel): Anthropic.ContentBlockParam[] {
-  switch (block.type) {
-    case 'text': {
-      return [{ type: 'text', text: block.text }];
-    }
-    case 'image':
-      if (!adapter.supports_image_input) {
-        return [
-          { type: 'text', text: `[image withheld: ${block.mimeType}, ${block.data.length} base64 chars]` },
-          ...(block.caption ? [{ type: 'text' as const, text: block.caption }] : []),
-        ];
-      } else {
-        return [
-          {
-            type: 'image',
-            source: { type: 'base64', media_type: block.mimeType as 'image/jpeg', data: block.data },
-          },
-          ...(block.caption ? [{ type: 'text' as const, text: block.caption }] : []),
-        ];
-      }
-    case 'voice':
-      // transcription is a plain string in the block schema:
-      // undefined = not transcribed, string = the text (or an explicit
-      // error string placed by the notifier — those are LOUD by
-      // construction, wrapped in [transcription failed: ...]).
-      if (block.transcription === undefined) {
-        return [{ type: 'text', text: `[voice note: ${block.duration}s audio, no transcription available]` }];
-      }
-      return [{ type: 'text', text: block.transcription }];
-    case 'refusal':
-      return [{ type: 'text', text: block.text }];
-    case 'unsupported':
-      return [{ type: 'text', text: `[unsupported] ${block.text}` }];
-    default:
-      return [];
-  }
-};
-
-const formatBlocks = (blocks: MessageBlock[], adapter: AnthropicSessionModel): Anthropic.ContentBlockParam[] => {
-  return blocks.flatMap(block => formatBlock(block, adapter));
 };
 
 /**
@@ -316,4 +272,37 @@ const markCacheBreakpoints = (wire: Anthropic.MessageParam[], ttl: '5m' | '1h' |
   if (!last || !Array.isArray(last.content) || last.content.length === 0) return;
   const tail = last.content[last.content.length - 1];
   (tail as Anthropic.ContentBlockParam & { cache_control?: Anthropic.CacheControlEphemeral }).cache_control = { type: 'ephemeral', ttl };
+};
+
+/**
+ * Projected blocks -> provider content blocks. The block decisions (what
+ * survives, how loss is marked) were made by the model's projection
+ * profile; this mapper only translates surviving blocks into the
+ * provider's content block types.
+ */
+const formatBlocks = (blocks: MessageBlock[], adapter: AnthropicSessionModel): Anthropic.ContentBlockParam[] => {
+  const out: Anthropic.ContentBlockParam[] = [];
+  for (const block of projectBlocks(blocks, adapter.projection)) {
+    switch (block.type) {
+      case 'text':
+        out.push({ type: 'text', text: block.text });
+        break;
+      case 'image':
+        // Kept only when the profile allowed it (vision models). The
+        // caption rides as its own text block.
+        out.push({
+          type: 'image',
+          source: { type: 'base64', media_type: block.mimeType as 'image/jpeg', data: block.data },
+        });
+        if (block.caption) out.push({ type: 'text', text: block.caption });
+        break;
+      case 'refusal':
+        out.push({ type: 'text', text: block.text });
+        break;
+      case 'unsupported':
+        out.push({ type: 'text', text: `[unsupported] ${block.text}` });
+        break;
+    }
+  }
+  return out;
 };

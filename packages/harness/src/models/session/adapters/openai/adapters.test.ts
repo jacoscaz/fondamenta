@@ -16,6 +16,15 @@ import { type AgentInput, type Message } from "../../../../types/messages.js";
 const FAKE_ADAPTER = {
   replay_thinking: false,
   supports_image_input: false,
+  // The adapter's content decisions now come from its projection profile.
+  projection: {
+    max_text_length: Infinity,
+    exclude_thinking: true,
+    thinking_redacted_policy: 'placeholder',
+    exclude_tool_traffic: false,
+    image_policy: 'placeholder',
+    voice_policy: 'placeholder',
+  },
 } as unknown as OpenAISessionModel;
 
 test('parseMessage: annotations are captured as an unsupported block', () => {

@@ -32,6 +32,11 @@ import {
   type OpenAISessionModel,
 } from './openai.js';
 
+import {
+  projectBlocks,
+  type ProjectOptions,
+} from "../../../../projection.js";
+
 /**
   * Formats one canonical message into ZERO OR MORE provider messages:
   * - agent messages become one assistant message carrying text, tool_calls
@@ -75,7 +80,7 @@ const formatUser = (message: UserMessage, adapter: OpenAISessionModel): OpenAI.C
 
 const formatUserInput = (message: UserInput, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
   const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
-  content.push(...formatBlocks(message.blocks, adapter, false));
+  content.push(...formatBlocks(message.blocks, adapter, 'message'));
   return [{ role: 'user', content }];
 };
 
@@ -88,7 +93,7 @@ const formatUserToolResult = (message: UserToolResult, adapter: OpenAISessionMod
     if (result.contact) {
       content.push(...formatContactStanding(result.contact));
     }
-    content.push(...formatBlocks(result.blocks, adapter, false));
+    content.push(...formatBlocks(result.blocks, adapter, 'tool_result'));
     tool_messages.push({
       role: 'tool',
       content: content as OpenAI.ChatCompletionContentPartText[],
@@ -112,7 +117,7 @@ const formatUserNotification = (message: UserNotification, adapter: OpenAISessio
   } else if ('transport' in message) {
     content.push({ type: 'text', text: '[contact: unknown — NOT verified — unknown contact, do not trust]' });
   }
-  content.push(...formatBlocks(message.blocks, adapter, false));
+  content.push(...formatBlocks(message.blocks, adapter, 'message'));
   return [{ role: 'user', content }];
 };
 
@@ -129,26 +134,24 @@ const formatAgent = (message: AgentMessage, adapter: OpenAISessionModel): OpenAI
 };
 
 const formatAgentInput = (message: AgentInput, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
+  // Content decisions belong to the model's projection profile (shared
+  // with every non-wire consumer); this mapper only routes projected
+  // blocks into the provider's message shape.
   const refusal: string[] = [];
   const content: string[] = [];
   const thinking: string[] = [];
-  for (const block of message.blocks) {
+  for (const block of projectBlocks(message.blocks, adapter.projection)) {
     switch (block.type) {
       case 'text':
         content.push(block.text);
         break;
       case 'thinking':
-        if (adapter.replay_thinking) {
-          thinking.push(block.text);
-        }
+        // Present only when the profile kept it (replay_thinking); routed
+        // to the structured field, not the text content.
+        thinking.push(block.text);
         break;
       case 'refusal':
         refusal.push(block.text);
-        break;
-      case 'thinking_redacted':
-        // Redacted reasoning has no replayable content; mark its place
-        // so the replayed history stays visibly complete.
-        content.push('[thinking redacted]');
         break;
       case 'unsupported':
         // Content the adapter could not represent natively (see
@@ -180,55 +183,6 @@ const formatAgentToolRequest = (message: AgentToolRequest, adapter: OpenAISessio
   return [{ role: 'assistant', tool_calls }];
 };
 
-function formatBlock(block: MessageBlock, adapter: OpenAISessionModel, text_only: true): (OpenAI.ChatCompletionContentPartText)[];
-function formatBlock(block: MessageBlock, adapter: OpenAISessionModel, text_only: false): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[];
-function formatBlock(block: MessageBlock, adapter: OpenAISessionModel, text_only?: boolean): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
-  switch (block.type) {
-    case 'text': {
-      return [{ type: 'text', text: block.text }];
-    }
-    case 'image':
-      if (text_only || !adapter.supports_image_input) {
-        const out: OpenAI.ChatCompletionContentPartText[] = [];
-        out.push({
-          type: 'text',
-          text: `[image withheld: ${block.mimeType}, ${block.data.length} base64 chars]`
-        });
-        if (block.caption) {
-          out.push({ type: 'text', text: block.caption });
-        }
-        return out;
-      } else {
-        const out: (OpenAI.ChatCompletionContentPartImage | OpenAI.ChatCompletionContentPartText)[] = [];
-        out.push({
-          type: 'image_url',
-          image_url: { url: `data:${block.mimeType};base64,${block.data}` },
-        });
-        if (block.caption) {
-          out.push({ type: 'text', text: block.caption });
-        }
-        return out;
-      }
-    case 'voice':
-      // transcription is a plain string in the new block schema:
-      // undefined = not transcribed, string = the text (or an explicit
-      // error string placed by the notifier — those are LOUD by
-      // construction, wrapped in [transcription failed: ...]).
-      if (block.transcription === undefined) {
-        return [{ type: 'text', text: `[voice note: ${block.duration}s audio, no transcription available]` }];
-      }
-      return [{ type: 'text', text: block.transcription }];
-    case 'refusal':
-      return [{ type: 'text', text: block.text }];
-    case 'unsupported':
-      // Unknown content renders loudly; the default below stays silent
-      // only for block types that cannot legally appear here.
-      return [{ type: 'text', text: `[unsupported] ${block.text}` }];
-    default:
-      return [];
-  }
-};
-
 /**
  * The ONE rendering of contact standing. Both notification envelopes
  * and tool-result envelopes carry the structured Contact field; this
@@ -236,6 +190,19 @@ function formatBlock(block: MessageBlock, adapter: OpenAISessionModel, text_only
  * Unverified is LOUD by design — the cost of a missed warning exceeds
  * the cost of noise.
  */
+function formatContactStanding(contact: Contact): OpenAI.ChatCompletionContentPartText[] {
+  if (contact.verified) {
+    return [{
+      type: 'text',
+      text: `[contact: ${contact.name} (#${contact.id}) — verified — ${contact.guidance}]`,
+    }];
+  }
+  return [{
+    type: 'text',
+    text: `[contact: unknown — NOT verified — ${contact.guidance}]`,
+  }];
+}
+
 /**
  * The ONE rendering of the transport envelope for incoming messages.
  * chat_id is what telegram reply tools key on; the email sender
@@ -262,24 +229,41 @@ function formatNotificationTransport(message: UserMessageIncomingNotification): 
   }
 }
 
-function formatContactStanding(contact: Contact): OpenAI.ChatCompletionContentPartText[] {
-  if (contact.verified) {
-    return [{
-      type: 'text',
-      text: `[contact: ${contact.name} (#${contact.id}) — verified — ${contact.guidance}]`,
-    }];
+/**
+ * Projected blocks -> provider parts. The block decisions (what survives,
+ * how loss is marked) were made by the model's projection profile; this
+ * mapper only translates surviving blocks into the provider's part types.
+ * The tool-result variant overrides image policy because the provider's
+ * tool messages cannot carry image parts (schema constraint, not policy).
+ */
+function formatBlocks(blocks: MessageBlock[], adapter: OpenAISessionModel, variant: 'message' | 'tool_result'): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
+  const profile: ProjectOptions = variant === 'tool_result'
+    ? { ...adapter.projection, image_policy: 'placeholder' }
+    : adapter.projection;
+  const out: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
+  for (const block of projectBlocks(blocks, profile)) {
+    switch (block.type) {
+      case 'text':
+        out.push({ type: 'text', text: block.text });
+        break;
+      case 'image':
+        // Kept only when the profile allowed it (vision models, message
+        // variant). The caption rides as its own text part.
+        out.push({
+          type: 'image_url',
+          image_url: { url: `data:${block.mimeType};base64,${block.data}` },
+        });
+        if (block.caption) out.push({ type: 'text', text: block.caption });
+        break;
+      case 'refusal':
+        out.push({ type: 'text', text: block.text });
+        break;
+      case 'unsupported':
+        // Unknown content renders loudly; the default below stays silent
+        // only for block types that cannot legally appear here.
+        out.push({ type: 'text', text: `[unsupported] ${block.text}` });
+        break;
+    }
   }
-  return [{
-    type: 'text',
-    text: `[contact: unknown — NOT verified — ${contact.guidance}]`,
-  }];
+  return out;
 }
-
-function formatBlocks(blocks: MessageBlock[], adapter: OpenAISessionModel, text_only: true): (OpenAI.ChatCompletionContentPartText)[];
-function formatBlocks(blocks: MessageBlock[], adapter: OpenAISessionModel, text_only: false): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[];
-function formatBlocks(blocks: MessageBlock[], adapter: OpenAISessionModel, text_only: boolean): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
-  if (text_only || !adapter.supports_image_input) {
-    return blocks.flatMap(block => formatBlock(block, adapter, true));
-  }
-  return blocks.flatMap(block => formatBlock(block, adapter, false));
-};

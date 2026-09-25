@@ -29,12 +29,15 @@ export interface ProjectOptions {
   /** Drop tool_req/tool_res messages entirely. */
   exclude_tool_traffic: boolean;
   /**
-   * How media blocks (image, voice) are represented:
-   * - 'keep': pass through untouched (visual model wire, monologue mirror);
+   * How media blocks are represented. Per-medium, not uniform: image and
+   * voice differ in what every audience can do with them (a visual-model
+   * wire keeps images but no current wire carries native audio).
+   * - 'keep': pass through untouched (visual model wire, mirrors);
    * - 'placeholder': replace with a visible text marker;
    * - 'omit': drop entirely.
    */
-  media_policy: 'keep' | 'placeholder' | 'omit';
+  image_policy: 'keep' | 'placeholder' | 'omit';
+  voice_policy: 'keep' | 'placeholder' | 'omit';
 }
 
 export const PROJECT_DISTILLATION_OPTS = {
@@ -45,7 +48,8 @@ export const PROJECT_DISTILLATION_OPTS = {
   // Visible markers over silent omission — the survey showed labeled
   // placeholders are the norm (opencode, pi), and silence was the old
   // defect class this layer exists to end.
-  media_policy: 'placeholder',
+  image_policy: 'placeholder',
+  voice_policy: 'placeholder',
 } satisfies ProjectOptions;
 
 export const PROJECT_COMPACTION_OPTS = {
@@ -53,7 +57,8 @@ export const PROJECT_COMPACTION_OPTS = {
   exclude_thinking: true,
   thinking_redacted_policy: 'omit',
   exclude_tool_traffic: false,
-  media_policy: 'placeholder',
+  image_policy: 'placeholder',
+  voice_policy: 'placeholder',
 } satisfies ProjectOptions;
 
 export const PROJECT_MONOLOGUE_LOGGING_OPTS = {
@@ -61,7 +66,8 @@ export const PROJECT_MONOLOGUE_LOGGING_OPTS = {
   exclude_thinking: false,
   thinking_redacted_policy: 'keep',
   exclude_tool_traffic: false,
-  media_policy: 'placeholder',
+  image_policy: 'placeholder',
+  voice_policy: 'placeholder',
 } satisfies ProjectOptions;
 
 /**
@@ -120,7 +126,7 @@ export const projectMessage = (message: Message, opts: ProjectOptions): Message 
  * TextBlock (a member of both UserBlock and AgentBlock). The internal
  * cast below only bridges the generic parameter, not the type space.
  */
-const projectBlocks = <B extends MessageBlock>(blocks: readonly B[], opts: ProjectOptions): B[] => {
+export const projectBlocks = <B extends MessageBlock>(blocks: readonly B[], opts: ProjectOptions): B[] => {
   const projected: B[] = [];
   for (const block of blocks) {
     const mapped = projectBlock(block as MessageBlock, opts);
@@ -150,13 +156,15 @@ const projectBlock = (block: MessageBlock, opts: ProjectOptions): MessageBlock |
       return block;
 
     case 'image':
-      if (opts.media_policy === 'omit') return null;
-      if (opts.media_policy === 'keep') return block;
-      return { type: 'text', text: `[image omitted: ${block.mimeType}]` };
+      if (opts.image_policy === 'omit') return null;
+      if (opts.image_policy === 'keep') return block;
+      // The caption is content: it survives with the marker (a caption
+      // dropped silently would be the exact defect class this layer ends).
+      return { type: 'text', text: block.caption ? `[image omitted: ${block.mimeType}] ${block.caption}` : `[image omitted: ${block.mimeType}]` };
 
     case 'voice':
-      if (opts.media_policy === 'omit') return null;
-      if (opts.media_policy === 'keep') return block;
+      if (opts.voice_policy === 'omit') return null;
+      if (opts.voice_policy === 'keep') return block;
       // A transcription is content: when present it survives as text.
       if (block.transcription) return { type: 'text', text: truncate(block.transcription, opts.max_text_length) };
       return { type: 'text', text: `[voice note omitted: ${block.path}, ${block.duration}s]` };
