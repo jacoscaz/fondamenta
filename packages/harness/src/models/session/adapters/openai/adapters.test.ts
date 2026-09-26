@@ -185,3 +185,59 @@ test('formatMessages: a tool request after a user message folds only into assist
   assert.equal((wire[1] as { role: string }).role, 'assistant');
   assert.equal((wire[2] as { role: string }).role, 'tool');
 });
+
+/**
+ * Round-trip guarantee (2026-09-26, prosthetic rule — Log #3451: "a
+ * prosthetic may mediate but must label its own mediation"; "audits need a
+ * scheduled place where mediation shows"). The fold is a mediator on the
+ * wire: it must be verifiable IN its mediation. This test walks both
+ * directions of the channel — a response PARSES to the split internal
+ * shape (input + tool_req), and formatting the grown history RE-FOLDS it
+ * into one native assistant turn (thinking preserved alongside the calls)
+ * stably across replay. The suite is the scheduled place.
+ */
+test('round trip: a parsed split turn re-folds into one native assistant message in replay', () => {
+  const response = {
+    role: 'assistant',
+    content: 'calling now',
+    reasoning_content: 'the reasoning',
+    tool_calls: [
+      { id: 'c1', type: 'function', function: { name: 'shell_exec', arguments: '{"command":"ls"}' } },
+    ],
+  } as unknown as OpenAI.ChatCompletionMessage;
+
+  // Inbound direction: the provider's turn lands as the split internal shape.
+  const parsed = parseMessage(response);
+  const req = parsed.find((m) => m.type === 'tool_req') as { requests: { req_id: string; tool: string }[] } | undefined;
+  assert.ok(req, 'a response with tool_calls parses to a tool_req');
+  assert.equal(req.requests[0]?.tool, 'shell_exec');
+
+  // History grows: user turn, the parsed agent turn, the tool result.
+  const history: Message[] = [
+    { role: 'user', type: 'input', blocks: [{ type: 'text', text: 'hello' }] },
+    ...(parsed as Message[]),
+    {
+      role: 'user',
+      type: 'tool_res',
+      results: [{ req_id: req.requests[0].req_id, tool: 'shell_exec', blocks: [{ type: 'text', text: 'done' }] }],
+    },
+  ];
+
+  // Outbound direction: replay re-folds the split into the native shape.
+  const wire = formatMessages(history, FAKE_THINKING_ADAPTER);
+  const assistants = wire.filter((m) => (m as { role: string }).role === 'assistant');
+  assert.equal(assistants.length, 1);
+  const turn = assistants[0] as {
+    reasoning_content?: string;
+    content?: string;
+    tool_calls?: { function: { name: string } }[];
+  };
+  assert.equal(turn.reasoning_content, 'the reasoning');
+  assert.ok(turn.content?.includes('calling now'));
+  assert.equal(turn.tool_calls?.length, 1);
+  assert.equal(turn.tool_calls?.[0]?.function?.name, 'shell_exec');
+
+  // The mediation is STABLE across replay: every request re-formats the
+  // grown history — no double-folding, no drift.
+  assert.deepEqual(formatMessages(history, FAKE_THINKING_ADAPTER), wire);
+});
