@@ -48,7 +48,30 @@ import {
   * here, in the adapter.
   */
 export const formatMessages = (messages: Message[], adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
-  return messages.flatMap(m => formatMessage(m, adapter));
+  return foldToolRequests(messages.flatMap(m => formatMessage(m, adapter)));
+};
+
+// [PROBE 2026-09-26] Some providers (MiMo 2.6 on DeepInfra) require reasoning
+// content preserved ALONGSIDE the tool calls of the same assistant turn;
+// the internal AgentInput/AgentToolRequest split otherwise projects as two
+// adjacent assistant messages, severing the thread. Assistant wire messages
+// are produced only by AgentInput (reasoning+text) and AgentToolRequest
+// (bare tool_calls), so folding any assistant-with-tool_calls into the
+// preceding assistant message reconstructs the true single-turn shape.
+// A tool_calls message with no preceding assistant (bare tool_req at
+// conversation start) is left standalone.
+const foldToolRequests = (wire: OpenAI.ChatCompletionMessageParam[]): OpenAI.ChatCompletionMessageParam[] => {
+  const out: OpenAI.ChatCompletionMessageParam[] = [];
+  for (const msg of wire) {
+    const cur = msg as { role: string; tool_calls?: unknown[] };
+    const prev = out.length > 0 ? (out[out.length - 1] as { role: string; tool_calls?: unknown[] }) : null;
+    if (cur.role === 'assistant' && Array.isArray(cur.tool_calls) && prev?.role === 'assistant') {
+      prev.tool_calls = [...(prev.tool_calls ?? []), ...cur.tool_calls];
+      continue;
+    }
+    out.push(msg);
+  }
+  return out;
 };
 
 export const formatMessage = (message: Message, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {

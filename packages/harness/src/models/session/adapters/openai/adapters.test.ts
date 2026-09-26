@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert";
 import OpenAI from "openai";
 import { parseMessage } from "./parsers.js";
-import { formatMessage } from "./formatters.js";
+import { formatMessage, formatMessages } from "./formatters.js";
 import { projectMessage } from "../../../../projection.js";
 import { type OpenAISessionModel } from "./openai.js";
 import { type AgentInput, type Message } from "../../../../types/messages.js";
@@ -92,4 +92,96 @@ test('formatMessage: unsupported and thinking_redacted replay as loud marked tex
   assert.ok(assistant.content?.includes('the visible answer'));
   // replay_thinking is false on the fake adapter: no reasoning_content.
   assert.equal(assistant.reasoning_content, undefined);
+});
+
+/**
+ * Fold guarantees (2026-09-26, split-self fix): an agent turn that thinks,
+ * writes, and calls tools must project as ONE assistant wire message with
+ * reasoning_content + content + tool_calls together — several providers
+ * (MiMo 2.6 on DeepInfra) require reasoning preserved alongside tool calls
+ * and shed self-motivated continuation calls when the turn is split.
+ */
+
+const FAKE_THINKING_ADAPTER = {
+  replay_thinking: true,
+  supports_image_input: false,
+  projection: {
+    max_text_length: Infinity,
+    exclude_thinking: false,
+    thinking_redacted_policy: 'placeholder',
+    exclude_tool_traffic: false,
+    image_policy: 'placeholder',
+    voice_policy: 'placeholder',
+  },
+} as unknown as OpenAISessionModel;
+
+test('formatMessages: a tool request folds into the preceding assistant message', () => {
+  const messages: Message[] = [
+    {
+      role: 'agent',
+      type: 'input',
+      blocks: [
+        { type: 'thinking', text: 'the reasoning' },
+        { type: 'text', text: 'calling now' },
+      ],
+    },
+    {
+      role: 'agent',
+      type: 'tool_req',
+      requests: [{ req_id: 'r1', tool: 'shell_exec', params: { command: 'ls' } }],
+    },
+  ];
+
+  const wire = formatMessages(messages, FAKE_THINKING_ADAPTER);
+  assert.equal(wire.length, 1);
+  const assistant = wire[0] as {
+    role: string;
+    reasoning_content?: string;
+    content?: string;
+    tool_calls?: { function: { name: string } }[];
+  };
+  assert.equal(assistant.role, 'assistant');
+  assert.equal(assistant.reasoning_content, 'the reasoning');
+  assert.ok(assistant.content?.includes('calling now'));
+  assert.equal(assistant.tool_calls?.length, 1);
+  assert.equal(assistant.tool_calls?.[0]?.function?.name, 'shell_exec');
+});
+
+test('formatMessages: a bare tool request with no preceding assistant stays standalone', () => {
+  const messages: Message[] = [
+    {
+      role: 'agent',
+      type: 'tool_req',
+      requests: [{ req_id: 'r1', tool: 'shell_exec', params: { command: 'ls' } }],
+    },
+  ];
+
+  const wire = formatMessages(messages, FAKE_THINKING_ADAPTER);
+  assert.equal(wire.length, 1);
+  const assistant = wire[0] as { role: string; tool_calls?: unknown[] };
+  assert.equal(assistant.role, 'assistant');
+  assert.equal(assistant.tool_calls?.length, 1);
+});
+
+test('formatMessages: a tool request after a user message folds only into assistant turns', () => {
+  const messages: Message[] = [
+    { role: 'user', type: 'input', blocks: [{ type: 'text', text: 'hello' }] },
+    {
+      role: 'agent',
+      type: 'tool_req',
+      requests: [{ req_id: 'r1', tool: 'shell_exec', params: { command: 'ls' } }],
+    },
+    {
+      role: 'user',
+      type: 'tool_res',
+      results: [{ req_id: 'r1', tool: 'shell_exec', blocks: [{ type: 'text', text: 'done' }] }],
+    },
+  ];
+
+  const wire = formatMessages(messages, FAKE_THINKING_ADAPTER);
+  // user + standalone assistant (no prior assistant to fold into) + tool results
+  assert.equal(wire.length, 3);
+  assert.equal((wire[0] as { role: string }).role, 'user');
+  assert.equal((wire[1] as { role: string }).role, 'assistant');
+  assert.equal((wire[2] as { role: string }).role, 'tool');
 });
