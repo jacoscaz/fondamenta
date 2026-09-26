@@ -48,7 +48,30 @@ import {
   * here, in the adapter.
   */
 export const formatMessages = (messages: Message[], adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
-  return messages.flatMap(m => formatMessage(m, adapter));
+  return foldToolRequests(messages.flatMap(m => formatMessage(m, adapter)));
+};
+
+// [PROBE 2026-09-26] Some providers (MiMo 2.6 on DeepInfra) require reasoning
+// content preserved ALONGSIDE the tool calls of the same assistant turn;
+// the internal AgentInput/AgentToolRequest split otherwise projects as two
+// adjacent assistant messages, severing the thread. Assistant wire messages
+// are produced only by AgentInput (reasoning+text) and AgentToolRequest
+// (bare tool_calls), so folding any assistant-with-tool_calls into the
+// preceding assistant message reconstructs the true single-turn shape.
+// A tool_calls message with no preceding assistant (bare tool_req at
+// conversation start) is left standalone.
+const foldToolRequests = (wire: OpenAI.ChatCompletionMessageParam[]): OpenAI.ChatCompletionMessageParam[] => {
+  const out: OpenAI.ChatCompletionMessageParam[] = [];
+  for (const msg of wire) {
+    const cur = msg as { role: string; tool_calls?: unknown[] };
+    const prev = out.length > 0 ? (out[out.length - 1] as { role: string; tool_calls?: unknown[] }) : null;
+    if (cur.role === 'assistant' && Array.isArray(cur.tool_calls) && prev?.role === 'assistant') {
+      prev.tool_calls = [...(prev.tool_calls ?? []), ...cur.tool_calls];
+      continue;
+    }
+    out.push(msg);
+  }
+  return out;
 };
 
 export const formatMessage = (message: Message, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
@@ -78,7 +101,7 @@ const formatUser = (message: UserMessage, adapter: OpenAISessionModel): OpenAI.C
 };
 
 const formatUserInput = (message: UserInput, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
-  const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
+  const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage | OpenAI.ChatCompletionContentPartInputAudio)[] = [];
   content.push(...formatBlocks(message.blocks));
   return [{ role: 'user', content }];
 };
@@ -86,7 +109,7 @@ const formatUserInput = (message: UserInput, adapter: OpenAISessionModel): OpenA
 const formatUserToolResult = (message: UserToolResult, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
   const tool_messages: OpenAI.ChatCompletionToolMessageParam[] = [];
   for (const result of message.results) {
-    const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
+    const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage | OpenAI.ChatCompletionContentPartInputAudio)[] = [];
     // Same single rendering for tool-result provenance: standing
     // rides in the schema field, rendered here and nowhere else.
     if (result.contact) {
@@ -103,7 +126,7 @@ const formatUserToolResult = (message: UserToolResult, adapter: OpenAISessionMod
 };
 
 const formatUserNotification = (message: UserNotification, adapter: OpenAISessionModel): OpenAI.ChatCompletionMessageParam[] => {
-  const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
+  const content: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage | OpenAI.ChatCompletionContentPartInputAudio)[] = [];
   content.push({
     type: 'text',
     text: `[${EVENT_PREFIX}${message.method}]`,
@@ -237,8 +260,8 @@ function formatNotificationTransport(message: UserMessageIncomingNotification): 
  * provider's part types, and hard-crashes on any block it does not
  * support — a violation means the upstream projection was wrong.
  */
-function formatBlocks(blocks: MessageBlock[]): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] {
-  const out: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage)[] = [];
+function formatBlocks(blocks: MessageBlock[]): (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage | OpenAI.ChatCompletionContentPartInputAudio)[] {
+  const out: (OpenAI.ChatCompletionContentPartText | OpenAI.ChatCompletionContentPartImage | OpenAI.ChatCompletionContentPartInputAudio)[] = [];
   for (const block of blocks) {
     switch (block.type) {
       case 'text':
@@ -252,6 +275,23 @@ function formatBlocks(blocks: MessageBlock[]): (OpenAI.ChatCompletionContentPart
           image_url: { url: `data:${block.mimeType};base64,${block.data}` },
         });
         if (block.caption) out.push({ type: 'text', text: block.caption });
+        break;
+      case 'voice':
+        // Kept only when the profile allowed it (audio models). Native
+        // audio rides as input_audio; the transcript stays as text —
+        // labels the mediation and keeps fallbacks (and me) reading.
+        if (block.data) {
+          out.push({
+            type: 'input_audio',
+            input_audio: { data: block.data, format: block.dataFormat ?? 'wav' },
+          });
+        }
+        out.push({
+          type: 'text',
+          text: block.transcription
+            ? `[voice note, ${block.duration}s${block.data ? ', audio attached' : ', audio unavailable'}]: ${block.transcription}`
+            : `[voice note, ${block.duration}s${block.data ? ', audio attached' : ', audio unavailable'}, no transcription]`,
+        });
         break;
       case 'refusal':
         out.push({ type: 'text', text: block.text });
