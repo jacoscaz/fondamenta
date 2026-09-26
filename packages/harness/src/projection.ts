@@ -1,5 +1,5 @@
-import { Message } from "./types/messages.js";
-import { MessageBlock } from "./types/blocks.js";
+import { Message, UserBlock } from "./types/messages.js";
+import { MessageBlock, TextBlock, VoiceBlock } from "./types/blocks.js";
 
 /**
  * Message projection: the single content-decision layer shared by every
@@ -39,6 +39,19 @@ export interface ProjectOptions {
    */
   image_policy: 'keep' | 'placeholder' | 'omit';
   voice_policy: 'keep' | 'placeholder' | 'omit';
+  /**
+   * How many data-carrying voice blocks may ride as native audio per
+   * prompt, in conversation order (most recent kept). Providers cap
+   * input_audio parts (DeepInfra/MiMo: 2 — hit live 2026-09-26 when a
+   * third voice note entered one session's history and the provider
+   * rejected the whole request). The transcript is the guaranteed
+   * channel; sound is additive. Voice blocks beyond the window convert
+   * to their transcription with an 'audio aged out' marker — distinct
+   * from the placeholder path ('omitted') because the causes differ.
+   * Undefined = unlimited. Consulted only under voice_policy 'keep'
+   * (placeholder/omit never let audio ride).
+   */
+  audio_window?: number;
 }
 
 export const PROJECT_DISTILLATION_OPTS = {
@@ -76,10 +89,61 @@ export const PROJECT_MONOLOGUE_LOGGING_OPTS = {
  * under exclude_tool_traffic) are removed here, so downstream consumers
  * never see holes — they see the projected conversation.
  */
+/**
+ * Voice becomes its transcript when native audio does not ride. The
+ * cause is declared in the marker: 'omitted' (policy: this audience
+ * never gets audio) vs 'aged-out' (audio existed, but the per-prompt
+ * audio window released it). Same rule as everywhere in this layer —
+ * visible, labelled loss over silent loss.
+ */
+const voiceToText = (block: VoiceBlock, opts: ProjectOptions, cause: 'omitted' | 'aged-out'): TextBlock => {
+  if (block.transcription) {
+    const marker = cause === 'aged-out' ? ', audio aged out' : '';
+    return { type: 'text', text: truncate(`[voice note transcript, ${block.duration}s${marker}]: ${block.transcription}`, opts.max_text_length) };
+  }
+  return { type: 'text', text: cause === 'aged-out'
+    ? `[voice note aged out: ${block.path}, ${block.duration}s]`
+    : `[voice note omitted: ${block.path}, ${block.duration}s]` };
+};
+
+const isCarryingVoice = (b: UserBlock): b is VoiceBlock => b.type === 'voice' && !!b.data;
+
+/**
+ * The audio window (opts.audio_window, consulted only under
+ * voice_policy 'keep'): at most N data-carrying voice blocks per
+ * conversation may ride as native audio — providers cap input_audio
+ * parts per prompt. Older blocks convert to their transcription, so
+ * what survives the projection is complete either way: recent notes as
+ * sound + transcript, older notes as transcript with the cause marked.
+ */
+const applyAudioWindow = (messages: Message[], opts: ProjectOptions): Message[] => {
+  if (opts.voice_policy !== 'keep') return messages;
+  const limit = opts.audio_window ?? Number.POSITIVE_INFINITY;
+  const carrying: VoiceBlock[] = [];
+  for (const m of messages) {
+    if (m.role !== 'user') continue;
+    if (m.type === 'input' || m.type === 'notification') carrying.push(...m.blocks.filter(isCarryingVoice));
+    else if (m.type === 'tool_res') for (const r of m.results) carrying.push(...r.blocks.filter(isCarryingVoice));
+  }
+  if (carrying.length <= limit) return messages;
+  const evicted = new Set(carrying.slice(0, carrying.length - limit));
+  const release = (b: UserBlock): UserBlock =>
+    evicted.has(b as VoiceBlock) ? voiceToText(b as VoiceBlock, opts, 'aged-out') : b;
+  return messages.map((m): Message => {
+    if (m.role !== 'user') return m;
+    if (m.type === 'input' || m.type === 'notification') return { ...m, blocks: m.blocks.map(release) };
+    if (m.type === 'tool_res') return { ...m, results: m.results.map(r => ({ ...r, blocks: r.blocks.map(release) })) };
+    return m;
+  });
+};
+
 export const projectMessages = (messages: Message[], opts: ProjectOptions): Message[] => {
-  return messages
-    .map(message => projectMessage(message, opts))
-    .filter((message): message is Message => message !== null);
+  return applyAudioWindow(
+    messages
+      .map(message => projectMessage(message, opts))
+      .filter((message): message is Message => message !== null),
+    opts,
+  );
 };
 
 /**
@@ -170,8 +234,7 @@ const projectBlock = (block: MessageBlock, opts: ProjectOptions): MessageBlock |
       // wrapped in a provenance marker — the reader must be able to tell
       // a spoken note from a typed message, and the no-transcription
       // placeholder above already declares the convention.
-      if (block.transcription) return { type: 'text', text: truncate(`[voice note transcript, ${block.duration}s]: ${block.transcription}`, opts.max_text_length) };
-      return { type: 'text', text: `[voice note omitted: ${block.path}, ${block.duration}s]` };
+      return voiceToText(block, opts, 'omitted');
 
     case 'unsupported':
       // Unknown content always survives, loudly, in every profile.

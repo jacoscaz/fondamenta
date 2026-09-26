@@ -85,9 +85,10 @@ export abstract class AbstractSessionModel {
    * - thinking survives projection iff replay_thinking (the adapter then
    *   routes it to provider fields / applies validity gates);
    * - redacted reasoning marks its place;
-   * - images are kept iff the model supports vision, voice never survives
-   *   raw (no current wire carries native audio; projection extracts the
-   *   transcription or emits the marker).
+   * - images are kept iff the model supports vision; voice is kept raw
+   *   iff the model supports audio input (openai-style input_audio,
+   *   since 2026-09-26), under the per-prompt audio window — providers
+   *   cap how many audio parts a single request may carry.
    */
   get projection(): ProjectOptions {
     return {
@@ -97,6 +98,11 @@ export abstract class AbstractSessionModel {
       exclude_tool_traffic: false,
       image_policy: (this.#modalities.images ?? false) ? 'keep' : 'placeholder',
       voice_policy: (this.#modalities.audio ?? false) ? 'keep' : 'placeholder',
+      // DeepInfra/MiMo caps input_audio at 2 per prompt (hit live
+      // 2026-09-26: a third voice note in one session's history got the
+      // whole request rejected). The transcript is the guaranteed
+      // channel, so older notes age out to transcript in projection.
+      audio_window: 2,
     };
   }
 

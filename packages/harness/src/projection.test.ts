@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert";
 import { Message, AgentBlock } from "./types/messages.js";
-import { UnsupportedBlock, MessageBlock } from "./types/blocks.js";
+import { UnsupportedBlock, MessageBlock, VoiceBlock, TextBlock } from "./types/blocks.js";
 import {
   PROJECT_COMPACTION_OPTS,
   PROJECT_DISTILLATION_OPTS,
@@ -198,6 +198,35 @@ test('wrapper tags: applied once around the blob, forgeries escaped inside', () 
 
   const monologue = serializeMessage(forging, SERIALIZE_MONOLOGUE_LOGGING_OPTS);
   assert.ok(!monologue.includes('<conversation>'), 'monologue profile has no wrapper');
+});
+
+test('audio window: beyond audio_window, older voice notes convert to their transcription with the cause marked', () => {
+  const voice = (n: number): VoiceBlock => ({
+    type: 'voice',
+    path: `/tmp/n${n}.ogg`,
+    mimeType: 'audio/ogg',
+    duration: n * 10,
+    transcription: `words ${n}`,
+    data: `DATA${n}`,
+    dataFormat: 'wav' as const,
+  });
+  const messages: Message[] = [1, 2, 3].map((n) => ({
+    role: 'user' as const,
+    type: 'input' as const,
+    blocks: [voice(n)],
+  }));
+  const opts = { ...PROJECT_DISTILLATION_OPTS, voice_policy: 'keep' as const, audio_window: 2 };
+
+  const out = projectMessages(messages, opts);
+  const blocks = out.flatMap((m) => (m.role === 'user' && m.type === 'input' ? m.blocks : []));
+  const voices = blocks.filter((b): b is VoiceBlock => b.type === 'voice');
+  const texts = blocks.filter((b): b is TextBlock => b.type === 'text');
+
+  assert.equal(voices.length, 2, 'only the window survives as native audio');
+  assert.ok(voices.every((b) => b.data === 'DATA2' || b.data === 'DATA3'), 'the window keeps the NEWEST notes');
+  const aged = texts.find((b) => b.text.includes('audio aged out'));
+  assert.ok(aged, 'aged-out note converted to transcript with cause marked');
+  assert.ok(aged?.text.includes('words 1'), 'the aged-out note keeps its transcript content');
 });
 
 test('projectMessages drops tool traffic without leaving holes', () => {
